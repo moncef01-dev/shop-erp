@@ -1,0 +1,444 @@
+// Prisma schema for Shop ERP - SQLite local database
+// Database file is stored at: ./prisma/shop.db (relative to project root)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── PRODUCTS & CATEGORIES ───────────────────────────────────────────────────
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id           Int       @id @default(autoincrement())
+  sku          String    @unique
+  name         String
+  model        String?
+  color        String?
+  description  String?
+  category     String?
+  categoryId   Int?
+  categoryRef  Category? @relation(fields: [categoryId], references: [id])
+  unitPrice    Float?
+  sellingPrice Float?
+  costPrice    Float?
+  stock        Int       @default(0)
+  minStock     Int       @default(0)
+  unit         String    @default("pièce")
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  saleItems            SaleItem[]
+  purchaseItems        PurchaseItem[]
+  purchaseReceiptItems PurchaseReceiptItem[]
+  stocks               ProductStock[]
+  movements            StockMovement[]
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@map("products")
+}
+
+// ─── LOCATIONS & INVENTORY ───────────────────────────────────────────────────
+
+model Location {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  address     String?
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stocks               ProductStock[]
+  sourceMovements      StockMovement[]       @relation("SourceLocation")
+  destMovements        StockMovement[]       @relation("DestinationLocation")
+  saleItems            SaleItem[]
+  purchaseItems        PurchaseItem[]
+  purchaseReceiptItems PurchaseReceiptItem[]
+
+  @@map("locations")
+}
+
+model ProductStock {
+  id         Int      @id @default(autoincrement())
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  locationId Int
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([productId, locationId])
+  @@index([locationId])
+  @@map("product_stocks")
+}
+
+model StockMovement {
+  id             Int       @id @default(autoincrement())
+  reference      String?
+  type           String    // "RECEIPT", "ISSUE", "ADJUSTMENT", "TRANSFER", "INITIAL", "SALE"
+  productId      Int
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fromLocationId Int?
+  fromLocation   Location? @relation("SourceLocation", fields: [fromLocationId], references: [id])
+  toLocationId   Int?
+  toLocation     Location? @relation("DestinationLocation", fields: [toLocationId], references: [id])
+  quantity       Int
+  unitCost       Float?
+  stockBefore    Int?
+  stockAfter     Int?
+  reason         String?
+  notes          String?
+  date           DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+
+  saleId         Int?
+  sale           Sales?    @relation(fields: [saleId], references: [id])
+  purchaseId     Int?
+  purchase       Purchase? @relation(fields: [purchaseId], references: [id])
+
+  @@index([productId])
+  @@index([type])
+  @@index([date])
+  @@index([reference])
+  @@map("stock_movements")
+}
+
+// ─── CUSTOMERS ────────────────────────────────────────────────────────────────
+ 
+model Customer {
+  id        Int      @id @default(autoincrement())
+  code      String?  @unique
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales Sales[]
+
+  @@map("customers")
+}
+
+// ─── SUPPLIERS ───────────────────────────────────────────────────────────────
+
+model Supplier {
+  id        Int      @id @default(autoincrement())
+  code      String?  @unique
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases Purchase[]
+
+  @@index([isActive])
+  @@map("suppliers")
+}
+
+// ─── SALES & PAYMENTS ─────────────────────────────────────────────────────────
+
+model Sales {
+  id             Int        @id @default(autoincrement())
+  reference      String     @unique
+  customerId     Int?
+  customer       Customer?  @relation(fields: [customerId], references: [id])
+  status         String     @default("draft") // "draft", "confirmed", "cancelled"
+  subtotal       Float      @default(0)
+  discount       Float      @default(0)
+  deliveryFee    Float      @default(0)
+  totalAmount    Float      @default(0)
+  paidAmount     Float      @default(0)
+  paymentStatus  String     @default("unpaid") // "unpaid", "partial", "paid"
+  deliveryStatus String     @default("none")   // "none", "pending", "in_transit", "delivered", "cancelled"
+  notes          String?
+  saleDate       DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  items      SaleItem[]
+  deliveries Delivery[]
+  payments   Payment[]
+  movements  StockMovement[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([saleDate])
+  @@map("sales")
+}
+
+model SaleItem {
+  id         Int       @id @default(autoincrement())
+  saleId     Int
+  sale       Sales     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product   @relation(fields: [productId], references: [id])
+  locationId Int?
+  location   Location? @relation(fields: [locationId], references: [id])
+  quantity   Int
+  unitPrice  Float
+  discount   Float     @default(0)
+  subtotal   Float
+
+  @@index([saleId])
+  @@index([productId])
+  @@index([locationId])
+  @@map("sale_items")
+}
+
+model Payment {
+  id          Int       @id @default(autoincrement())
+  reference   String?   @unique
+  saleId      Int?
+  sale        Sales?    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  purchaseId  Int?
+  purchase    Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  amount      Float
+  method      String    @default("cash")
+  status      String    @default("completed")
+  notes       String?
+  paymentDate DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  sessionId   Int?
+  session     CashSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([purchaseId])
+  @@index([paymentDate])
+  @@index([sessionId])
+  @@map("payments")
+}
+
+// ─── PURCHASES ───────────────────────────────────────────────────────────────
+
+model Purchase {
+  id                   Int               @id @default(autoincrement())
+  reference            String            @unique
+  supplierId           Int?
+  supplier             Supplier?         @relation(fields: [supplierId], references: [id])
+  status               String            @default("draft") // draft, ordered, partially_received, received, cancelled
+  receiptStatus        String            @default("pending") // pending, partial, received
+  paymentStatus        String            @default("unpaid") // unpaid, partial, paid
+  subtotal             Float             @default(0)
+  discount             Float             @default(0)
+  totalAmount          Float             @default(0)
+  paidAmount           Float             @default(0)
+  notes                String?
+  expectedDeliveryDate DateTime?
+  purchaseDate         DateTime          @default(now())
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  items                PurchaseItem[]
+  receipts             PurchaseReceipt[]
+  payments             Payment[]
+  movements            StockMovement[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([receiptStatus])
+  @@index([paymentStatus])
+  @@index([purchaseDate])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id               Int                   @id @default(autoincrement())
+  purchaseId       Int
+  purchase         Purchase              @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId        Int
+  product          Product               @relation(fields: [productId], references: [id])
+  locationId       Int?
+  location         Location?             @relation(fields: [locationId], references: [id])
+  quantity         Int
+  receivedQuantity Int                   @default(0)
+  unitCost         Float
+  subtotal         Float
+
+  receiptItems     PurchaseReceiptItem[]
+
+  @@index([purchaseId])
+  @@index([productId])
+  @@index([locationId])
+  @@map("purchase_items")
+}
+
+// ─── PURCHASE RECEIPTS ───────────────────────────────────────────────────────
+
+model PurchaseReceipt {
+  id          Int                   @id @default(autoincrement())
+  reference   String                @unique
+  purchaseId  Int
+  purchase    Purchase              @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  receiptDate DateTime              @default(now())
+  notes       String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  items       PurchaseReceiptItem[]
+
+  @@index([purchaseId])
+  @@index([receiptDate])
+  @@map("purchase_receipts")
+}
+
+model PurchaseReceiptItem {
+  id             Int             @id @default(autoincrement())
+  receiptId      Int
+  receipt        PurchaseReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  purchaseItemId Int
+  purchaseItem   PurchaseItem    @relation(fields: [purchaseItemId], references: [id], onDelete: Cascade)
+  productId      Int
+  product        Product         @relation(fields: [productId], references: [id])
+  locationId     Int
+  location       Location        @relation(fields: [locationId], references: [id])
+  quantity       Int
+  unitCost       Float?
+
+  @@index([receiptId])
+  @@index([purchaseItemId])
+  @@index([productId])
+  @@index([locationId])
+  @@map("purchase_receipt_items")
+}
+
+// ─── DELIVERIES ──────────────────────────────────────────────────────────────
+
+model Delivery {
+  id            Int       @id @default(autoincrement())
+  reference     String    @unique
+  saleId        Int?
+  sale          Sales?    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  method        String    @default("home_delivery") // "home_delivery", "store_pickup"
+  status        String    @default("pending")
+  fee           Float     @default(0)
+  deliveryDate  DateTime?
+  address       String?
+  recipientName String?
+  carrierName   String?
+  deliveredAt   DateTime?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([saleId])
+  @@map("deliveries")
+}
+
+// ─── CASH & TREASURY ──────────────────────────────────────────────────────────
+
+model CashSession {
+  id                Int       @id @default(autoincrement())
+  reference         String    @unique
+  openedAt          DateTime  @default(now())
+  closedAt          DateTime?
+  status            String    @default("open") // "open", "closed"
+  openingAmount     Float     @default(0)
+  totalCashIn       Float     @default(0)
+  totalCashOut      Float     @default(0)
+  theoreticalAmount Float?
+  closingAmount     Float?
+  difference        Float?
+  openingNotes      String?
+  closingNotes      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  expenses          Expense[]
+  payments          Payment[]
+
+  @@index([status])
+  @@index([openedAt])
+  @@map("cash_sessions")
+}
+
+model Expense {
+  id             Int          @id @default(autoincrement())
+  reference      String       @unique
+  type           String       @default("expense") // "expense" (décaissement), "income" (encaissement exceptionnel)
+  category       String       // "transport", "utilities", "rent", "maintenance", "supplies", "salary", "other", "capital", "misc_income"
+  description    String
+  amount         Float
+  method         String       @default("cash") // "cash", "transfer", "check", "cib"
+  beneficiary    String?
+  receiptNumber  String?
+  notes          String?
+  date           DateTime     @default(now())
+  sessionId      Int?
+  session        CashSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([type])
+  @@index([category])
+  @@index([date])
+  @@index([method])
+  @@index([sessionId])
+  @@map("expenses")
+}
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  type        String
+  category    String?
+  description String
+  amount      Float
+  date        DateTime @default(now())
+  reference   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("transactions")
+}
+
+// ─── SETTINGS & SHOP IDENTITY ─────────────────────────────────────────────────
+
+model ShopSettings {
+  id                   Int      @id @default(1)
+  shopName             String   @default("Shop ERP Mobilier")
+  activity             String?  @default("Magasin d'Ameublement & Décoration d'Intérieur")
+  address              String?  @default("Zone Commerciale & Exposition — Alger, Algérie")
+  phone                String?  @default("+213 (0) 550 12 34 56 / +213 (0) 23 45 67 89")
+  email                String?  @default("contact@shoperp-mobilier.dz")
+  nifRc                String?  @default("002416000000000")
+  nis                  String?
+  legalForm            String?
+  documentFooter       String?  @default("Merci pour votre confiance. Les marchandises vendues sont garanties 12 mois. Service après-vente disponible 6j/7.")
+  currency             String   @default("DA")
+  defaultLocationId    Int?
+  logoUrl              String?
+  backupRetentionCount Int      @default(30)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("shop_settings")
+}

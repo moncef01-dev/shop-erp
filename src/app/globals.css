@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/* ── Design tokens ─────────────────────────────────────────────────────────── */
+:root {
+  --font-inter: "Inter", sans-serif;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter);
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #0f172a;
+}
+
+/* ── Typography & Legibility Baseline ─────────────────────────────────────── */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  font-size: 0.9375rem;
+}
+
+label {
+  font-size: 0.875rem;
+}
+
+table th {
+  font-size: 0.8125rem;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ── Print Styles ─────────────────────────────────────────────────────────── */
+@media print {
+  aside,
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  .pl-64 {
+    padding-left: 0 !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+}
+
