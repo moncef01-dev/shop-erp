@@ -700,7 +700,7 @@ async function runTests() {
     const deactivatedKarim = await prisma.customer.findUnique({ where: { id: clientKarim!.id } });
     assert(deactivatedKarim!.isActive === false, "Le statut actif aurait dû passer à false");
 
-    // Tentative de nouvelle vente à un client inactif -> doit être rejetée
+    // Karim a un statut isActive: false (hérité) -> la vente doit maintenant être autorisée sans blocage artificiel
     const resSaleToInactive = await salesActions.createSaleAction({
       customerId: clientKarim!.id,
       status: "confirmed",
@@ -713,11 +713,10 @@ async function runTests() {
         },
       ],
     });
-    assert(!resSaleToInactive.success, "Une vente à un client désactivé aurait dû être rejetée.");
-    assert(Boolean(resSaleToInactive.error?.includes("inactif")), `Message inattendu: ${resSaleToInactive.error}`);
+    assert(resSaleToInactive.success, `Une vente à un client existant doit réussir: ${resSaleToInactive.error}`);
 
-    results.push({ num: 12, name: "Protection Désactivation Client vs Suppression Physique", passed: true });
-    console.log("✓ Test 12: Protection Désactivation Client vs Suppression Physique réussi.");
+    results.push({ num: 12, name: "Protection Intégrité Historique Client & Accessibilité Ventes", passed: true });
+    console.log("✓ Test 12: Protection Intégrité Historique Client & Accessibilité Ventes réussi.");
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     results.push({ num: 12, name: "Protection Désactivation Client vs Suppression Physique", passed: false, error: msg });

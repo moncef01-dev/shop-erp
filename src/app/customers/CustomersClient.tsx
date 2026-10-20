@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   Edit2,
   Trash2,
-  Power,
   CreditCard,
   ShoppingBag,
   X,
@@ -22,7 +21,6 @@ import {
 import {
   createCustomerAction,
   updateCustomerAction,
-  toggleCustomerStatusAction,
   deleteCustomerAction,
   getCustomerDetailsAction,
 } from "./actions";
@@ -120,7 +118,7 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
 
   // Metrics
   const totalCustomers = customers.length;
-  const activeCustomers = customers.filter((c) => c.isActive).length;
+  const customersWithSales = customers.filter((c) => (c.confirmedSalesCount ?? 0) > 0).length;
   const debtorCustomers = customers.filter((c) => c.outstandingBalance > 0);
   const totalOutstandingDebt = debtorCustomers.reduce((acc, c) => acc + c.outstandingBalance, 0);
 
@@ -138,8 +136,6 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
     if (!matchesSearch) return false;
 
     if (activeFilter === "debt") return c.outstandingBalance > 0;
-    if (activeFilter === "active") return c.isActive;
-    if (activeFilter === "inactive") return !c.isActive;
     return true;
   });
 
@@ -191,19 +187,6 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
     });
   };
 
-  const handleToggleStatus = (customer: CustomerItem) => {
-    startTransition(async () => {
-      const res = await toggleCustomerStatusAction(customer.id);
-      if (res.success) {
-        showNotification("success", res.message || "Statut mis à jour.");
-        setCustomers((prev) =>
-          prev.map((c) => (c.id === customer.id ? { ...c, isActive: !c.isActive } : c))
-        );
-      } else {
-        showNotification("error", res.error || "Erreur.");
-      }
-    });
-  };
 
   const handleDeleteCustomer = (customerId: number) => {
     startTransition(async () => {
@@ -287,12 +270,12 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Clients Actifs
+              Clients avec Achats
             </span>
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
           </div>
-          <p className="mt-3 text-2xl font-black text-slate-900">{activeCustomers}</p>
-          <p className="text-xs text-emerald-600 mt-1">Éligibles aux ventes & factures</p>
+          <p className="mt-3 text-2xl font-black text-slate-900">{customersWithSales}</p>
+          <p className="text-xs text-emerald-600 mt-1">Au moins une commande enregistrée</p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
@@ -356,26 +339,6 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
           >
             Avec Crédit ({debtorCustomers.length})
           </button>
-          <button
-            onClick={() => setActiveFilter("active")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-              activeFilter === "active"
-                ? "bg-emerald-700 text-white"
-                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-            }`}
-          >
-            Actifs ({activeCustomers})
-          </button>
-          <button
-            onClick={() => setActiveFilter("inactive")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-              activeFilter === "inactive"
-                ? "bg-slate-700 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            Inactifs ({customers.length - activeCustomers})
-          </button>
         </div>
       </div>
 
@@ -392,14 +355,13 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                 <th className="py-3 px-4 text-right">Total Achats (DA)</th>
                 <th className="py-3 px-4 text-right">Total Versé (DA)</th>
                 <th className="py-3 px-4 text-right">Solde Dû (Crédit)</th>
-                <th className="py-3 px-4 text-center">Statut</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <Users className="mx-auto h-8 w-8 opacity-40 mb-2" />
                     Aucun client ne correspond à votre recherche.
                   </td>
@@ -470,17 +432,6 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                         <span className="text-slate-400 text-xs">0 DA (À jour)</span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-center">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                          customer.isActive
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {customer.isActive ? "Actif" : "Inactif"}
-                      </span>
-                    </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
@@ -496,17 +447,6 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                           className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                         >
                           <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleToggleStatus(customer)}
-                          title={customer.isActive ? "Désactiver" : "Activer"}
-                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                            customer.isActive
-                              ? "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
-                              : "text-emerald-600 hover:bg-emerald-50"
-                          }`}
-                        >
-                          <Power className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirmCustomer(customer)}
@@ -789,8 +729,7 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                     {selectedCustomerDetails.name}
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Code : {selectedCustomerDetails.code || `CLI-${selectedCustomerDetails.id}`} •
-                    Statut : {selectedCustomerDetails.isActive ? "Actif" : "Inactif"}
+                    Code : {selectedCustomerDetails.code || `CLI-${selectedCustomerDetails.id}`}
                   </p>
                 </div>
               </div>

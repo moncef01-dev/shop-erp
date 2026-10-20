@@ -264,7 +264,8 @@ export async function updateProductAction(formData: FormData): Promise<ActionRes
     const minStockStr = formData.get("minStock") as string;
     const minStock = minStockStr ? parseInt(minStockStr, 10) : 0;
 
-    const isActive = formData.get("isActive") === "true";
+    const isActiveRaw = formData.get("isActive");
+    const isActive = isActiveRaw === null ? true : isActiveRaw === "true";
 
     // Validation
     if (!rawSku) {

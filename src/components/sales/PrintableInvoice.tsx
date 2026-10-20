@@ -76,9 +76,10 @@ interface PrintableInvoiceProps {
   sale: PrintableSale;
   settings?: ShopSettingsData | null;
   onClose: () => void;
+  autoPrint?: boolean;
 }
 
-export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoiceProps) {
+export function PrintableInvoice({ sale, settings, onClose, autoPrint }: PrintableInvoiceProps) {
   const [copyType, setCopyType] = useState<InvoiceCopyType>("client");
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
@@ -91,6 +92,15 @@ export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoicePr
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
+
+  useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   if (!sale) return null;
 
@@ -534,6 +544,7 @@ interface PrintablePaymentReceiptProps {
   sale: PrintableSale;
   settings?: ShopSettingsData | null;
   onClose: () => void;
+  autoPrint?: boolean;
 }
 
 export function PrintablePaymentReceipt({
@@ -541,6 +552,7 @@ export function PrintablePaymentReceipt({
   sale,
   settings,
   onClose,
+  autoPrint,
 }: PrintablePaymentReceiptProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -551,6 +563,15 @@ export function PrintablePaymentReceipt({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
+
+  useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   if (!payment || !sale) return null;
 

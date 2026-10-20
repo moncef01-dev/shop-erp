@@ -33,6 +33,7 @@ import {
   refundCustomerAdvanceAction,
 } from "./advances-actions";
 import { roundMoney } from "@/lib/formatters";
+import { useRouter } from "next/navigation";
 import {
   PrintableInvoice,
   PrintablePaymentReceipt,
@@ -42,6 +43,7 @@ import {
 import type { ShopSettingsData } from "@/app/settings/actions";
 import { NewCustomerModal, type CreatedCustomerData } from "@/components/customers/NewCustomerModal";
 import { ArticleSearchSelector } from "@/components/sales/ArticleSearchSelector";
+import { AskPrintConfirmModal } from "@/components/common/AskPrintConfirmModal";
 
 export interface ProductStockInfo {
   id: number;
@@ -180,6 +182,16 @@ export function SalesClient({ initialData }: SalesClientProps) {
   const [isPending, startTransition] = useTransition();
 
   // Modals
+  const router = useRouter();
+  const [shouldAutoPrint, setShouldAutoPrint] = useState(false);
+  const [printPrompt, setPrintPrompt] = useState<{
+    isOpen: boolean;
+    documentTypeLabel?: string;
+    documentReference?: string | null;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
+
   const [printingSale, setPrintingSale] = useState<PrintableSale | null>(null);
   const [paymentModalSale, setPaymentModalSale] = useState<PrintableSale | null>(null);
   const [paymentAmountInput, setPaymentAmountInput] = useState<string>("");
@@ -519,11 +531,25 @@ export function SalesClient({ initialData }: SalesClientProps) {
 
     startTransition(async () => {
       const res = await createSaleAction(payload);
-      if (res.success) {
+      if (res.success && res.data) {
         showNotification("success", res.message || "Vente enregistrée avec succès.");
-        // Reset form & go to list
-        setActiveTab("list");
-        window.location.reload();
+        const fullSale = res.data as PrintableSale;
+        setPrintPrompt({
+          isOpen: true,
+          documentTypeLabel: fullSale.status === "confirmed" ? "Facture de vente" : "Devis / Bon de commande",
+          documentReference: fullSale.reference,
+          onConfirm: () => {
+            setPrintPrompt(null);
+            setShouldAutoPrint(true);
+            setPrintingSale(fullSale);
+            setActiveTab("list");
+          },
+          onCancel: () => {
+            setPrintPrompt(null);
+            setActiveTab("list");
+            router.refresh();
+          },
+        });
       } else {
         showNotification("error", res.error || "Erreur lors de la vente.");
       }
@@ -568,11 +594,28 @@ export function SalesClient({ initialData }: SalesClientProps) {
         const paymentRecord = res.data as PrintablePayment;
         const currentSale = paymentModalSale;
         closePaymentModal();
-        // Show print receipt
-        if (paymentRecord) {
-          setPrintingReceipt({ payment: paymentRecord, sale: currentSale });
+        if (paymentRecord && currentSale) {
+          const updatedSale: PrintableSale = {
+            ...currentSale,
+            paidAmount: roundMoney(currentSale.paidAmount + amount),
+          };
+          setPrintPrompt({
+            isOpen: true,
+            documentTypeLabel: "Reçu de versement client",
+            documentReference: paymentRecord.reference,
+            onConfirm: () => {
+              setPrintPrompt(null);
+              setShouldAutoPrint(true);
+              setPrintingReceipt({ payment: paymentRecord, sale: updatedSale });
+            },
+            onCancel: () => {
+              setPrintPrompt(null);
+              router.refresh();
+            },
+          });
+        } else {
+          router.refresh();
         }
-        window.location.reload();
       } else {
         showNotification("error", res.error || "Erreur de règlement.");
         setPaymentInputError(res.error || "Erreur de règlement.");
@@ -584,9 +627,23 @@ export function SalesClient({ initialData }: SalesClientProps) {
   const handleConfirmDraft = (saleId: number) => {
     startTransition(async () => {
       const res = await confirmDraftSaleAction(saleId);
-      if (res.success) {
+      if (res.success && res.data) {
         showNotification("success", res.message || "Vente confirmée.");
-        window.location.reload();
+        const confirmedSale = res.data as PrintableSale;
+        setPrintPrompt({
+          isOpen: true,
+          documentTypeLabel: "Facture de vente confirmée",
+          documentReference: confirmedSale.reference,
+          onConfirm: () => {
+            setPrintPrompt(null);
+            setShouldAutoPrint(true);
+            setPrintingSale(confirmedSale);
+          },
+          onCancel: () => {
+            setPrintPrompt(null);
+            router.refresh();
+          },
+        });
       } else {
         showNotification("error", res.error || "Erreur de confirmation.");
       }
@@ -1158,13 +1215,11 @@ export function SalesClient({ initialData }: SalesClientProps) {
                     className="flex-1 px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
                   >
                     <option value="walkin">Client Passager / Comptoir (Vente Directe)</option>
-                    {customers
-                      .filter((c) => c.isActive)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} {c.phone ? `(${c.phone})` : ""} [{c.code || `CLI-${c.id}`}]
-                        </option>
-                      ))}
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.phone ? `(${c.phone})` : ""} [{c.code || `CLI-${c.id}`}]
+                      </option>
+                    ))}
                   </select>
                   <button
                     type="button"
@@ -1687,13 +1742,11 @@ export function SalesClient({ initialData }: SalesClientProps) {
                       className="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
                     >
                       <option value="">-- Choisir un client --</option>
-                      {customers
-                        .filter((c) => c.isActive)
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name} {c.phone ? `(${c.phone})` : ""} [{c.code || `CLI-${c.id}`}]
-                          </option>
-                        ))}
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.phone ? `(${c.phone})` : ""} [{c.code || `CLI-${c.id}`}]
+                        </option>
+                      ))}
                     </select>
                     <button
                       type="button"
@@ -2603,7 +2656,12 @@ export function SalesClient({ initialData }: SalesClientProps) {
         <PrintableInvoice
           sale={printingSale}
           settings={initialData.settings}
-          onClose={() => setPrintingSale(null)}
+          onClose={() => {
+            setPrintingSale(null);
+            setShouldAutoPrint(false);
+            router.refresh();
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -2613,7 +2671,23 @@ export function SalesClient({ initialData }: SalesClientProps) {
           payment={printingReceipt.payment}
           sale={printingReceipt.sale}
           settings={initialData.settings}
-          onClose={() => setPrintingReceipt(null)}
+          onClose={() => {
+            setPrintingReceipt(null);
+            setShouldAutoPrint(false);
+            router.refresh();
+          }}
+          autoPrint={shouldAutoPrint}
+        />
+      )}
+
+      {/* ── POPUP: DEMANDE D'IMPRESSION APRÈS VALIDATION ────────────────────── */}
+      {printPrompt && (
+        <AskPrintConfirmModal
+          isOpen={printPrompt.isOpen}
+          documentTypeLabel={printPrompt.documentTypeLabel}
+          documentReference={printPrompt.documentReference}
+          onConfirmPrint={printPrompt.onConfirm}
+          onCancel={printPrompt.onCancel}
         />
       )}
 

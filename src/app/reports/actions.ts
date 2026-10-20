@@ -223,7 +223,6 @@ export async function getReportsData(filter?: DateFilterRange): Promise<ReportsD
 
     // Produits et stocks actuels
     prisma.product.findMany({
-      where: { isActive: true },
       include: {
         categoryRef: { select: { name: true } },
         stocks: {

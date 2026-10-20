@@ -619,7 +619,6 @@ export async function getInventorySheetData(locationId?: number): Promise<{
       select: { id: true, name: true, code: true },
     }),
     prisma.product.findMany({
-      where: { isActive: true },
       orderBy: { name: "asc" },
       include: {
         categoryRef: { select: { name: true } },
@@ -812,7 +811,6 @@ export async function getPartiesForStatement(): Promise<{
 }> {
   const [customers, suppliers] = await Promise.all([
     prisma.customer.findMany({
-      where: { isActive: true },
       select: { id: true, name: true, phone: true },
       orderBy: { name: "asc" },
     }),

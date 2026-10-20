@@ -988,7 +988,6 @@ export async function getPurchasesData(searchQuery?: string) {
   });
 
   const products = await prisma.product.findMany({
-    where: { isActive: true },
     select: {
       id: true,
       sku: true,

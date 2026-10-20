@@ -109,7 +109,6 @@ export async function getSalesModuleData() {
       orderBy: { name: "asc" },
     }),
     prisma.product.findMany({
-      where: { isActive: true },
       include: {
         categoryRef: true,
         stocks: {
@@ -273,10 +272,9 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
       if (customerId) {
         const c = await tx.customer.findUnique({
           where: { id: customerId },
-          select: { id: true, name: true, isActive: true },
+          select: { id: true, name: true },
         });
         if (!c) throw new Error("Client introuvable.");
-        if (!c.isActive) throw new Error(`Le client "${c.name}" est inactif. Activez-le pour lui facturer des meubles.`);
         customerName = c.name;
       }
 
@@ -361,7 +359,34 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
 
 
 
-      return sale;
+      const fullSale = await tx.sales.findUnique({
+        where: { id: sale.id },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  sku: true,
+                  name: true,
+                  model: true,
+                  color: true,
+                  sellingPrice: true,
+                },
+              },
+              location: {
+                select: { id: true, code: true, name: true },
+              },
+            },
+          },
+          payments: {
+            orderBy: { paymentDate: "desc" },
+          },
+        },
+      });
+
+      return fullSale || sale;
     });
 
     safeRevalidate("/sales");
@@ -479,7 +504,34 @@ export async function confirmDraftSaleAction(
         },
       });
 
-      return updated;
+      const fullSale = await tx.sales.findUnique({
+        where: { id: sale.id },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  sku: true,
+                  name: true,
+                  model: true,
+                  color: true,
+                  sellingPrice: true,
+                },
+              },
+              location: {
+                select: { id: true, code: true, name: true },
+              },
+            },
+          },
+          payments: {
+            orderBy: { paymentDate: "desc" },
+          },
+        },
+      });
+
+      return fullSale || updated;
     });
 
     safeRevalidate("/sales");
@@ -654,6 +706,44 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
   } catch (err: unknown) {
     console.error("Erreur enregistrement règlement:", err);
     const msg = err instanceof Error ? err.message : "Erreur lors de l'enregistrement du règlement.";
+    return { success: false, error: msg };
+  }
+}
+
+export async function getSaleForPrintAction(saleId: number): Promise<SaleActionResponse> {
+  try {
+    const sale = await prisma.sales.findUnique({
+      where: { id: saleId },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                sku: true,
+                name: true,
+                model: true,
+                color: true,
+                sellingPrice: true,
+              },
+            },
+            location: {
+              select: { id: true, code: true, name: true },
+            },
+          },
+        },
+        payments: {
+          orderBy: { paymentDate: "desc" },
+        },
+      },
+    });
+
+    if (!sale) return { success: false, error: "Vente introuvable." };
+    return { success: true, data: sale };
+  } catch (err: unknown) {
+    console.error("Erreur chargement vente pour impression:", err);
+    const msg = err instanceof Error ? err.message : "Erreur lors du chargement de la vente.";
     return { success: false, error: msg };
   }
 }

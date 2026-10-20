@@ -128,8 +128,8 @@ export function SettingsClient({
   const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        showFeedback("error", "La taille du logo ne doit pas dépasser 2 Mo.");
+      if (file.size > 5 * 1024 * 1024) {
+        showFeedback("error", "La taille du logo ne doit pas dépasser 5 Mo.");
         return;
       }
       setLogoFile(file);
@@ -603,7 +603,7 @@ export function SettingsClient({
                 className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
               />
               <p className="text-[11px] text-slate-400">
-                Formats acceptés : PNG, JPG, WebP, SVG. Taille maximale autorisée : 2 Mo.
+                Formats acceptés : PNG, JPG, WebP, SVG. Taille maximale autorisée : 5 Mo.
               </p>
 
               {logoFile && (

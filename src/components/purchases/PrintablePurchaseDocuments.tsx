@@ -1,5 +1,4 @@
-"use client";
-
+import React, { useEffect } from "react";
 import { Printer, X } from "lucide-react";
 import type { ShopSettingsData } from "@/app/settings/actions";
 
@@ -97,14 +96,25 @@ export function PrintablePurchaseOrder({
   purchase,
   settings,
   onClose,
+  autoPrint,
 }: {
   purchase: PrintablePurchase;
   settings?: ShopSettingsData | null;
   onClose: () => void;
+  autoPrint?: boolean;
 }) {
   const handlePrint = () => {
     window.print();
   };
+
+  useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   const balance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
 
@@ -378,15 +388,26 @@ export function PrintableGoodsReceipt({
   purchase,
   settings,
   onClose,
+  autoPrint,
 }: {
   receipt: PrintablePurchaseReceipt;
   purchase: PrintablePurchase;
   settings?: ShopSettingsData | null;
   onClose: () => void;
+  autoPrint?: boolean;
 }) {
   const handlePrint = () => {
     window.print();
   };
+
+  useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   const linkedPurchase = purchase || (receipt as unknown as { purchase?: PrintablePurchase })?.purchase;
   const purchaseRef = linkedPurchase?.reference || "—";
@@ -606,15 +627,26 @@ export function PrintableSupplierPaymentReceipt({
   purchase,
   settings,
   onClose,
+  autoPrint,
 }: {
   payment: PrintableSupplierPayment;
   purchase: PrintablePurchase;
   settings?: ShopSettingsData | null;
   onClose: () => void;
+  autoPrint?: boolean;
 }) {
   const handlePrint = () => {
     window.print();
   };
+
+  useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   const balance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
 

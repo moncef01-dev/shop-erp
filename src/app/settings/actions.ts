@@ -243,10 +243,10 @@ export async function uploadLogoAction(
       return { success: false, error: "Aucun fichier image sélectionné." };
     }
 
-    // 1. Validation de la taille (2 Mo max)
-    const MAX_SIZE = 2 * 1024 * 1024;
+    // 1. Validation de la taille (5 Mo max)
+    const MAX_SIZE = 5 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      return { success: false, error: "L'image dépasse la taille maximale autorisée (2 Mo)." };
+      return { success: false, error: "L'image dépasse la taille maximale autorisée (5 Mo)." };
     }
 
     // 2. Validation du type MIME

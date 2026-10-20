@@ -42,6 +42,7 @@ import {
   type PrintableSupplierPayment,
 } from "@/components/purchases/PrintablePurchaseDocuments";
 import type { ShopSettingsData } from "@/app/settings/actions";
+import { AskPrintConfirmModal } from "@/components/common/AskPrintConfirmModal";
 
 export interface SupplierItem {
   id: number;
@@ -150,6 +151,15 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
   const [cancelReason, setCancelReason] = useState("");
 
   // Print States
+  const [shouldAutoPrint, setShouldAutoPrint] = useState(false);
+  const [printPrompt, setPrintPrompt] = useState<{
+    isOpen: boolean;
+    documentTypeLabel?: string;
+    documentReference?: string | null;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
+
   const [printingOrder, setPrintingOrder] = useState<PrintablePurchase | null>(null);
   const [printingReceipt, setPrintingReceipt] = useState<{ receipt: PrintablePurchaseReceipt; purchase: PrintablePurchase } | null>(null);
   const [printingPayment, setPrintingPayment] = useState<{ payment: PrintableSupplierPayment; purchase: PrintablePurchase } | null>(null);
@@ -396,9 +406,24 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
 
     startTransition(async () => {
       const res = await createPurchaseOrderAction(payload);
-      if (res.success) {
+      if (res.success && res.data) {
         showNotification("success", res.message || "Commande créée.");
         setIsCreateOrderOpen(false);
+        const createdPurchase = res.data as PrintablePurchase;
+        setPrintPrompt({
+          isOpen: true,
+          documentTypeLabel: "Bon de commande fournisseur",
+          documentReference: createdPurchase.reference,
+          onConfirm: () => {
+            setPrintPrompt(null);
+            setShouldAutoPrint(true);
+            setPrintingOrder(createdPurchase);
+          },
+          onCancel: () => {
+            setPrintPrompt(null);
+            router.refresh();
+          },
+        });
       } else {
         showNotification("error", res.error || "Erreur de création de commande.");
       }
@@ -459,17 +484,28 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
         })),
       });
 
-      if (res.success) {
+      if (res.success && res.data) {
         showNotification("success", res.message || "Réception effectuée.");
         const currentP = receivingPurchase;
+        const receiptData = res.data as PrintablePurchaseReceipt;
         setReceivingPurchase(null);
-        if (res.data) {
-          setPrintingReceipt({
-            receipt: res.data as PrintablePurchaseReceipt,
-            purchase: currentP,
-          });
-        }
-        router.refresh();
+        setPrintPrompt({
+          isOpen: true,
+          documentTypeLabel: "Bon de réception de marchandises",
+          documentReference: receiptData.reference,
+          onConfirm: () => {
+            setPrintPrompt(null);
+            setShouldAutoPrint(true);
+            setPrintingReceipt({
+              receipt: receiptData,
+              purchase: currentP,
+            });
+          },
+          onCancel: () => {
+            setPrintPrompt(null);
+            router.refresh();
+          },
+        });
       } else {
         showNotification("error", res.error || "Erreur lors de la réception.");
       }
@@ -539,16 +575,28 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
 
     startTransition(async () => {
       const res = await recordSupplierPaymentAction(fd);
-      if (res.success) {
+      if (res.success && res.data) {
         showNotification("success", res.message || "Règlement enregistré.");
         const currentP = payingPurchase;
+        const paymentData = res.data as PrintableSupplierPayment;
         setPayingPurchase(null);
-        if (res.data) {
-          setPrintingPayment({
-            payment: res.data as PrintableSupplierPayment,
-            purchase: currentP,
-          });
-        }
+        setPrintPrompt({
+          isOpen: true,
+          documentTypeLabel: "Reçu de règlement fournisseur",
+          documentReference: paymentData.reference,
+          onConfirm: () => {
+            setPrintPrompt(null);
+            setShouldAutoPrint(true);
+            setPrintingPayment({
+              payment: paymentData,
+              purchase: currentP,
+            });
+          },
+          onCancel: () => {
+            setPrintPrompt(null);
+            router.refresh();
+          },
+        });
       } else {
         showNotification("error", res.error || "Erreur de règlement.");
       }
@@ -2042,7 +2090,12 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
         <PrintablePurchaseOrder
           purchase={printingOrder}
           settings={initialData.settings}
-          onClose={() => setPrintingOrder(null)}
+          onClose={() => {
+            setPrintingOrder(null);
+            setShouldAutoPrint(false);
+            router.refresh();
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -2051,7 +2104,12 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
           receipt={printingReceipt.receipt}
           purchase={printingReceipt.purchase}
           settings={initialData.settings}
-          onClose={() => setPrintingReceipt(null)}
+          onClose={() => {
+            setPrintingReceipt(null);
+            setShouldAutoPrint(false);
+            router.refresh();
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -2060,7 +2118,23 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
           payment={printingPayment.payment}
           purchase={printingPayment.purchase}
           settings={initialData.settings}
-          onClose={() => setPrintingPayment(null)}
+          onClose={() => {
+            setPrintingPayment(null);
+            setShouldAutoPrint(false);
+            router.refresh();
+          }}
+          autoPrint={shouldAutoPrint}
+        />
+      )}
+
+      {/* ── POPUP: DEMANDE D'IMPRESSION APRÈS VALIDATION ────────────────────── */}
+      {printPrompt && (
+        <AskPrintConfirmModal
+          isOpen={printPrompt.isOpen}
+          documentTypeLabel={printPrompt.documentTypeLabel}
+          documentReference={printPrompt.documentReference}
+          onConfirmPrint={printPrompt.onConfirm}
+          onCancel={printPrompt.onCancel}
         />
       )}
     </div>

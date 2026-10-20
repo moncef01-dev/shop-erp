@@ -37,6 +37,7 @@ import {
   formatDateTime,
   formatMethodLabel,
 } from "@/components/cash/PrintableCashDocuments";
+import { AskPrintConfirmModal } from "@/components/common/AskPrintConfirmModal";
 
 interface CashClientProps {
   initialData: CashDashboardData;
@@ -109,6 +110,15 @@ export function CashClient({ initialData }: CashClientProps) {
     receiptNumber?: string | null;
     notes?: string | null;
     date: string;
+  } | null>(null);
+
+  const [shouldAutoPrint, setShouldAutoPrint] = useState(false);
+  const [printPrompt, setPrintPrompt] = useState<{
+    isOpen: boolean;
+    documentTypeLabel?: string;
+    documentReference?: string | null;
+    onConfirm: () => void;
+    onCancel: () => void;
   } | null>(null);
 
   const showNotification = (type: "success" | "error", text: string) => {
@@ -200,15 +210,26 @@ export function CashClient({ initialData }: CashClientProps) {
         closingNotes: closingNotesInput,
       });
 
-      if (res.success) {
+      if (res.success && res.data) {
         showNotification("success", res.message || "Session de caisse clôturée.");
         setIsClosingModalOpen(false);
         setClosingAmountInput("");
         setClosingNotesInput("");
-        router.refresh();
-        if (res.data) {
-          setPrintingClosingSession(res.data as unknown as NonNullable<typeof printingClosingSession>);
-        }
+        const closedSession = res.data as unknown as NonNullable<typeof printingClosingSession>;
+        setPrintPrompt({
+          isOpen: true,
+          documentTypeLabel: "Procès-verbal de clôture de caisse",
+          documentReference: closedSession.reference,
+          onConfirm: () => {
+            setPrintPrompt(null);
+            setShouldAutoPrint(true);
+            setPrintingClosingSession(closedSession);
+          },
+          onCancel: () => {
+            setPrintPrompt(null);
+            router.refresh();
+          },
+        });
       } else {
         showNotification("error", res.error || "Erreur lors de la clôture.");
       }
@@ -242,15 +263,48 @@ export function CashClient({ initialData }: CashClientProps) {
 
     startTransition(async () => {
       const res = await createExpenseAction(fd);
-      if (res.success) {
+      if (res.success && res.data) {
         showNotification("success", res.message || "Opération enregistrée.");
         setIsExpenseModalOpen(false);
+        const exp = res.data as {
+          reference: string;
+          type: string;
+          category: string;
+          description: string;
+          amount: number;
+          method: string;
+          beneficiary?: string | null;
+          receiptNumber?: string | null;
+          notes?: string | null;
+          date: string | Date;
+        };
         setExpenseDescription("");
         setExpenseAmount("");
         setExpenseBeneficiary("");
         setExpenseReceiptNumber("");
         setExpenseNotes("");
-        router.refresh();
+
+        if (exp.type === "expense") {
+          setPrintPrompt({
+            isOpen: true,
+            documentTypeLabel: "Bon de dépense / Décaissement",
+            documentReference: exp.reference,
+            onConfirm: () => {
+              setPrintPrompt(null);
+              setShouldAutoPrint(true);
+              setPrintingExpense({
+                ...exp,
+                date: typeof exp.date === "string" ? exp.date : exp.date.toISOString(),
+              });
+            },
+            onCancel: () => {
+              setPrintPrompt(null);
+              router.refresh();
+            },
+          });
+        } else {
+          router.refresh();
+        }
       } else {
         showNotification("error", res.error || "Erreur lors de l'enregistrement.");
       }
@@ -1704,7 +1758,12 @@ export function CashClient({ initialData }: CashClientProps) {
         <PrintableCashClosingReport
           session={printingClosingSession}
           settings={initialData.settings}
-          onClose={() => setPrintingClosingSession(null)}
+          onClose={() => {
+            setPrintingClosingSession(null);
+            setShouldAutoPrint(false);
+            router.refresh();
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -1712,7 +1771,23 @@ export function CashClient({ initialData }: CashClientProps) {
         <PrintableExpenseVoucher
           expense={printingExpense}
           settings={initialData.settings}
-          onClose={() => setPrintingExpense(null)}
+          onClose={() => {
+            setPrintingExpense(null);
+            setShouldAutoPrint(false);
+            router.refresh();
+          }}
+          autoPrint={shouldAutoPrint}
+        />
+      )}
+
+      {/* ── POPUP: DEMANDE D'IMPRESSION APRÈS VALIDATION ────────────────────── */}
+      {printPrompt && (
+        <AskPrintConfirmModal
+          isOpen={printPrompt.isOpen}
+          documentTypeLabel={printPrompt.documentTypeLabel}
+          documentReference={printPrompt.documentReference}
+          onConfirmPrint={printPrompt.onConfirm}
+          onCancel={printPrompt.onCancel}
         />
       )}
     </div>

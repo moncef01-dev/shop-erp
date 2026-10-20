@@ -156,7 +156,6 @@ export function ProductsModuleClient({
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedLocation, setSelectedLocation] = useState<string>("ALL");
   const [selectedStockStatus, setSelectedStockStatus] = useState<string>("ALL");
-  const [selectedProductStatus, setSelectedProductStatus] = useState<string>("ALL");
 
   // Movement history filters
   const [movementSearch, setMovementSearch] = useState("");
@@ -202,9 +201,9 @@ export function ProductsModuleClient({
   const [inputQuantity, setInputQuantity] = useState<number>(1);
   const [isAdjustmentSub, setIsAdjustmentSub] = useState<boolean>(false);
 
-  // Active items for safe mutation selections
+  // Items for safe mutation selections (all products accessible)
   const activeProducts = useMemo(
-    () => initialProducts.filter((p) => p.isActive),
+    () => initialProducts,
     [initialProducts]
   );
   const activeLocations = useMemo(
@@ -281,11 +280,6 @@ export function ProductsModuleClient({
         selectedCategory === "ALL" ||
         (p.categoryId !== null && p.categoryId.toString() === selectedCategory);
 
-      const matchesProductStatus =
-        selectedProductStatus === "ALL" ||
-        (selectedProductStatus === "ACTIVE" && p.isActive) ||
-        (selectedProductStatus === "INACTIVE" && !p.isActive);
-
       // Total physical stock across all locations
       const totalStock =
         p.stocks && p.stocks.length > 0
@@ -317,7 +311,6 @@ export function ProductsModuleClient({
       return (
         matchesSearch &&
         matchesCategory &&
-        matchesProductStatus &&
         matchesStockStatus &&
         matchesLocation
       );
@@ -326,7 +319,6 @@ export function ProductsModuleClient({
     initialProducts,
     searchTerm,
     selectedCategory,
-    selectedProductStatus,
     selectedStockStatus,
     selectedLocation,
   ]);
@@ -370,16 +362,12 @@ export function ProductsModuleClient({
 
   // KPIs
   const totalProductsCount = initialProducts.length;
-  // Articles référencés : nombre d'articles distincts actifs
-  const activeProductsCount = initialProducts.filter((p) => p.isActive).length;
-  // Unités en stock : somme des quantités physiques de tous les dépôts pour les articles actifs
-  const totalUnitsInStock = initialProducts
-    .filter((p) => p.isActive)
-    .reduce((sum, p) => sum + (p.stock || 0), 0);
-  // Articles en rupture : nombre d'articles distincts actifs dont la quantité totale est nulle
-  const outOfStockProductsCount = initialProducts.filter(
-    (p) => p.isActive && p.stock === 0
-  ).length;
+  // Articles au catalogue : nombre total d'articles
+  const activeProductsCount = initialProducts.length;
+  // Unités en stock : somme des quantités physiques de tous les dépôts
+  const totalUnitsInStock = initialProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
+  // Articles en rupture : nombre d'articles distincts dont la quantité totale est nulle
+  const outOfStockProductsCount = initialProducts.filter((p) => p.stock === 0).length;
 
   // Mouvements aujourd'hui : nombre de mouvements enregistrés aujourd'hui
   const todayMovementsCount = useMemo(() => {
@@ -763,16 +751,6 @@ export function ProductsModuleClient({
                 <option value="IN_STOCK">En stock disponible</option>
                 <option value="OUT_OF_STOCK">Rupture de stock</option>
               </select>
-
-              <select
-                value={selectedProductStatus}
-                onChange={(e) => setSelectedProductStatus(e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 focus:border-amber-500 focus:outline-none"
-              >
-                <option value="ALL">Tous les statuts</option>
-                <option value="ACTIVE">Actifs uniquement</option>
-                <option value="INACTIVE">Inactifs uniquement</option>
-              </select>
             </div>
           </div>
 
@@ -789,14 +767,13 @@ export function ProductsModuleClient({
                     <th className="px-4 py-3 text-right">Prix d&apos;achat</th>
                     <th className="px-4 py-3 text-right">Prix de vente</th>
                     <th className="px-4 py-3 text-center">Stock Total</th>
-                    <th className="px-4 py-3 text-center">Statut</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
                         <Package className="mx-auto h-8 w-8 opacity-30 mb-2" />
                         <p className="font-medium text-slate-600">Aucun produit correspondant</p>
                         <p className="text-xs text-slate-400 mt-1">
@@ -811,9 +788,7 @@ export function ProductsModuleClient({
                       return (
                         <tr
                           key={p.id}
-                          className={`hover:bg-slate-50/70 transition-colors ${
-                            !p.isActive ? "opacity-60 bg-slate-50/40" : ""
-                          }`}
+                          className="hover:bg-slate-50/70 transition-colors"
                         >
                           <td className="px-4 py-3.5 font-mono text-xs font-bold text-slate-900">
                             {p.sku}
@@ -860,17 +835,6 @@ export function ProductsModuleClient({
                               {p.stock} {p.unit}
                             </span>
                           </td>
-                          <td className="px-4 py-3.5 text-center">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                                p.isActive
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-slate-100 text-slate-500 border border-slate-200"
-                              }`}
-                            >
-                              {p.isActive ? "Actif" : "Inactif"}
-                            </span>
-                          </td>
                           <td className="px-4 py-3.5 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <button
@@ -888,26 +852,6 @@ export function ProductsModuleClient({
                                 className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                               >
                                 <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  startTransition(async () => {
-                                    const res = await toggleProductStatusAction(p.id);
-                                    if (res.success) {
-                                      showNotice("success", res.message || "Statut mis à jour.");
-                                    } else {
-                                      showNotice("error", res.error || "Erreur.");
-                                    }
-                                  });
-                                }}
-                                title={p.isActive ? "Désactiver" : "Activer"}
-                                className={`rounded p-1.5 transition-colors ${
-                                  p.isActive
-                                    ? "text-slate-400 hover:bg-amber-50 hover:text-amber-600"
-                                    : "text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700"
-                                }`}
-                              >
-                                <Power className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() =>
@@ -1105,11 +1049,6 @@ export function ProductsModuleClient({
                           </td>
                           <td className="px-4 py-3 font-medium text-slate-900">
                             {p.name}
-                            {!p.isActive && (
-                              <span className="ml-2 inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-normal text-slate-500">
-                                Inactif
-                              </span>
-                            )}
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-500">
                             {p.model || "—"} {p.color ? `(${p.color})` : ""}
@@ -1147,36 +1086,32 @@ export function ProductsModuleClient({
                             )}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            {p.isActive ? (
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  onClick={() => openStockModal("TRANSFER", p.id)}
-                                  title="Transférer ce meuble vers un autre dépôt"
-                                  className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                                >
-                                  <ArrowRightLeft className="h-3 w-3" />
-                                  Transférer
-                                </button>
-                                <button
-                                  onClick={() => openStockModal("RECEIPT", p.id)}
-                                  title="Réceptionner des unités"
-                                  className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                                >
-                                  <ArrowDownRight className="h-3 w-3" />
-                                  +
-                                </button>
-                                <button
-                                  onClick={() => openStockModal("ISSUE", p.id)}
-                                  title="Sortir des unités"
-                                  className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-rose-50 hover:text-rose-700 transition-colors"
-                                >
-                                  <ArrowUpRight className="h-3 w-3" />
-                                  -
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-400 italic">Inactif</span>
-                            )}
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => openStockModal("TRANSFER", p.id)}
+                                title="Transférer ce meuble vers un autre dépôt"
+                                className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                              >
+                                <ArrowRightLeft className="h-3 w-3" />
+                                Transférer
+                              </button>
+                              <button
+                                onClick={() => openStockModal("RECEIPT", p.id)}
+                                title="Réceptionner des unités"
+                                className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                              >
+                                <ArrowDownRight className="h-3 w-3" />
+                                +
+                              </button>
+                              <button
+                                onClick={() => openStockModal("ISSUE", p.id)}
+                                title="Sortir des unités"
+                                className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-rose-50 hover:text-rose-700 transition-colors"
+                              >
+                                <ArrowUpRight className="h-3 w-3" />
+                                -
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1257,7 +1192,7 @@ export function ProductsModuleClient({
                     <th className="px-4 py-3">Meuble concerné</th>
                     <th className="px-4 py-3 text-center">Quantité</th>
                     <th className="px-4 py-3">Emplacement(s)</th>
-                    <th className="px-4 py-3 text-center">Stock Avant $\rightarrow$ Après</th>
+                    <th className="px-4 py-3 text-center">Stock Avant → Après</th>
                     <th className="px-4 py-3">Motif & Justification</th>
                   </tr>
                 </thead>
@@ -1353,7 +1288,7 @@ export function ProductsModuleClient({
                           <td className="px-4 py-3 text-center text-xs font-mono tabular-nums text-slate-600">
                             {m.stockBefore !== null && m.stockAfter !== null ? (
                               <span>
-                                {m.stockBefore} $\rightarrow$ <strong>{m.stockAfter}</strong>
+                                {m.stockBefore} → <strong>{m.stockAfter}</strong>
                               </span>
                             ) : (
                               "—"
@@ -1781,21 +1716,6 @@ export function ProductsModuleClient({
                 />
               </div>
 
-              {productModal.mode === "edit" && (
-                <div className="flex items-center gap-2 pt-2">
-                  <input
-                    type="checkbox"
-                    id="isActive"
-                    name="isActive"
-                    value="true"
-                    defaultChecked={productModal.product?.isActive}
-                    className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
-                  />
-                  <label htmlFor="isActive" className="text-sm font-medium text-slate-800">
-                    Meuble actif (sélectionnable dans les opérations de stock et ventes)
-                  </label>
-                </div>
-              )}
 
               <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
                 <button

@@ -333,6 +333,7 @@ export function PrintableCashClosingReport({
   session,
   settings,
   onClose,
+  autoPrint,
 }: {
   session: {
     reference: string;
@@ -350,6 +351,7 @@ export function PrintableCashClosingReport({
   };
   settings?: ShopSettingsData | null;
   onClose: () => void;
+  autoPrint?: boolean;
 }) {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -358,6 +360,15 @@ export function PrintableCashClosingReport({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
+
+  React.useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   const handlePrint = () => {
     window.print();
@@ -559,6 +570,7 @@ export function PrintableExpenseVoucher({
   expense,
   settings,
   onClose,
+  autoPrint,
 }: {
   expense: {
     reference: string;
@@ -574,6 +586,7 @@ export function PrintableExpenseVoucher({
   };
   settings?: ShopSettingsData | null;
   onClose: () => void;
+  autoPrint?: boolean;
 }) {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -582,6 +595,15 @@ export function PrintableExpenseVoucher({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
+
+  React.useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   const handlePrint = () => {
     window.print();
