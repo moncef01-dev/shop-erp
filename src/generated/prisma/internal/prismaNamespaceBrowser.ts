@@ -69,6 +69,9 @@ export const ModelName = {
   PurchaseReceiptItem: 'PurchaseReceiptItem',
   CashSession: 'CashSession',
   Expense: 'Expense',
+  TreasuryAccount: 'TreasuryAccount',
+  TreasuryTransfer: 'TreasuryTransfer',
+  SupplierDebt: 'SupplierDebt',
   Transaction: 'Transaction',
   ShopSettings: 'ShopSettings'
 } as const
@@ -242,6 +245,8 @@ export const PaymentScalarFieldEnum = {
   reference: 'reference',
   saleId: 'saleId',
   purchaseId: 'purchaseId',
+  supplierId: 'supplierId',
+  accountId: 'accountId',
   amount: 'amount',
   method: 'method',
   status: 'status',
@@ -259,6 +264,7 @@ export const CustomerAdvanceScalarFieldEnum = {
   id: 'id',
   reference: 'reference',
   customerId: 'customerId',
+  accountId: 'accountId',
   amount: 'amount',
   allocatedAmount: 'allocatedAmount',
   refundedAmount: 'refundedAmount',
@@ -351,6 +357,7 @@ export type PurchaseReceiptItemScalarFieldEnum = (typeof PurchaseReceiptItemScal
 export const CashSessionScalarFieldEnum = {
   id: 'id',
   reference: 'reference',
+  accountId: 'accountId',
   openedAt: 'openedAt',
   closedAt: 'closedAt',
   status: 'status',
@@ -372,6 +379,7 @@ export type CashSessionScalarFieldEnum = (typeof CashSessionScalarFieldEnum)[key
 export const ExpenseScalarFieldEnum = {
   id: 'id',
   reference: 'reference',
+  accountId: 'accountId',
   type: 'type',
   category: 'category',
   description: 'description',
@@ -387,6 +395,56 @@ export const ExpenseScalarFieldEnum = {
 } as const
 
 export type ExpenseScalarFieldEnum = (typeof ExpenseScalarFieldEnum)[keyof typeof ExpenseScalarFieldEnum]
+
+
+export const TreasuryAccountScalarFieldEnum = {
+  id: 'id',
+  code: 'code',
+  name: 'name',
+  type: 'type',
+  openingBalance: 'openingBalance',
+  openingDate: 'openingDate',
+  isDefault: 'isDefault',
+  isActive: 'isActive',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TreasuryAccountScalarFieldEnum = (typeof TreasuryAccountScalarFieldEnum)[keyof typeof TreasuryAccountScalarFieldEnum]
+
+
+export const TreasuryTransferScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  fromAccountId: 'fromAccountId',
+  toAccountId: 'toAccountId',
+  amount: 'amount',
+  motif: 'motif',
+  notes: 'notes',
+  date: 'date',
+  sessionId: 'sessionId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TreasuryTransferScalarFieldEnum = (typeof TreasuryTransferScalarFieldEnum)[keyof typeof TreasuryTransferScalarFieldEnum]
+
+
+export const SupplierDebtScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  supplierId: 'supplierId',
+  amount: 'amount',
+  type: 'type',
+  description: 'description',
+  date: 'date',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SupplierDebtScalarFieldEnum = (typeof SupplierDebtScalarFieldEnum)[keyof typeof SupplierDebtScalarFieldEnum]
 
 
 export const TransactionScalarFieldEnum = {

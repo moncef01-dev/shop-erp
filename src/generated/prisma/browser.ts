@@ -108,6 +108,21 @@ export type CashSession = Prisma.CashSessionModel
  */
 export type Expense = Prisma.ExpenseModel
 /**
+ * Model TreasuryAccount
+ * 
+ */
+export type TreasuryAccount = Prisma.TreasuryAccountModel
+/**
+ * Model TreasuryTransfer
+ * 
+ */
+export type TreasuryTransfer = Prisma.TreasuryTransferModel
+/**
+ * Model SupplierDebt
+ * 
+ */
+export type SupplierDebt = Prisma.SupplierDebtModel
+/**
  * Model Transaction
  * 
  */

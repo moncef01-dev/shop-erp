@@ -96,6 +96,7 @@ export interface PurchasesClientProps {
     locations: LocationOption[];
     settings?: ShopSettingsData | null;
     metrics: PurchaseMetrics;
+    treasuryAccounts?: Array<{ id: number; name: string; code: string; type: string; isDefault?: boolean }>;
   };
 }
 
@@ -115,6 +116,7 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
   const products = initialData.products || [];
   const locations = initialData.locations || [];
   const metrics = initialData.metrics;
+  const treasuryAccounts = initialData.treasuryAccounts || [];
 
   const defaultLocation = locations.find((l) => l.isDefault) || locations[0];
 
@@ -143,6 +145,7 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
   const [payingPurchase, setPayingPurchase] = useState<PrintablePurchase | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<string>("0");
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
+  const [paymentAccountId, setPaymentAccountId] = useState<number | "">("");
   const [paymentNotes, setPaymentNotes] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split("T")[0]);
 
@@ -542,6 +545,8 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
     const balance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
     setPaymentAmount(balance > 0 ? balance.toString() : "0");
     setPaymentMethod("cash");
+    const defAcc = treasuryAccounts.find((a) => a.isDefault) || treasuryAccounts[0];
+    setPaymentAccountId(defAcc ? defAcc.id : "");
     setPaymentNotes("");
     setPaymentDate(new Date().toISOString().split("T")[0]);
   };
@@ -570,6 +575,9 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
     fd.set("purchaseId", payingPurchase.id.toString());
     fd.set("amount", parsedAmount.toString());
     fd.set("method", paymentMethod);
+    if (paymentAccountId) {
+      fd.set("sourceAccountId", paymentAccountId.toString());
+    }
     fd.set("notes", paymentNotes);
     fd.set("paymentDate", paymentDate);
 
@@ -1897,6 +1905,25 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
                   </select>
                 </div>
               </div>
+
+              {treasuryAccounts.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Compte Source de Trésorerie <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={paymentAccountId}
+                    onChange={(e) => setPaymentAccountId(e.target.value ? Number(e.target.value) : "")}
+                    className="w-full text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  >
+                    {treasuryAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({acc.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Observation / Réf Chèque ou Virement</label>

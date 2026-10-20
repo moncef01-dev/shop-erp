@@ -29,6 +29,7 @@ export type AggregateCustomerAdvance = {
 export type CustomerAdvanceAvgAggregateOutputType = {
   id: number | null
   customerId: number | null
+  accountId: number | null
   amount: number | null
   allocatedAmount: number | null
   refundedAmount: number | null
@@ -38,6 +39,7 @@ export type CustomerAdvanceAvgAggregateOutputType = {
 export type CustomerAdvanceSumAggregateOutputType = {
   id: number | null
   customerId: number | null
+  accountId: number | null
   amount: number | null
   allocatedAmount: number | null
   refundedAmount: number | null
@@ -48,6 +50,7 @@ export type CustomerAdvanceMinAggregateOutputType = {
   id: number | null
   reference: string | null
   customerId: number | null
+  accountId: number | null
   amount: number | null
   allocatedAmount: number | null
   refundedAmount: number | null
@@ -65,6 +68,7 @@ export type CustomerAdvanceMaxAggregateOutputType = {
   id: number | null
   reference: string | null
   customerId: number | null
+  accountId: number | null
   amount: number | null
   allocatedAmount: number | null
   refundedAmount: number | null
@@ -82,6 +86,7 @@ export type CustomerAdvanceCountAggregateOutputType = {
   id: number
   reference: number
   customerId: number
+  accountId: number
   amount: number
   allocatedAmount: number
   refundedAmount: number
@@ -100,6 +105,7 @@ export type CustomerAdvanceCountAggregateOutputType = {
 export type CustomerAdvanceAvgAggregateInputType = {
   id?: true
   customerId?: true
+  accountId?: true
   amount?: true
   allocatedAmount?: true
   refundedAmount?: true
@@ -109,6 +115,7 @@ export type CustomerAdvanceAvgAggregateInputType = {
 export type CustomerAdvanceSumAggregateInputType = {
   id?: true
   customerId?: true
+  accountId?: true
   amount?: true
   allocatedAmount?: true
   refundedAmount?: true
@@ -119,6 +126,7 @@ export type CustomerAdvanceMinAggregateInputType = {
   id?: true
   reference?: true
   customerId?: true
+  accountId?: true
   amount?: true
   allocatedAmount?: true
   refundedAmount?: true
@@ -136,6 +144,7 @@ export type CustomerAdvanceMaxAggregateInputType = {
   id?: true
   reference?: true
   customerId?: true
+  accountId?: true
   amount?: true
   allocatedAmount?: true
   refundedAmount?: true
@@ -153,6 +162,7 @@ export type CustomerAdvanceCountAggregateInputType = {
   id?: true
   reference?: true
   customerId?: true
+  accountId?: true
   amount?: true
   allocatedAmount?: true
   refundedAmount?: true
@@ -257,6 +267,7 @@ export type CustomerAdvanceGroupByOutputType = {
   id: number
   reference: string
   customerId: number
+  accountId: number | null
   amount: number
   allocatedAmount: number
   refundedAmount: number
@@ -297,6 +308,7 @@ export type CustomerAdvanceWhereInput = {
   id?: Prisma.IntFilter<"CustomerAdvance"> | number
   reference?: Prisma.StringFilter<"CustomerAdvance"> | string
   customerId?: Prisma.IntFilter<"CustomerAdvance"> | number
+  accountId?: Prisma.IntNullableFilter<"CustomerAdvance"> | number | null
   amount?: Prisma.FloatFilter<"CustomerAdvance"> | number
   allocatedAmount?: Prisma.FloatFilter<"CustomerAdvance"> | number
   refundedAmount?: Prisma.FloatFilter<"CustomerAdvance"> | number
@@ -309,6 +321,7 @@ export type CustomerAdvanceWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"CustomerAdvance"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"CustomerAdvance"> | Date | string
   customer?: Prisma.XOR<Prisma.CustomerScalarRelationFilter, Prisma.CustomerWhereInput>
+  account?: Prisma.XOR<Prisma.TreasuryAccountNullableScalarRelationFilter, Prisma.TreasuryAccountWhereInput> | null
   session?: Prisma.XOR<Prisma.CashSessionNullableScalarRelationFilter, Prisma.CashSessionWhereInput> | null
   allocations?: Prisma.CustomerAdvanceAllocationListRelationFilter
 }
@@ -317,6 +330,7 @@ export type CustomerAdvanceOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   reference?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
+  accountId?: Prisma.SortOrderInput | Prisma.SortOrder
   amount?: Prisma.SortOrder
   allocatedAmount?: Prisma.SortOrder
   refundedAmount?: Prisma.SortOrder
@@ -329,6 +343,7 @@ export type CustomerAdvanceOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   customer?: Prisma.CustomerOrderByWithRelationInput
+  account?: Prisma.TreasuryAccountOrderByWithRelationInput
   session?: Prisma.CashSessionOrderByWithRelationInput
   allocations?: Prisma.CustomerAdvanceAllocationOrderByRelationAggregateInput
 }
@@ -340,6 +355,7 @@ export type CustomerAdvanceWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.CustomerAdvanceWhereInput[]
   NOT?: Prisma.CustomerAdvanceWhereInput | Prisma.CustomerAdvanceWhereInput[]
   customerId?: Prisma.IntFilter<"CustomerAdvance"> | number
+  accountId?: Prisma.IntNullableFilter<"CustomerAdvance"> | number | null
   amount?: Prisma.FloatFilter<"CustomerAdvance"> | number
   allocatedAmount?: Prisma.FloatFilter<"CustomerAdvance"> | number
   refundedAmount?: Prisma.FloatFilter<"CustomerAdvance"> | number
@@ -352,6 +368,7 @@ export type CustomerAdvanceWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"CustomerAdvance"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"CustomerAdvance"> | Date | string
   customer?: Prisma.XOR<Prisma.CustomerScalarRelationFilter, Prisma.CustomerWhereInput>
+  account?: Prisma.XOR<Prisma.TreasuryAccountNullableScalarRelationFilter, Prisma.TreasuryAccountWhereInput> | null
   session?: Prisma.XOR<Prisma.CashSessionNullableScalarRelationFilter, Prisma.CashSessionWhereInput> | null
   allocations?: Prisma.CustomerAdvanceAllocationListRelationFilter
 }, "id" | "reference">
@@ -360,6 +377,7 @@ export type CustomerAdvanceOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   reference?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
+  accountId?: Prisma.SortOrderInput | Prisma.SortOrder
   amount?: Prisma.SortOrder
   allocatedAmount?: Prisma.SortOrder
   refundedAmount?: Prisma.SortOrder
@@ -385,6 +403,7 @@ export type CustomerAdvanceScalarWhereWithAggregatesInput = {
   id?: Prisma.IntWithAggregatesFilter<"CustomerAdvance"> | number
   reference?: Prisma.StringWithAggregatesFilter<"CustomerAdvance"> | string
   customerId?: Prisma.IntWithAggregatesFilter<"CustomerAdvance"> | number
+  accountId?: Prisma.IntNullableWithAggregatesFilter<"CustomerAdvance"> | number | null
   amount?: Prisma.FloatWithAggregatesFilter<"CustomerAdvance"> | number
   allocatedAmount?: Prisma.FloatWithAggregatesFilter<"CustomerAdvance"> | number
   refundedAmount?: Prisma.FloatWithAggregatesFilter<"CustomerAdvance"> | number
@@ -411,6 +430,7 @@ export type CustomerAdvanceCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   customer: Prisma.CustomerCreateNestedOneWithoutAdvancesInput
+  account?: Prisma.TreasuryAccountCreateNestedOneWithoutCustomerAdvancesInput
   session?: Prisma.CashSessionCreateNestedOneWithoutCustomerAdvancesInput
   allocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutAdvanceInput
 }
@@ -419,6 +439,7 @@ export type CustomerAdvanceUncheckedCreateInput = {
   id?: number
   reference: string
   customerId: number
+  accountId?: number | null
   amount: number
   allocatedAmount?: number
   refundedAmount?: number
@@ -446,6 +467,7 @@ export type CustomerAdvanceUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneRequiredWithoutAdvancesNestedInput
+  account?: Prisma.TreasuryAccountUpdateOneWithoutCustomerAdvancesNestedInput
   session?: Prisma.CashSessionUpdateOneWithoutCustomerAdvancesNestedInput
   allocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutAdvanceNestedInput
 }
@@ -454,6 +476,7 @@ export type CustomerAdvanceUncheckedUpdateInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   customerId?: Prisma.IntFieldUpdateOperationsInput | number
+  accountId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   allocatedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   refundedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
@@ -472,6 +495,7 @@ export type CustomerAdvanceCreateManyInput = {
   id?: number
   reference: string
   customerId: number
+  accountId?: number | null
   amount: number
   allocatedAmount?: number
   refundedAmount?: number
@@ -503,6 +527,7 @@ export type CustomerAdvanceUncheckedUpdateManyInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   customerId?: Prisma.IntFieldUpdateOperationsInput | number
+  accountId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   allocatedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   refundedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
@@ -530,6 +555,7 @@ export type CustomerAdvanceCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   reference?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
+  accountId?: Prisma.SortOrder
   amount?: Prisma.SortOrder
   allocatedAmount?: Prisma.SortOrder
   refundedAmount?: Prisma.SortOrder
@@ -546,6 +572,7 @@ export type CustomerAdvanceCountOrderByAggregateInput = {
 export type CustomerAdvanceAvgOrderByAggregateInput = {
   id?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
+  accountId?: Prisma.SortOrder
   amount?: Prisma.SortOrder
   allocatedAmount?: Prisma.SortOrder
   refundedAmount?: Prisma.SortOrder
@@ -556,6 +583,7 @@ export type CustomerAdvanceMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   reference?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
+  accountId?: Prisma.SortOrder
   amount?: Prisma.SortOrder
   allocatedAmount?: Prisma.SortOrder
   refundedAmount?: Prisma.SortOrder
@@ -573,6 +601,7 @@ export type CustomerAdvanceMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   reference?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
+  accountId?: Prisma.SortOrder
   amount?: Prisma.SortOrder
   allocatedAmount?: Prisma.SortOrder
   refundedAmount?: Prisma.SortOrder
@@ -589,6 +618,7 @@ export type CustomerAdvanceMinOrderByAggregateInput = {
 export type CustomerAdvanceSumOrderByAggregateInput = {
   id?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
+  accountId?: Prisma.SortOrder
   amount?: Prisma.SortOrder
   allocatedAmount?: Prisma.SortOrder
   refundedAmount?: Prisma.SortOrder
@@ -698,6 +728,48 @@ export type CustomerAdvanceUncheckedUpdateManyWithoutSessionNestedInput = {
   deleteMany?: Prisma.CustomerAdvanceScalarWhereInput | Prisma.CustomerAdvanceScalarWhereInput[]
 }
 
+export type CustomerAdvanceCreateNestedManyWithoutAccountInput = {
+  create?: Prisma.XOR<Prisma.CustomerAdvanceCreateWithoutAccountInput, Prisma.CustomerAdvanceUncheckedCreateWithoutAccountInput> | Prisma.CustomerAdvanceCreateWithoutAccountInput[] | Prisma.CustomerAdvanceUncheckedCreateWithoutAccountInput[]
+  connectOrCreate?: Prisma.CustomerAdvanceCreateOrConnectWithoutAccountInput | Prisma.CustomerAdvanceCreateOrConnectWithoutAccountInput[]
+  createMany?: Prisma.CustomerAdvanceCreateManyAccountInputEnvelope
+  connect?: Prisma.CustomerAdvanceWhereUniqueInput | Prisma.CustomerAdvanceWhereUniqueInput[]
+}
+
+export type CustomerAdvanceUncheckedCreateNestedManyWithoutAccountInput = {
+  create?: Prisma.XOR<Prisma.CustomerAdvanceCreateWithoutAccountInput, Prisma.CustomerAdvanceUncheckedCreateWithoutAccountInput> | Prisma.CustomerAdvanceCreateWithoutAccountInput[] | Prisma.CustomerAdvanceUncheckedCreateWithoutAccountInput[]
+  connectOrCreate?: Prisma.CustomerAdvanceCreateOrConnectWithoutAccountInput | Prisma.CustomerAdvanceCreateOrConnectWithoutAccountInput[]
+  createMany?: Prisma.CustomerAdvanceCreateManyAccountInputEnvelope
+  connect?: Prisma.CustomerAdvanceWhereUniqueInput | Prisma.CustomerAdvanceWhereUniqueInput[]
+}
+
+export type CustomerAdvanceUpdateManyWithoutAccountNestedInput = {
+  create?: Prisma.XOR<Prisma.CustomerAdvanceCreateWithoutAccountInput, Prisma.CustomerAdvanceUncheckedCreateWithoutAccountInput> | Prisma.CustomerAdvanceCreateWithoutAccountInput[] | Prisma.CustomerAdvanceUncheckedCreateWithoutAccountInput[]
+  connectOrCreate?: Prisma.CustomerAdvanceCreateOrConnectWithoutAccountInput | Prisma.CustomerAdvanceCreateOrConnectWithoutAccountInput[]
+  upsert?: Prisma.CustomerAdvanceUpsertWithWhereUniqueWithoutAccountInput | Prisma.CustomerAdvanceUpsertWithWhereUniqueWithoutAccountInput[]
+  createMany?: Prisma.CustomerAdvanceCreateManyAccountInputEnvelope
+  set?: Prisma.CustomerAdvanceWhereUniqueInput | Prisma.CustomerAdvanceWhereUniqueInput[]
+  disconnect?: Prisma.CustomerAdvanceWhereUniqueInput | Prisma.CustomerAdvanceWhereUniqueInput[]
+  delete?: Prisma.CustomerAdvanceWhereUniqueInput | Prisma.CustomerAdvanceWhereUniqueInput[]
+  connect?: Prisma.CustomerAdvanceWhereUniqueInput | Prisma.CustomerAdvanceWhereUniqueInput[]
+  update?: Prisma.CustomerAdvanceUpdateWithWhereUniqueWithoutAccountInput | Prisma.CustomerAdvanceUpdateWithWhereUniqueWithoutAccountInput[]
+  updateMany?: Prisma.CustomerAdvanceUpdateManyWithWhereWithoutAccountInput | Prisma.CustomerAdvanceUpdateManyWithWhereWithoutAccountInput[]
+  deleteMany?: Prisma.CustomerAdvanceScalarWhereInput | Prisma.CustomerAdvanceScalarWhereInput[]
+}
+
+export type CustomerAdvanceUncheckedUpdateManyWithoutAccountNestedInput = {
+  create?: Prisma.XOR<Prisma.CustomerAdvanceCreateWithoutAccountInput, Prisma.CustomerAdvanceUncheckedCreateWithoutAccountInput> | Prisma.CustomerAdvanceCreateWithoutAccountInput[] | Prisma.CustomerAdvanceUncheckedCreateWithoutAccountInput[]
+  connectOrCreate?: Prisma.CustomerAdvanceCreateOrConnectWithoutAccountInput | Prisma.CustomerAdvanceCreateOrConnectWithoutAccountInput[]
+  upsert?: Prisma.CustomerAdvanceUpsertWithWhereUniqueWithoutAccountInput | Prisma.CustomerAdvanceUpsertWithWhereUniqueWithoutAccountInput[]
+  createMany?: Prisma.CustomerAdvanceCreateManyAccountInputEnvelope
+  set?: Prisma.CustomerAdvanceWhereUniqueInput | Prisma.CustomerAdvanceWhereUniqueInput[]
+  disconnect?: Prisma.CustomerAdvanceWhereUniqueInput | Prisma.CustomerAdvanceWhereUniqueInput[]
+  delete?: Prisma.CustomerAdvanceWhereUniqueInput | Prisma.CustomerAdvanceWhereUniqueInput[]
+  connect?: Prisma.CustomerAdvanceWhereUniqueInput | Prisma.CustomerAdvanceWhereUniqueInput[]
+  update?: Prisma.CustomerAdvanceUpdateWithWhereUniqueWithoutAccountInput | Prisma.CustomerAdvanceUpdateWithWhereUniqueWithoutAccountInput[]
+  updateMany?: Prisma.CustomerAdvanceUpdateManyWithWhereWithoutAccountInput | Prisma.CustomerAdvanceUpdateManyWithWhereWithoutAccountInput[]
+  deleteMany?: Prisma.CustomerAdvanceScalarWhereInput | Prisma.CustomerAdvanceScalarWhereInput[]
+}
+
 export type CustomerAdvanceCreateWithoutCustomerInput = {
   reference: string
   amount: number
@@ -710,6 +782,7 @@ export type CustomerAdvanceCreateWithoutCustomerInput = {
   status?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  account?: Prisma.TreasuryAccountCreateNestedOneWithoutCustomerAdvancesInput
   session?: Prisma.CashSessionCreateNestedOneWithoutCustomerAdvancesInput
   allocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutAdvanceInput
 }
@@ -717,6 +790,7 @@ export type CustomerAdvanceCreateWithoutCustomerInput = {
 export type CustomerAdvanceUncheckedCreateWithoutCustomerInput = {
   id?: number
   reference: string
+  accountId?: number | null
   amount: number
   allocatedAmount?: number
   refundedAmount?: number
@@ -763,6 +837,7 @@ export type CustomerAdvanceScalarWhereInput = {
   id?: Prisma.IntFilter<"CustomerAdvance"> | number
   reference?: Prisma.StringFilter<"CustomerAdvance"> | string
   customerId?: Prisma.IntFilter<"CustomerAdvance"> | number
+  accountId?: Prisma.IntNullableFilter<"CustomerAdvance"> | number | null
   amount?: Prisma.FloatFilter<"CustomerAdvance"> | number
   allocatedAmount?: Prisma.FloatFilter<"CustomerAdvance"> | number
   refundedAmount?: Prisma.FloatFilter<"CustomerAdvance"> | number
@@ -789,6 +864,7 @@ export type CustomerAdvanceCreateWithoutAllocationsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   customer: Prisma.CustomerCreateNestedOneWithoutAdvancesInput
+  account?: Prisma.TreasuryAccountCreateNestedOneWithoutCustomerAdvancesInput
   session?: Prisma.CashSessionCreateNestedOneWithoutCustomerAdvancesInput
 }
 
@@ -796,6 +872,7 @@ export type CustomerAdvanceUncheckedCreateWithoutAllocationsInput = {
   id?: number
   reference: string
   customerId: number
+  accountId?: number | null
   amount: number
   allocatedAmount?: number
   refundedAmount?: number
@@ -838,6 +915,7 @@ export type CustomerAdvanceUpdateWithoutAllocationsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneRequiredWithoutAdvancesNestedInput
+  account?: Prisma.TreasuryAccountUpdateOneWithoutCustomerAdvancesNestedInput
   session?: Prisma.CashSessionUpdateOneWithoutCustomerAdvancesNestedInput
 }
 
@@ -845,6 +923,7 @@ export type CustomerAdvanceUncheckedUpdateWithoutAllocationsInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   customerId?: Prisma.IntFieldUpdateOperationsInput | number
+  accountId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   allocatedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   refundedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
@@ -871,6 +950,7 @@ export type CustomerAdvanceCreateWithoutSessionInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   customer: Prisma.CustomerCreateNestedOneWithoutAdvancesInput
+  account?: Prisma.TreasuryAccountCreateNestedOneWithoutCustomerAdvancesInput
   allocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutAdvanceInput
 }
 
@@ -878,6 +958,7 @@ export type CustomerAdvanceUncheckedCreateWithoutSessionInput = {
   id?: number
   reference: string
   customerId: number
+  accountId?: number | null
   amount: number
   allocatedAmount?: number
   refundedAmount?: number
@@ -916,9 +997,70 @@ export type CustomerAdvanceUpdateManyWithWhereWithoutSessionInput = {
   data: Prisma.XOR<Prisma.CustomerAdvanceUpdateManyMutationInput, Prisma.CustomerAdvanceUncheckedUpdateManyWithoutSessionInput>
 }
 
+export type CustomerAdvanceCreateWithoutAccountInput = {
+  reference: string
+  amount: number
+  allocatedAmount?: number
+  refundedAmount?: number
+  method?: string
+  paymentDate?: Date | string
+  productInterest?: string | null
+  notes?: string | null
+  status?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  customer: Prisma.CustomerCreateNestedOneWithoutAdvancesInput
+  session?: Prisma.CashSessionCreateNestedOneWithoutCustomerAdvancesInput
+  allocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutAdvanceInput
+}
+
+export type CustomerAdvanceUncheckedCreateWithoutAccountInput = {
+  id?: number
+  reference: string
+  customerId: number
+  amount: number
+  allocatedAmount?: number
+  refundedAmount?: number
+  method?: string
+  paymentDate?: Date | string
+  productInterest?: string | null
+  notes?: string | null
+  status?: string
+  sessionId?: number | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  allocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutAdvanceInput
+}
+
+export type CustomerAdvanceCreateOrConnectWithoutAccountInput = {
+  where: Prisma.CustomerAdvanceWhereUniqueInput
+  create: Prisma.XOR<Prisma.CustomerAdvanceCreateWithoutAccountInput, Prisma.CustomerAdvanceUncheckedCreateWithoutAccountInput>
+}
+
+export type CustomerAdvanceCreateManyAccountInputEnvelope = {
+  data: Prisma.CustomerAdvanceCreateManyAccountInput | Prisma.CustomerAdvanceCreateManyAccountInput[]
+}
+
+export type CustomerAdvanceUpsertWithWhereUniqueWithoutAccountInput = {
+  where: Prisma.CustomerAdvanceWhereUniqueInput
+  update: Prisma.XOR<Prisma.CustomerAdvanceUpdateWithoutAccountInput, Prisma.CustomerAdvanceUncheckedUpdateWithoutAccountInput>
+  create: Prisma.XOR<Prisma.CustomerAdvanceCreateWithoutAccountInput, Prisma.CustomerAdvanceUncheckedCreateWithoutAccountInput>
+}
+
+export type CustomerAdvanceUpdateWithWhereUniqueWithoutAccountInput = {
+  where: Prisma.CustomerAdvanceWhereUniqueInput
+  data: Prisma.XOR<Prisma.CustomerAdvanceUpdateWithoutAccountInput, Prisma.CustomerAdvanceUncheckedUpdateWithoutAccountInput>
+}
+
+export type CustomerAdvanceUpdateManyWithWhereWithoutAccountInput = {
+  where: Prisma.CustomerAdvanceScalarWhereInput
+  data: Prisma.XOR<Prisma.CustomerAdvanceUpdateManyMutationInput, Prisma.CustomerAdvanceUncheckedUpdateManyWithoutAccountInput>
+}
+
 export type CustomerAdvanceCreateManyCustomerInput = {
   id?: number
   reference: string
+  accountId?: number | null
   amount: number
   allocatedAmount?: number
   refundedAmount?: number
@@ -944,6 +1086,7 @@ export type CustomerAdvanceUpdateWithoutCustomerInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  account?: Prisma.TreasuryAccountUpdateOneWithoutCustomerAdvancesNestedInput
   session?: Prisma.CashSessionUpdateOneWithoutCustomerAdvancesNestedInput
   allocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutAdvanceNestedInput
 }
@@ -951,6 +1094,7 @@ export type CustomerAdvanceUpdateWithoutCustomerInput = {
 export type CustomerAdvanceUncheckedUpdateWithoutCustomerInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   reference?: Prisma.StringFieldUpdateOperationsInput | string
+  accountId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   allocatedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   refundedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
@@ -968,6 +1112,7 @@ export type CustomerAdvanceUncheckedUpdateWithoutCustomerInput = {
 export type CustomerAdvanceUncheckedUpdateManyWithoutCustomerInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   reference?: Prisma.StringFieldUpdateOperationsInput | string
+  accountId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   allocatedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   refundedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
@@ -985,6 +1130,7 @@ export type CustomerAdvanceCreateManySessionInput = {
   id?: number
   reference: string
   customerId: number
+  accountId?: number | null
   amount: number
   allocatedAmount?: number
   refundedAmount?: number
@@ -1010,6 +1156,7 @@ export type CustomerAdvanceUpdateWithoutSessionInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneRequiredWithoutAdvancesNestedInput
+  account?: Prisma.TreasuryAccountUpdateOneWithoutCustomerAdvancesNestedInput
   allocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutAdvanceNestedInput
 }
 
@@ -1017,6 +1164,7 @@ export type CustomerAdvanceUncheckedUpdateWithoutSessionInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   customerId?: Prisma.IntFieldUpdateOperationsInput | number
+  accountId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   allocatedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   refundedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
@@ -1034,6 +1182,7 @@ export type CustomerAdvanceUncheckedUpdateManyWithoutSessionInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   customerId?: Prisma.IntFieldUpdateOperationsInput | number
+  accountId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   allocatedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   refundedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
@@ -1042,6 +1191,75 @@ export type CustomerAdvanceUncheckedUpdateManyWithoutSessionInput = {
   productInterest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type CustomerAdvanceCreateManyAccountInput = {
+  id?: number
+  reference: string
+  customerId: number
+  amount: number
+  allocatedAmount?: number
+  refundedAmount?: number
+  method?: string
+  paymentDate?: Date | string
+  productInterest?: string | null
+  notes?: string | null
+  status?: string
+  sessionId?: number | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type CustomerAdvanceUpdateWithoutAccountInput = {
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  allocatedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  refundedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  method?: Prisma.StringFieldUpdateOperationsInput | string
+  paymentDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  productInterest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  customer?: Prisma.CustomerUpdateOneRequiredWithoutAdvancesNestedInput
+  session?: Prisma.CashSessionUpdateOneWithoutCustomerAdvancesNestedInput
+  allocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutAdvanceNestedInput
+}
+
+export type CustomerAdvanceUncheckedUpdateWithoutAccountInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  customerId?: Prisma.IntFieldUpdateOperationsInput | number
+  amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  allocatedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  refundedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  method?: Prisma.StringFieldUpdateOperationsInput | string
+  paymentDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  productInterest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  allocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutAdvanceNestedInput
+}
+
+export type CustomerAdvanceUncheckedUpdateManyWithoutAccountInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  customerId?: Prisma.IntFieldUpdateOperationsInput | number
+  amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  allocatedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  refundedAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  method?: Prisma.StringFieldUpdateOperationsInput | string
+  paymentDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  productInterest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1081,6 +1299,7 @@ export type CustomerAdvanceSelect<ExtArgs extends runtime.Types.Extensions.Inter
   id?: boolean
   reference?: boolean
   customerId?: boolean
+  accountId?: boolean
   amount?: boolean
   allocatedAmount?: boolean
   refundedAmount?: boolean
@@ -1093,6 +1312,7 @@ export type CustomerAdvanceSelect<ExtArgs extends runtime.Types.Extensions.Inter
   createdAt?: boolean
   updatedAt?: boolean
   customer?: boolean | Prisma.CustomerDefaultArgs<ExtArgs>
+  account?: boolean | Prisma.CustomerAdvance$accountArgs<ExtArgs>
   session?: boolean | Prisma.CustomerAdvance$sessionArgs<ExtArgs>
   allocations?: boolean | Prisma.CustomerAdvance$allocationsArgs<ExtArgs>
   _count?: boolean | Prisma.CustomerAdvanceCountOutputTypeDefaultArgs<ExtArgs>
@@ -1102,6 +1322,7 @@ export type CustomerAdvanceSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   id?: boolean
   reference?: boolean
   customerId?: boolean
+  accountId?: boolean
   amount?: boolean
   allocatedAmount?: boolean
   refundedAmount?: boolean
@@ -1114,6 +1335,7 @@ export type CustomerAdvanceSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   createdAt?: boolean
   updatedAt?: boolean
   customer?: boolean | Prisma.CustomerDefaultArgs<ExtArgs>
+  account?: boolean | Prisma.CustomerAdvance$accountArgs<ExtArgs>
   session?: boolean | Prisma.CustomerAdvance$sessionArgs<ExtArgs>
 }, ExtArgs["result"]["customerAdvance"]>
 
@@ -1121,6 +1343,7 @@ export type CustomerAdvanceSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   id?: boolean
   reference?: boolean
   customerId?: boolean
+  accountId?: boolean
   amount?: boolean
   allocatedAmount?: boolean
   refundedAmount?: boolean
@@ -1133,6 +1356,7 @@ export type CustomerAdvanceSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   createdAt?: boolean
   updatedAt?: boolean
   customer?: boolean | Prisma.CustomerDefaultArgs<ExtArgs>
+  account?: boolean | Prisma.CustomerAdvance$accountArgs<ExtArgs>
   session?: boolean | Prisma.CustomerAdvance$sessionArgs<ExtArgs>
 }, ExtArgs["result"]["customerAdvance"]>
 
@@ -1140,6 +1364,7 @@ export type CustomerAdvanceSelectScalar = {
   id?: boolean
   reference?: boolean
   customerId?: boolean
+  accountId?: boolean
   amount?: boolean
   allocatedAmount?: boolean
   refundedAmount?: boolean
@@ -1153,19 +1378,22 @@ export type CustomerAdvanceSelectScalar = {
   updatedAt?: boolean
 }
 
-export type CustomerAdvanceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "customerId" | "amount" | "allocatedAmount" | "refundedAmount" | "method" | "paymentDate" | "productInterest" | "notes" | "status" | "sessionId" | "createdAt" | "updatedAt", ExtArgs["result"]["customerAdvance"]>
+export type CustomerAdvanceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "customerId" | "accountId" | "amount" | "allocatedAmount" | "refundedAmount" | "method" | "paymentDate" | "productInterest" | "notes" | "status" | "sessionId" | "createdAt" | "updatedAt", ExtArgs["result"]["customerAdvance"]>
 export type CustomerAdvanceInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   customer?: boolean | Prisma.CustomerDefaultArgs<ExtArgs>
+  account?: boolean | Prisma.CustomerAdvance$accountArgs<ExtArgs>
   session?: boolean | Prisma.CustomerAdvance$sessionArgs<ExtArgs>
   allocations?: boolean | Prisma.CustomerAdvance$allocationsArgs<ExtArgs>
   _count?: boolean | Prisma.CustomerAdvanceCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type CustomerAdvanceIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   customer?: boolean | Prisma.CustomerDefaultArgs<ExtArgs>
+  account?: boolean | Prisma.CustomerAdvance$accountArgs<ExtArgs>
   session?: boolean | Prisma.CustomerAdvance$sessionArgs<ExtArgs>
 }
 export type CustomerAdvanceIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   customer?: boolean | Prisma.CustomerDefaultArgs<ExtArgs>
+  account?: boolean | Prisma.CustomerAdvance$accountArgs<ExtArgs>
   session?: boolean | Prisma.CustomerAdvance$sessionArgs<ExtArgs>
 }
 
@@ -1173,6 +1401,7 @@ export type $CustomerAdvancePayload<ExtArgs extends runtime.Types.Extensions.Int
   name: "CustomerAdvance"
   objects: {
     customer: Prisma.$CustomerPayload<ExtArgs>
+    account: Prisma.$TreasuryAccountPayload<ExtArgs> | null
     session: Prisma.$CashSessionPayload<ExtArgs> | null
     allocations: Prisma.$CustomerAdvanceAllocationPayload<ExtArgs>[]
   }
@@ -1180,6 +1409,7 @@ export type $CustomerAdvancePayload<ExtArgs extends runtime.Types.Extensions.Int
     id: number
     reference: string
     customerId: number
+    accountId: number | null
     amount: number
     allocatedAmount: number
     refundedAmount: number
@@ -1586,6 +1816,7 @@ readonly fields: CustomerAdvanceFieldRefs;
 export interface Prisma__CustomerAdvanceClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   customer<T extends Prisma.CustomerDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CustomerDefaultArgs<ExtArgs>>): Prisma.Prisma__CustomerClient<runtime.Types.Result.GetResult<Prisma.$CustomerPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  account<T extends Prisma.CustomerAdvance$accountArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CustomerAdvance$accountArgs<ExtArgs>>): Prisma.Prisma__TreasuryAccountClient<runtime.Types.Result.GetResult<Prisma.$TreasuryAccountPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   session<T extends Prisma.CustomerAdvance$sessionArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CustomerAdvance$sessionArgs<ExtArgs>>): Prisma.Prisma__CashSessionClient<runtime.Types.Result.GetResult<Prisma.$CashSessionPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   allocations<T extends Prisma.CustomerAdvance$allocationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CustomerAdvance$allocationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CustomerAdvanceAllocationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
@@ -1620,6 +1851,7 @@ export interface CustomerAdvanceFieldRefs {
   readonly id: Prisma.FieldRef<"CustomerAdvance", 'Int'>
   readonly reference: Prisma.FieldRef<"CustomerAdvance", 'String'>
   readonly customerId: Prisma.FieldRef<"CustomerAdvance", 'Int'>
+  readonly accountId: Prisma.FieldRef<"CustomerAdvance", 'Int'>
   readonly amount: Prisma.FieldRef<"CustomerAdvance", 'Float'>
   readonly allocatedAmount: Prisma.FieldRef<"CustomerAdvance", 'Float'>
   readonly refundedAmount: Prisma.FieldRef<"CustomerAdvance", 'Float'>
@@ -2027,6 +2259,25 @@ export type CustomerAdvanceDeleteManyArgs<ExtArgs extends runtime.Types.Extensio
    * Limit how many CustomerAdvances to delete.
    */
   limit?: number
+}
+
+/**
+ * CustomerAdvance.account
+ */
+export type CustomerAdvance$accountArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the TreasuryAccount
+   */
+  select?: Prisma.TreasuryAccountSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the TreasuryAccount
+   */
+  omit?: Prisma.TreasuryAccountOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.TreasuryAccountInclude<ExtArgs> | null
+  where?: Prisma.TreasuryAccountWhereInput
 }
 
 /**

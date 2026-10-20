@@ -159,6 +159,8 @@ model Supplier {
   updatedAt DateTime @updatedAt
 
   purchases Purchase[]
+  payments  Payment[]
+  debts     SupplierDebt[]
 
   @@index([isActive])
   @@map("suppliers")
@@ -223,6 +225,10 @@ model Payment {
   sale        Sales?    @relation(fields: [saleId], references: [id], onDelete: Cascade)
   purchaseId  Int?
   purchase    Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  supplierId  Int?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  accountId   Int?
+  account     TreasuryAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   amount      Float
   method      String    @default("cash")
   status      String    @default("completed")
@@ -236,6 +242,8 @@ model Payment {
 
   @@index([saleId])
   @@index([purchaseId])
+  @@index([supplierId])
+  @@index([accountId])
   @@index([paymentDate])
   @@index([sessionId])
   @@map("payments")
@@ -246,6 +254,8 @@ model CustomerAdvance {
   reference       String                      @unique
   customerId      Int
   customer        Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  accountId       Int?
+  account         TreasuryAccount?            @relation(fields: [accountId], references: [id], onDelete: SetNull)
   amount          Float
   allocatedAmount Float                       @default(0)
   refundedAmount  Float                       @default(0)
@@ -262,6 +272,7 @@ model CustomerAdvance {
   allocations     CustomerAdvanceAllocation[]
 
   @@index([customerId])
+  @@index([accountId])
   @@index([status])
   @@index([paymentDate])
   @@index([sessionId])
@@ -383,6 +394,8 @@ model PurchaseReceiptItem {
 model CashSession {
   id                Int       @id @default(autoincrement())
   reference         String    @unique
+  accountId         Int?
+  account           TreasuryAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   openedAt          DateTime  @default(now())
   closedAt          DateTime?
   status            String    @default("open") // "open", "closed"
@@ -400,7 +413,9 @@ model CashSession {
   expenses          Expense[]
   payments          Payment[]
   customerAdvances  CustomerAdvance[]
+  transfers         TreasuryTransfer[]
 
+  @@index([accountId])
   @@index([status])
   @@index([openedAt])
   @@map("cash_sessions")
@@ -409,6 +424,8 @@ model CashSession {
 model Expense {
   id             Int          @id @default(autoincrement())
   reference      String       @unique
+  accountId      Int?
+  account        TreasuryAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   type           String       @default("expense") // "expense" (décaissement), "income" (encaissement exceptionnel)
   category       String       // "transport", "utilities", "rent", "maintenance", "supplies", "salary", "other", "capital", "misc_income"
   description    String
@@ -423,12 +440,79 @@ model Expense {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  @@index([accountId])
   @@index([type])
   @@index([category])
   @@index([date])
   @@index([method])
   @@index([sessionId])
   @@map("expenses")
+}
+
+model TreasuryAccount {
+  id             Int       @id @default(autoincrement())
+  code           String    @unique
+  name           String
+  type           String    @default("cash") // "cash", "safe", "bank", "other"
+  openingBalance Float     @default(0)
+  openingDate    DateTime  @default(now())
+  isDefault      Boolean   @default(false)
+  isActive       Boolean   @default(true)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  transfersFrom    TreasuryTransfer[] @relation("SourceAccount")
+  transfersTo      TreasuryTransfer[] @relation("DestinationAccount")
+  payments         Payment[]
+  expenses         Expense[]
+  customerAdvances CustomerAdvance[]
+  cashSessions     CashSession[]
+
+  @@index([type])
+  @@index([isActive])
+  @@map("treasury_accounts")
+}
+
+model TreasuryTransfer {
+  id            Int             @id @default(autoincrement())
+  reference     String          @unique
+  fromAccountId Int
+  fromAccount   TreasuryAccount @relation("SourceAccount", fields: [fromAccountId], references: [id])
+  toAccountId   Int
+  toAccount     TreasuryAccount @relation("DestinationAccount", fields: [toAccountId], references: [id])
+  amount        Float
+  motif         String
+  notes         String?
+  date          DateTime        @default(now())
+  sessionId     Int?
+  session       CashSession?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([fromAccountId])
+  @@index([toAccountId])
+  @@index([date])
+  @@index([sessionId])
+  @@map("treasury_transfers")
+}
+
+model SupplierDebt {
+  id          Int      @id @default(autoincrement())
+  reference   String   @unique
+  supplierId  Int
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  amount      Float
+  type        String   @default("initial_debt") // "initial_debt", "adjustment"
+  description String
+  date        DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([supplierId])
+  @@index([date])
+  @@map("supplier_debts")
 }
 
 model Transaction {

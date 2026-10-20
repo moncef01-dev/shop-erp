@@ -763,3 +763,171 @@ export function PrintableExpenseVoucher({
     </div>
   );
 }
+
+// ─── 4. RELEVÉ DE COMPTE DE TRÉSORERIE (A4) ──────────────────────────────────
+
+export function PrintableTreasuryAccountStatement({
+  account,
+  items,
+  settings,
+  onClose,
+}: {
+  account: {
+    id: number;
+    name: string;
+    code: string;
+    type: string;
+    openingBalance: number;
+    currentBalance: number;
+  };
+  items: {
+    id: string;
+    date: string;
+    reference: string;
+    type: string;
+    typeLabel: string;
+    description: string;
+    party: string;
+    inflow: number;
+    outflow: number;
+    runningBalance: number;
+    method?: string;
+  }[];
+  settings?: ShopSettingsData | null;
+  onClose: () => void;
+}) {
+  const totalInflows = items.reduce((acc, i) => acc + i.inflow, 0);
+  const totalOutflows = items.reduce((acc, i) => acc + i.outflow, 0);
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="relative w-full max-w-4xl bg-white rounded-xl shadow-2xl overflow-hidden print-card">
+        {/* Actions bar (non imprimée) */}
+        <div className="no-print bg-slate-900 text-white px-6 py-3 flex items-center justify-between">
+          <span className="text-sm font-semibold flex items-center gap-2">
+            <Printer className="h-4 w-4" />
+            Aperçu avant impression &bull; Relevé de Trésorerie
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-slate-950 rounded hover:bg-amber-400 transition"
+            >
+              Imprimer (A4)
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-white rounded transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Contenu A4 */}
+        <div className="p-8 text-slate-900">
+          {/* En-tête officiel */}
+          <div className="border-b border-slate-300 pb-4 mb-6 flex justify-between items-start">
+            <div>
+              <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                {settings?.shopName || "SHOP ERP MOBILIER"}
+              </h1>
+              <p className="text-xs text-slate-600 mt-0.5">{settings?.activity || "Commerce de Meubles & Décoration"}</p>
+              <p className="text-xs text-slate-500">{settings?.address}</p>
+              <p className="text-xs text-slate-500">Tél : {settings?.phone}</p>
+            </div>
+            <div className="text-right">
+              <span className="inline-block px-3 py-1 rounded bg-slate-100 border border-slate-300 font-bold text-xs uppercase tracking-wider">
+                Relevé de Compte
+              </span>
+              <p className="font-mono font-bold text-sm text-slate-900 mt-2">{account.name}</p>
+              <p className="text-xs text-slate-500 font-mono">Code : {account.code}</p>
+              <p className="text-xs text-slate-400 mt-1">Édité le {formatDateTime(new Date().toISOString())}</p>
+            </div>
+          </div>
+
+          {/* Synthèse soldes */}
+          <div className="grid grid-cols-4 gap-3 mb-6 bg-slate-50 p-3.5 rounded border border-slate-200 text-xs">
+            <div>
+              <span className="text-slate-500 block">Solde d&apos;ouverture :</span>
+              <span className="font-mono font-bold text-slate-900">{formatDA(account.openingBalance)}</span>
+            </div>
+            <div>
+              <span className="text-slate-500 block">Total Entrées :</span>
+              <span className="font-mono font-bold text-emerald-700">+{formatDA(totalInflows)}</span>
+            </div>
+            <div>
+              <span className="text-slate-500 block">Total Sorties :</span>
+              <span className="font-mono font-bold text-rose-700">-{formatDA(totalOutflows)}</span>
+            </div>
+            <div>
+              <span className="text-slate-500 block">Solde Actuel :</span>
+              <span className="font-mono font-black text-slate-900 text-sm">{formatDA(account.currentBalance)}</span>
+            </div>
+          </div>
+
+          {/* Table des mouvements */}
+          <div className="border border-slate-200 rounded mb-6 overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
+                <tr>
+                  <th className="py-2.5 px-3">Date</th>
+                  <th className="py-2.5 px-3">Réf</th>
+                  <th className="py-2.5 px-3">Type &amp; Description</th>
+                  <th className="py-2.5 px-3">Tiers / Info</th>
+                  <th className="py-2.5 px-3 text-right">Entrée (+)</th>
+                  <th className="py-2.5 px-3 text-right">Sortie (-)</th>
+                  <th className="py-2.5 px-3 text-right">Solde</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-sans">
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-6 text-center text-slate-500">
+                      Aucun mouvement sur ce compte.
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((it) => (
+                    <tr key={it.id}>
+                      <td className="py-2 px-3 font-mono text-slate-600">
+                        {new Date(it.date).toLocaleDateString("fr-DZ")}
+                      </td>
+                      <td className="py-2 px-3 font-mono font-bold text-slate-800">{it.reference}</td>
+                      <td className="py-2 px-3">
+                        <span className="font-semibold block">{it.typeLabel}</span>
+                        <span className="text-[11px] text-slate-500">{it.description}</span>
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">{it.party}</td>
+                      <td className="py-2 px-3 text-right font-mono text-emerald-700">
+                        {it.inflow > 0 ? `+${formatDA(it.inflow)}` : "—"}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono text-rose-700">
+                        {it.outflow > 0 ? `-${formatDA(it.outflow)}` : "—"}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                        {formatDA(it.runningBalance)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Signatures */}
+          <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-300 text-center">
+            <div>
+              <p className="font-bold text-slate-800 mb-14 uppercase text-[11px]">Le Responsable Trésorerie</p>
+              <p className="text-[10px] text-slate-400 italic">Signature</p>
+            </div>
+            <div>
+              <p className="font-bold text-slate-800 mb-14 uppercase text-[11px]">La Direction Générale</p>
+              <p className="text-[10px] text-slate-400 italic">Cachet &amp; Visa</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

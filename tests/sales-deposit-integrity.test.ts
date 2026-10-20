@@ -424,9 +424,12 @@ async function runTests() {
   if (passedCount !== results.length) {
     process.exit(1);
   }
+  await prisma.$disconnect();
+  process.exit(0);
 }
 
-runTests().catch((e) => {
+runTests().catch(async (e) => {
   console.error("Erreur fatale exécution tests:", e);
+  await prisma.$disconnect();
   process.exit(1);
 });

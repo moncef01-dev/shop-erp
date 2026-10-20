@@ -53,13 +53,13 @@ export const navItems: NavItem[] = [
     label: "Fournisseurs",
     href: "/suppliers",
     icon: Building2,
-    description: "Répertoire et contacts fournisseurs",
+    description: "Comptes fournisseurs, dettes initiales et règlements",
   },
   {
     label: "Caisse & Trésorerie",
     href: "/cash",
     icon: Wallet,
-    description: "Caisse physique, trésorerie et charges",
+    description: "Multi-comptes, coffre, virements et charges",
   },
   {
     label: "Documents",

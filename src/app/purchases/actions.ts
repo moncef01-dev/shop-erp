@@ -769,78 +769,125 @@ export async function getReceiptDetailsAction(receiptId: number): Promise<Purcha
 export async function recordSupplierPaymentAction(formData: FormData): Promise<PurchaseActionResponse> {
   try {
     const purchaseIdStr = formData.get("purchaseId") as string;
+    const supplierIdStr = formData.get("supplierId") as string;
     const amountStr = formData.get("amount") as string;
     const method = (formData.get("method") as string) || "cash";
     const notes = (formData.get("notes") as string)?.trim() || null;
     const paymentDateStr = formData.get("paymentDate") as string;
+    const sourceAccountIdStr = formData.get("sourceAccountId") as string;
 
-    if (!purchaseIdStr || !amountStr || amountStr.trim() === "") {
-      return { success: false, error: "La commande et le montant du règlement sont obligatoires." };
+    if ((!purchaseIdStr && !supplierIdStr) || !amountStr || amountStr.trim() === "") {
+      return { success: false, error: "La commande ou le fournisseur et le montant du règlement sont obligatoires." };
     }
 
-    const purchaseId = parseInt(purchaseIdStr, 10);
+    const purchaseId = purchaseIdStr ? parseInt(purchaseIdStr, 10) : null;
     const amount = parseFloat(amountStr);
 
     if (isNaN(amount) || amount <= 0) {
       return { success: false, error: "Le montant du règlement doit être un nombre strictement supérieur à 0 DA." };
     }
 
-    const purchase = await prisma.purchase.findUnique({
-      where: { id: purchaseId },
-      include: { supplier: true },
-    });
+    let purchase = null;
+    let targetSupplierId = supplierIdStr ? parseInt(supplierIdStr, 10) : null;
 
-    if (!purchase) return { success: false, error: "Commande introuvable." };
-    if (purchase.status === "cancelled") {
-      return { success: false, error: "Impossible d'enregistrer un paiement sur une commande annulée." };
-    }
+    if (purchaseId) {
+      purchase = await prisma.purchase.findUnique({
+        where: { id: purchaseId },
+        include: { supplier: true },
+      });
 
-    const remainingBalance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
-    if (amount > remainingBalance) {
-      return {
-        success: false,
-        error: `Le montant saisi (${amount.toLocaleString("fr-DZ")} DA) dépasse le solde restant dû (${remainingBalance.toLocaleString("fr-DZ")} DA). Les trop-perçus ne sont pas autorisés.`,
-      };
+      if (!purchase) return { success: false, error: "Commande introuvable." };
+      if (purchase.status === "cancelled") {
+        return { success: false, error: "Impossible d'enregistrer un paiement sur une commande annulée." };
+      }
+
+      if (purchase.supplierId) {
+        targetSupplierId = purchase.supplierId;
+      }
+
+      const remainingBalance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
+      if (amount > remainingBalance) {
+        return {
+          success: false,
+          error: `Le montant saisi (${amount.toLocaleString("fr-DZ")} DA) dépasse le solde restant dû (${remainingBalance.toLocaleString("fr-DZ")} DA). Les trop-perçus ne sont pas autorisés.`,
+        };
+      }
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      // Résolution du compte source
+      let sourceAccountId: number | null = sourceAccountIdStr ? parseInt(sourceAccountIdStr, 10) : null;
+      let sourceAccount = null;
+
+      if (sourceAccountId) {
+        sourceAccount = await tx.treasuryAccount.findUnique({ where: { id: sourceAccountId } });
+        if (!sourceAccount) throw new Error("Compte de trésorerie source introuvable.");
+        if (!sourceAccount.isActive) throw new Error(`Le compte "${sourceAccount.name}" est inactif.`);
+      } else {
+        // Fallback rétrocompatible
+        if (method === "cash") {
+          sourceAccount = await tx.treasuryAccount.findFirst({ where: { isDefault: true } });
+        } else if (method === "transfer") {
+          sourceAccount = await tx.treasuryAccount.findFirst({ where: { code: "ACC-BANQUE" } });
+        }
+        if (sourceAccount) sourceAccountId = sourceAccount.id;
+      }
+
       const payRef = await generateNextSupplierPaymentReference(tx);
       const paymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
+
+      // Rattachement session si espèces
+      let sessionId: number | null = null;
+      if (method === "cash") {
+        const activeSession = await tx.cashSession.findFirst({ where: { status: "open" } });
+        if (activeSession) sessionId = activeSession.id;
+      }
 
       const payment = await tx.payment.create({
         data: {
           reference: payRef,
-          purchaseId: purchase.id,
+          purchaseId: purchase ? purchase.id : null,
+          supplierId: targetSupplierId,
+          accountId: sourceAccountId,
           amount,
           method,
           status: "completed",
-          notes: notes || `Règlement commande fournisseur ${purchase.reference}`,
+          notes: notes || (purchase ? `Règlement commande fournisseur ${purchase.reference}` : "Règlement fournisseur"),
           paymentDate,
+          sessionId,
         },
       });
 
-      const newPaid = purchase.paidAmount + amount;
-      const newPaymentStatus = newPaid >= purchase.totalAmount ? "paid" : "partial";
+      let newPaid = 0;
+      let newPaymentStatus = "unpaid";
+      if (purchase) {
+        newPaid = purchase.paidAmount + amount;
+        newPaymentStatus = newPaid >= purchase.totalAmount ? "paid" : "partial";
 
-      await tx.purchase.update({
-        where: { id: purchase.id },
-        data: {
-          paidAmount: newPaid,
-          paymentStatus: newPaymentStatus,
-        },
-      });
+        await tx.purchase.update({
+          where: { id: purchase.id },
+          data: {
+            paidAmount: newPaid,
+            paymentStatus: newPaymentStatus,
+          },
+        });
+      }
 
-      return { payment, newPaid, newPaymentStatus };
+      return { payment, newPaid, newPaymentStatus, purchase, sourceAccount };
     });
 
     safeRevalidate("/purchases");
     safeRevalidate("/suppliers");
     safeRevalidate("/cash");
 
-    const newBalance = Math.max(0, purchase.totalAmount - result.newPaid);
+    const newBalance = result.purchase ? Math.max(0, result.purchase.totalAmount - result.newPaid) : 0;
+    const accountNotice = result.sourceAccount ? ` depuis "${result.sourceAccount.name}"` : "";
+
     return {
       success: true,
-      message: `Paiement fournisseur de ${amount.toLocaleString("fr-DZ")} DA validé (Réf: ${result.payment.reference}). Reste à régler : ${newBalance.toLocaleString("fr-DZ")} DA.`,
+      message: `Paiement fournisseur de ${amount.toLocaleString("fr-DZ")} DA validé${accountNotice} (Réf: ${result.payment.reference}).${
+        result.purchase ? ` Reste à régler : ${newBalance.toLocaleString("fr-DZ")} DA.` : ""
+      }`,
       data: result.payment,
     };
   } catch (err: unknown) {
@@ -1016,6 +1063,11 @@ export async function getPurchasesData(searchQuery?: string) {
 
   const allSuppliers = await getSuppliersData();
   const settings = await prisma.shopSettings.findUnique({ where: { id: 1 } });
+  const treasuryAccounts = await prisma.treasuryAccount.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true, code: true, type: true },
+    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+  });
 
   return {
     purchases,
@@ -1024,6 +1076,7 @@ export async function getPurchasesData(searchQuery?: string) {
     products,
     locations,
     settings,
+    treasuryAccounts,
     metrics: {
       totalPurchasesAmount,
       totalPaidAmount,

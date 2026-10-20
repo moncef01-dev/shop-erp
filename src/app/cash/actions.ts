@@ -3,6 +3,35 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { ShopSettingsData } from "@/app/settings/actions";
+import {
+  generateNextTreasuryTransferReference,
+  generateNextTreasuryAccountCode,
+  calculateAccountBalance,
+  getTreasuryDashboardData,
+  createTreasuryAccountAction,
+  updateTreasuryAccountAction,
+  createTreasuryTransferAction,
+  getAccountMovements,
+  type TreasuryAccountData,
+  type TreasuryTransferData,
+  type AccountMovementItem,
+  type TreasuryDashboardSummary,
+} from "./treasury-actions";
+
+export {
+  generateNextTreasuryTransferReference,
+  generateNextTreasuryAccountCode,
+  calculateAccountBalance,
+  getTreasuryDashboardData,
+  createTreasuryAccountAction,
+  updateTreasuryAccountAction,
+  createTreasuryTransferAction,
+  getAccountMovements,
+  type TreasuryAccountData,
+  type TreasuryTransferData,
+  type AccountMovementItem,
+  type TreasuryDashboardSummary,
+};
 
 export type PrismaTransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
@@ -74,14 +103,24 @@ export async function generateNextExpenseReference(
 
 // ─── GESTION DES SESSIONS DE CAISSE (OUVERTURE & CLÔTURE) ────────────────────
 
-export async function openCashSessionAction(payload: {
-  openingAmount: number;
-  openingNotes?: string;
-  openedAt?: string;
-  includePendingCash?: boolean;
-}): Promise<CashActionResponse> {
+export async function openCashSessionAction(
+  payload:
+    | number
+    | {
+        openingAmount: number;
+        openingNotes?: string;
+        openedAt?: string;
+        includePendingCash?: boolean;
+      },
+  notesArg?: string
+): Promise<CashActionResponse> {
   try {
-    const openingAmount = Number(payload.openingAmount);
+    const isObj = typeof payload === "object" && payload !== null;
+    const openingAmount = isObj ? Number(payload.openingAmount) : Number(payload);
+    const openingNotes = isObj ? payload.openingNotes?.trim() || null : notesArg?.trim() || null;
+    const openedAt = isObj && payload.openedAt ? new Date(payload.openedAt) : new Date();
+    const includePendingCash = isObj ? Boolean(payload.includePendingCash) : false;
+
     if (isNaN(openingAmount) || openingAmount < 0) {
       return {
         success: false,
@@ -104,7 +143,6 @@ export async function openCashSessionAction(payload: {
     }
 
     const reference = await generateNextCashSessionReference();
-    const openedAt = payload.openedAt ? new Date(payload.openedAt) : new Date();
 
     const session = await prisma.$transaction(async (tx) => {
       const created = await tx.cashSession.create({
@@ -113,11 +151,11 @@ export async function openCashSessionAction(payload: {
           status: "open",
           openingAmount,
           openedAt,
-          openingNotes: payload.openingNotes?.trim() || null,
+          openingNotes,
         },
       });
 
-      if (payload.includePendingCash) {
+      if (includePendingCash) {
         await tx.payment.updateMany({
           where: { sessionId: null, method: "cash", status: { not: "cancelled" } },
           data: { sessionId: created.id },
@@ -138,7 +176,7 @@ export async function openCashSessionAction(payload: {
       success: true,
       message: `Session de caisse ${reference} ouverte avec succès (Fond de caisse : ${openingAmount.toLocaleString(
         "fr-DZ"
-      )} DA)${payload.includePendingCash ? " avec rattachement des espèces hors session." : "."}`,
+      )} DA)${includePendingCash ? " avec rattachement des espèces hors session." : "."}`,
       data: session,
     };
   } catch (err: unknown) {
@@ -213,19 +251,63 @@ export async function reconcileOutOfSessionCashAction(sessionId: number): Promis
   }
 }
 
-export async function closeCashSessionAction(payload: {
-  sessionId: number;
-  closingAmount: number;
-  closingNotes?: string;
-}): Promise<CashActionResponse> {
+export async function closeCashSessionAction(
+  payload:
+    | number
+    | {
+        sessionId: number;
+        closingAmount: number;
+        closingNotes?: string;
+        transferAmount?: number;
+        transferDestinationAccountId?: number;
+        transferNotes?: string;
+      },
+  closingAmountArg?: number,
+  closingNotesArg?: string,
+  transferAmountArg?: number,
+  transferDestinationAccountIdArg?: number,
+  transferNotesArg?: string
+): Promise<CashActionResponse> {
   try {
-    const sessionId = Number(payload.sessionId);
-    const closingAmount = Number(payload.closingAmount);
+    const isObj = typeof payload === "object" && payload !== null;
+    const sessionId = isObj ? Number(payload.sessionId) : Number(payload);
+    const closingAmount = isObj ? Number(payload.closingAmount) : Number(closingAmountArg);
+    const closingNotes = isObj ? payload.closingNotes : closingNotesArg;
+    const transferAmount = isObj
+      ? (payload.transferAmount !== undefined ? Number(payload.transferAmount) : 0)
+      : (transferAmountArg !== undefined ? Number(transferAmountArg) : 0);
+    const transferDestinationAccountId = isObj
+      ? payload.transferDestinationAccountId
+      : transferDestinationAccountIdArg;
+    const transferNotes = isObj ? payload.transferNotes : transferNotesArg;
 
     if (isNaN(closingAmount) || closingAmount < 0) {
       return {
         success: false,
         error: "Le montant physique compté doit être un nombre positif ou nul en DA.",
+      };
+    }
+
+    if (isNaN(transferAmount) || transferAmount < 0) {
+      return {
+        success: false,
+        error: "Le montant à transférer doit être un nombre positif ou nul en DA.",
+      };
+    }
+
+    if (transferAmount > closingAmount) {
+      return {
+        success: false,
+        error: `Le montant à transférer (${transferAmount.toLocaleString(
+          "fr-DZ"
+        )} DA) ne peut dépasser le montant physique compté (${closingAmount.toLocaleString("fr-DZ")} DA).`,
+      };
+    }
+
+    if (transferAmount > 0 && !transferDestinationAccountId) {
+      return {
+        success: false,
+        error: "Veuillez sélectionner un compte de destination pour le transfert de fonds.",
       };
     }
 
@@ -247,12 +329,13 @@ export async function closeCashSessionAction(payload: {
     const now = new Date();
 
     // Calcul autoritaire côté serveur sur la fenêtre [openedAt, now] et les opérations rattachées
-    // 1. Encaissements physiques (Ventes en espèces)
+    // 1. Encaissements physiques (Ventes et encaissements en espèces)
     const salesPayments = await prisma.payment.findMany({
       where: {
         status: { not: "cancelled" },
         method: "cash",
-        saleId: { not: null },
+        purchaseId: null,
+        supplierId: null,
         OR: [
           { sessionId: sessionId },
           { sessionId: null, paymentDate: { gte: session.openedAt, lte: now } },
@@ -267,10 +350,14 @@ export async function closeCashSessionAction(payload: {
       where: {
         status: { not: "cancelled" },
         method: "cash",
-        purchaseId: { not: null },
-        OR: [
-          { sessionId: sessionId },
-          { sessionId: null, paymentDate: { gte: session.openedAt, lte: now } },
+        AND: [
+          { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
+          {
+            OR: [
+              { sessionId: sessionId },
+              { sessionId: null, paymentDate: { gte: session.openedAt, lte: now } },
+            ],
+          },
         ],
       },
       select: { id: true, amount: true },
@@ -300,9 +387,9 @@ export async function closeCashSessionAction(payload: {
     const theoreticalAmount = session.openingAmount + totalCashIn - totalCashOut;
     const difference = closingAmount - theoreticalAmount;
 
-    // Mise à jour atomique de clôture
-    const closedSession = await prisma.$transaction(async (tx) => {
-      // Mettre à jour la session
+    // Mise à jour atomique de clôture & transfert optionnel
+    const { updatedSession, transferInfo } = await prisma.$transaction(async (tx) => {
+      // 1. Clôturer la session
       const updated = await tx.cashSession.update({
         where: { id: sessionId },
         data: {
@@ -313,11 +400,11 @@ export async function closeCashSessionAction(payload: {
           theoreticalAmount,
           closingAmount,
           difference,
-          closingNotes: payload.closingNotes?.trim() || null,
+          closingNotes: closingNotes?.trim() || null,
         },
       });
 
-      // Lier la session aux paiements et dépenses concernés pour historique
+      // 2. Lier la session aux paiements et dépenses concernés pour archivage immuable
       const paymentIds = [...salesPayments.map((p) => p.id), ...supplierPayments.map((p) => p.id)];
       if (paymentIds.length > 0) {
         await tx.payment.updateMany({
@@ -334,10 +421,63 @@ export async function closeCashSessionAction(payload: {
         });
       }
 
-      return updated;
+      // 3. Enregistrer le transfert de clôture si un montant a été spécifié par l'utilisateur
+      let transferResult: { reference: string; destName: string } | null = null;
+      if (transferAmount > 0 && transferDestinationAccountId) {
+        let sourceAccount = await tx.treasuryAccount.findFirst({
+          where: { isDefault: true },
+        });
+        if (!sourceAccount) {
+          sourceAccount = await tx.treasuryAccount.findFirst({
+            where: { type: "cash" },
+          });
+        }
+        if (!sourceAccount) {
+          sourceAccount = await tx.treasuryAccount.create({
+            data: {
+              code: "ACC-CAISSE",
+              name: "Caisse journalière",
+              type: "cash",
+              openingBalance: 0,
+              isDefault: true,
+              isActive: true,
+            },
+          });
+        }
+
+        if (sourceAccount.id === transferDestinationAccountId) {
+          throw new Error("Le compte de destination du transfert doit être différent de la caisse journalière.");
+        }
+
+        const destAccount = await tx.treasuryAccount.findUnique({
+          where: { id: transferDestinationAccountId },
+        });
+        if (!destAccount || !destAccount.isActive) {
+          throw new Error("Compte de destination du transfert introuvable ou inactif.");
+        }
+
+        const trfRef = await generateNextTreasuryTransferReference(tx);
+        await tx.treasuryTransfer.create({
+          data: {
+            reference: trfRef,
+            fromAccountId: sourceAccount.id,
+            toAccountId: destAccount.id,
+            amount: transferAmount,
+            motif: transferNotes?.trim() || `Transfert clôture de caisse ${session.reference}`,
+            date: now,
+            sessionId: sessionId,
+          },
+        });
+
+        transferResult = { reference: trfRef, destName: destAccount.name };
+      }
+
+      return { updatedSession: updated, transferInfo: transferResult };
     });
 
     safeRevalidate("/cash");
+    safeRevalidate("/purchases");
+    safeRevalidate("/suppliers");
 
     let diffMsg = "";
     if (difference === 0) {
@@ -348,16 +488,26 @@ export async function closeCashSessionAction(payload: {
       diffMsg = `Déficit de caisse constaté : ${difference.toLocaleString("fr-DZ")} DA.`;
     }
 
+    const retainedAmount = closingAmount - transferAmount;
+    const transferMsg = transferInfo
+      ? ` Transfert de ${transferAmount.toLocaleString("fr-DZ")} DA vers "${
+          transferInfo.destName
+        }" validé (${transferInfo.reference}). Espèces conservées en caisse : ${retainedAmount.toLocaleString(
+          "fr-DZ"
+        )} DA.`
+      : "";
+
     return {
       success: true,
-      message: `Session ${closedSession.reference} clôturée avec succès. ${diffMsg}`,
-      data: closedSession,
+      message: `Session ${updatedSession.reference} clôturée avec succès. ${diffMsg}${transferMsg}`,
+      data: updatedSession,
     };
   } catch (err: unknown) {
     console.error("Erreur clôture session caisse:", err);
+    const msg = err instanceof Error ? err.message : "Erreur lors de la clôture de la session de caisse.";
     return {
       success: false,
-      error: "Erreur lors de la clôture de la session de caisse.",
+      error: msg,
     };
   }
 }
@@ -375,6 +525,7 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
     const receiptNumber = (formData.get("receiptNumber") as string)?.trim() || null;
     const notes = (formData.get("notes") as string)?.trim() || null;
     const dateStr = formData.get("date") as string;
+    const accountIdStr = formData.get("accountId") as string;
 
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) {
@@ -406,6 +557,33 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
       };
     }
 
+    // Détermination du compte de trésorerie affecté
+    let accountId: number | null = accountIdStr ? parseInt(accountIdStr, 10) : null;
+    if (accountId) {
+      const acc = await prisma.treasuryAccount.findUnique({ where: { id: accountId } });
+      if (!acc) return { success: false, error: "Compte de trésorerie sélectionné introuvable." };
+      if (!acc.isActive) return { success: false, error: `Le compte "${acc.name}" est inactif.` };
+      if (type === "expense") {
+        const available = await calculateAccountBalance(accountId);
+        if (available < amount) {
+          return {
+            success: false,
+            error: `Solde insuffisant sur le compte "${acc.name}". Solde disponible : ${available.toLocaleString(
+              "fr-DZ"
+            )} DA, dépense demandée : ${amount.toLocaleString("fr-DZ")} DA.`,
+          };
+        }
+      }
+    } else {
+      if (method === "cash") {
+        const def = await prisma.treasuryAccount.findFirst({ where: { isDefault: true } });
+        if (def) accountId = def.id;
+      } else if (method === "transfer") {
+        const defBank = await prisma.treasuryAccount.findFirst({ where: { code: "ACC-BANQUE" } });
+        if (defBank) accountId = defBank.id;
+      }
+    }
+
     // Si règlement en espèces, rattacher automatiquement à la session ouverte s'il y en a une
     let sessionId: number | null = null;
     if (method === "cash") {
@@ -433,6 +611,7 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
         notes,
         date,
         sessionId,
+        accountId,
       },
     });
 
@@ -493,22 +672,24 @@ export async function deleteExpenseAction(expenseId: number): Promise<CashAction
 // ─── TYPES & INTERFACES DU JOURNAL ET DU TABLEAU DE BORD ─────────────────────
 
 export interface CashLedgerItem {
-  id: string; // Ex: pay-1, payf-2, exp-3
+  id: string; // Ex: pay-1, payf-2, exp-3, trf-4
   rawId: number;
   reference: string;
   date: string;
-  type: "encaissement" | "decaissement";
-  source: "sale" | "purchase" | "expense" | "income";
+  type: "encaissement" | "decaissement" | "transfer";
+  source: "sale" | "purchase" | "expense" | "income" | "transfer";
   category: string;
   description: string;
   partyName: string;
   docReference?: string | null;
-  method: string; // cash, transfer, check, cib
+  method: string; // cash, transfer, check, cib, internal_transfer
   amount: number;
   notes?: string | null;
   affectsCash: boolean; // true si method === "cash"
   sessionId?: number | null;
   sessionRef?: string | null;
+  accountId?: number | null;
+  accountName?: string | null;
 }
 
 export interface TreasuryChannelSummary {
@@ -572,6 +753,7 @@ export interface CashDashboardData {
     globalOutflows: number;
     globalNet: number;
   };
+  treasury: TreasuryDashboardSummary;
   settings?: ShopSettingsData | null;
   expensesCount: number;
 }
@@ -635,6 +817,10 @@ export async function getCashDashboardData(filters?: {
           supplier: true,
         },
       },
+      supplier: true,
+      account: {
+        select: { id: true, name: true, code: true },
+      },
       session: {
         select: { id: true, reference: true },
       },
@@ -645,6 +831,9 @@ export async function getCashDashboardData(filters?: {
   // 3. Récupérer l'ensemble des dépenses et mouvements manuels
   const expenses = await prisma.expense.findMany({
     include: {
+      account: {
+        select: { id: true, name: true, code: true },
+      },
       session: {
         select: { id: true, reference: true },
       },
@@ -652,10 +841,20 @@ export async function getCashDashboardData(filters?: {
     orderBy: { date: "desc" },
   });
 
-  // 4. Construire le Grand Livre unifié (Ledger) sans doublons
+  // 4. Récupérer l'ensemble des transferts de trésorerie
+  const transfers = await prisma.treasuryTransfer.findMany({
+    include: {
+      fromAccount: { select: { id: true, name: true, code: true, type: true } },
+      toAccount: { select: { id: true, name: true, code: true, type: true } },
+      session: { select: { id: true, reference: true } },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  // 5. Construire le Grand Livre unifié (Ledger) sans doublons
   const ledgerItems: CashLedgerItem[] = [];
 
-  // 4.1 Encaissements clients (depuis payments où saleId != null)
+  // 5.1 Encaissements clients (depuis payments où saleId != null)
   for (const p of payments) {
     if (p.saleId !== null) {
       const customerName = p.sale?.customer?.name || "Client Passager / Comptoir";
@@ -676,10 +875,12 @@ export async function getCashDashboardData(filters?: {
         affectsCash: (p.method || "cash") === "cash",
         sessionId: p.sessionId,
         sessionRef: p.session?.reference,
+        accountId: p.accountId,
+        accountName: p.account?.name || null,
       });
-    } else if (p.purchaseId !== null) {
-      // 4.2 Décaissements fournisseurs (depuis payments où purchaseId != null)
-      const supplierName = p.purchase?.supplier?.name || "Fournisseur standard";
+    } else if (p.purchaseId !== null || p.supplierId !== null) {
+      // 5.2 Décaissements fournisseurs (depuis payments où purchaseId != null ou supplierId != null)
+      const supplierName = p.purchase?.supplier?.name || p.supplier?.name || "Fournisseur";
       ledgerItems.push({
         id: `payf-${p.id}`,
         rawId: p.id,
@@ -688,20 +889,44 @@ export async function getCashDashboardData(filters?: {
         type: "decaissement",
         source: "purchase",
         category: "Achat Fournisseur",
-        description: `Règlement achat ${p.purchase?.reference || ""} — ${supplierName}`,
+        description: `Règlement fournisseur — ${supplierName}`,
         partyName: supplierName,
-        docReference: p.purchase?.reference,
+        docReference: p.purchase?.reference || null,
         method: p.method || "cash",
         amount: p.amount,
         notes: p.notes,
         affectsCash: (p.method || "cash") === "cash",
         sessionId: p.sessionId,
         sessionRef: p.session?.reference,
+        accountId: p.accountId,
+        accountName: p.account?.name || null,
+      });
+    } else {
+      // 5.2.1 Paiements directs (ex: acompte ou encaissement direct)
+      ledgerItems.push({
+        id: `pay-${p.id}`,
+        rawId: p.id,
+        reference: p.reference || `PAY-${String(p.id).padStart(4, "0")}`,
+        date: p.paymentDate.toISOString(),
+        type: "encaissement",
+        source: "sale",
+        category: "Encaissement Caisse",
+        description: p.notes || "Encaissement direct en caisse",
+        partyName: "Client Comptoir",
+        docReference: null,
+        method: p.method || "cash",
+        amount: p.amount,
+        notes: p.notes,
+        affectsCash: (p.method || "cash") === "cash",
+        sessionId: p.sessionId,
+        sessionRef: p.session?.reference,
+        accountId: p.accountId,
+        accountName: p.account?.name || null,
       });
     }
   }
 
-  // 4.3 Dépenses d'exploitation et encaissements exceptionnels (depuis expenses)
+  // 5.3 Dépenses d'exploitation et encaissements exceptionnels (depuis expenses)
   for (const e of expenses) {
     const isIncome = e.type === "income";
     ledgerItems.push({
@@ -724,10 +949,34 @@ export async function getCashDashboardData(filters?: {
     });
   }
 
+  // 5.4 Mouvements de virements internes entre comptes (sans impacter chiffre d'affaires ni charges)
+  for (const t of transfers) {
+    ledgerItems.push({
+      id: `trf-${t.id}`,
+      rawId: t.id,
+      reference: t.reference,
+      date: t.date.toISOString(),
+      type: "transfer",
+      source: "transfer",
+      category: "Virement Interne",
+      description: `Transfert ${t.fromAccount.name} → ${t.toAccount.name} (${t.motif})`,
+      partyName: `${t.fromAccount.name} → ${t.toAccount.name}`,
+      docReference: t.session?.reference || null,
+      method: "internal_transfer",
+      amount: t.amount,
+      notes: t.notes,
+      affectsCash: t.fromAccount.type === "cash" || t.toAccount.type === "cash",
+      sessionId: t.sessionId,
+      sessionRef: t.session?.reference,
+      accountId: t.fromAccountId,
+      accountName: `${t.fromAccount.name} → ${t.toAccount.name}`,
+    });
+  }
+
   // Tri chronologique décroissant
   ledgerItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  // 5. Calculs des métriques temps réel pour la session active
+  // 6. Calculs des métriques temps réel pour la session active
   let activeSessionData = null;
   if (activeRaw) {
     const sessionStart = new Date(activeRaw.openedAt).getTime();
@@ -762,9 +1011,10 @@ export async function getCashDashboardData(filters?: {
     };
   }
 
-  // 5.2 Calcul des opérations en espèces hors session en attente de réconciliation
+  // 6.2 Calcul des opérations en espèces hors session en attente de réconciliation
   const pendingCashItems = ledgerItems.filter((item) => {
     if (!item.affectsCash) return false;
+    if (item.type === "transfer") return false; // les transferts ne sont pas des espèces en attente
     if (item.sessionId !== null) return false;
     if (activeRaw && new Date(item.date).getTime() >= new Date(activeRaw.openedAt).getTime()) return false;
     return true;
@@ -788,7 +1038,7 @@ export async function getCashDashboardData(filters?: {
     items: pendingCashItems,
   };
 
-  // 6. Application des filtres sur le ledger affiché
+  // 7. Application des filtres sur le ledger affiché
   let filteredLedger = ledgerItems;
 
   if (filters?.startDate) {
@@ -816,7 +1066,7 @@ export async function getCashDashboardData(filters?: {
     );
   }
 
-  // 7. Agrégation des flux par canal de paiement
+  // 8. Agrégation des flux par canal de paiement (sans doubler ni inclure les transferts internes)
   const channels: Record<string, TreasuryChannelSummary> = {
     cash: { method: "cash", label: "Espèces (Caisse Physique)", inflows: 0, outflows: 0, net: 0 },
     transfer: { method: "transfer", label: "Virement bancaire", inflows: 0, outflows: 0, net: 0 },
@@ -825,6 +1075,7 @@ export async function getCashDashboardData(filters?: {
   };
 
   for (const item of ledgerItems) {
+    if (item.type === "transfer") continue; // Les virements internes ne modifient pas les recettes/dépenses externes
     const rawMethod = (item.method || "cash").toLowerCase();
     const normMethod =
       rawMethod === "bank_transfer" || rawMethod === "virement"
@@ -853,6 +1104,7 @@ export async function getCashDashboardData(filters?: {
     ? activeSessionData.currentTheoreticalCash
     : channels.cash.inflows - channels.cash.outflows;
 
+  const treasuryData = await getTreasuryDashboardData();
   const settings = await prisma.shopSettings.findUnique({ where: { id: 1 } });
 
   return {
@@ -875,6 +1127,7 @@ export async function getCashDashboardData(filters?: {
     })),
     ledger: filteredLedger,
     settings,
+    treasury: treasuryData,
     metrics: {
       physicalOpening,
       physicalInflows,

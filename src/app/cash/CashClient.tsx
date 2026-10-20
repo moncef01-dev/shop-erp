@@ -25,13 +25,20 @@ import {
   createExpenseAction,
   deleteExpenseAction,
   reconcileOutOfSessionCashAction,
+  createTreasuryAccountAction,
+  createTreasuryTransferAction,
+  getAccountMovements,
   type CashDashboardData,
   type CashLedgerItem,
+  type TreasuryAccountData,
+  type TreasuryTransferData,
+  type AccountMovementItem,
 } from "./actions";
 import {
   PrintableDailyCashJournal,
   PrintableCashClosingReport,
   PrintableExpenseVoucher,
+  PrintableTreasuryAccountStatement,
   formatDA,
   formatDate,
   formatDateTime,
@@ -65,6 +72,8 @@ export function CashClient({ initialData }: CashClientProps) {
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
   const [closingAmountInput, setClosingAmountInput] = useState("");
   const [closingNotesInput, setClosingNotesInput] = useState("");
+  const [closingTransferAmount, setClosingTransferAmount] = useState("");
+  const [closingTransferDestId, setClosingTransferDestId] = useState<number | "">("");
 
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [expenseType, setExpenseType] = useState<"expense" | "income">("expense");
@@ -75,6 +84,28 @@ export function CashClient({ initialData }: CashClientProps) {
   const [expenseBeneficiary, setExpenseBeneficiary] = useState("");
   const [expenseReceiptNumber, setExpenseReceiptNumber] = useState("");
   const [expenseNotes, setExpenseNotes] = useState("");
+  const [expenseAccountId, setExpenseAccountId] = useState<string>("");
+
+  // Treasury Modals State
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferFromAccountId, setTransferFromAccountId] = useState<number | "">("");
+  const [transferToAccountId, setTransferToAccountId] = useState<number | "">("");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferMotif, setTransferMotif] = useState("");
+  const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
+  const [transferNotes, setTransferNotes] = useState("");
+
+  const [isNewAccountModalOpen, setIsNewAccountModalOpen] = useState(false);
+  const [newAccName, setNewAccName] = useState("");
+  const [newAccType, setNewAccType] = useState<"cash" | "safe" | "bank" | "other">("safe");
+  const [newAccOpening, setNewAccOpening] = useState("");
+  const [newAccNotes, setNewAccNotes] = useState("");
+
+  const [printingAccountStatement, setPrintingAccountStatement] = useState<{
+    account: TreasuryAccountData;
+    items: AccountMovementItem[];
+  } | null>(null);
+  const [isLoadingAccountStatement, setIsLoadingAccountStatement] = useState(false);
 
   // Print Modals State
   const [printingDailyJournal, setPrintingDailyJournal] = useState<{
@@ -203,11 +234,23 @@ export function CashClient({ initialData }: CashClientProps) {
       return;
     }
 
+    const parsedTransfer = closingTransferAmount ? parseFloat(closingTransferAmount.replace(/\s/g, "")) : 0;
+    if (parsedTransfer > 0 && !closingTransferDestId) {
+      showNotification("error", "Veuillez sélectionner un compte de destination pour le transfert.");
+      return;
+    }
+    if (parsedTransfer > amount) {
+      showNotification("error", "Le montant du transfert ne peut pas excéder le montant physique compté.");
+      return;
+    }
+
     startTransition(async () => {
       const res = await closeCashSessionAction({
         sessionId: activeSession.id,
         closingAmount: amount,
         closingNotes: closingNotesInput,
+        transferAmount: parsedTransfer > 0 ? parsedTransfer : undefined,
+        transferDestinationAccountId: parsedTransfer > 0 ? Number(closingTransferDestId) : undefined,
       });
 
       if (res.success && res.data) {
@@ -215,6 +258,8 @@ export function CashClient({ initialData }: CashClientProps) {
         setIsClosingModalOpen(false);
         setClosingAmountInput("");
         setClosingNotesInput("");
+        setClosingTransferAmount("");
+        setClosingTransferDestId("");
         const closedSession = res.data as unknown as NonNullable<typeof printingClosingSession>;
         setPrintPrompt({
           isOpen: true,
@@ -234,6 +279,93 @@ export function CashClient({ initialData }: CashClientProps) {
         showNotification("error", res.error || "Erreur lors de la clôture.");
       }
     });
+  };
+
+  const handleCreateTransfer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferFromAccountId || !transferToAccountId) {
+      showNotification("error", "Veuillez sélectionner les comptes source et destination.");
+      return;
+    }
+    if (transferFromAccountId === transferToAccountId) {
+      showNotification("error", "Le compte source et le compte destination doivent être différents.");
+      return;
+    }
+    const amt = parseFloat(transferAmount.replace(/\s/g, ""));
+    if (isNaN(amt) || amt <= 0) {
+      showNotification("error", "Veuillez saisir un montant de transfert strictement supérieur à 0 DA.");
+      return;
+    }
+    if (!transferMotif.trim()) {
+      showNotification("error", "Le motif du transfert est obligatoire.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createTreasuryTransferAction({
+        fromAccountId: Number(transferFromAccountId),
+        toAccountId: Number(transferToAccountId),
+        amount: amt,
+        motif: transferMotif.trim(),
+        date: transferDate,
+        notes: transferNotes.trim() || undefined,
+      });
+
+      if (res.success) {
+        showNotification("success", res.message || "Transfert effectué avec succès.");
+        setIsTransferModalOpen(false);
+        setTransferAmount("");
+        setTransferMotif("");
+        setTransferNotes("");
+        router.refresh();
+      } else {
+        showNotification("error", res.error || "Erreur lors du transfert.");
+      }
+    });
+  };
+
+  const handleCreateTreasuryAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAccName.trim()) {
+      showNotification("error", "Le nom du compte est obligatoire.");
+      return;
+    }
+    const fd = new FormData();
+    fd.set("name", newAccName.trim());
+    fd.set("type", newAccType);
+    fd.set("openingBalance", newAccOpening || "0");
+    fd.set("notes", newAccNotes.trim());
+
+    startTransition(async () => {
+      const res = await createTreasuryAccountAction(fd);
+      if (res.success) {
+        showNotification("success", res.message || "Compte de trésorerie créé.");
+        setIsNewAccountModalOpen(false);
+        setNewAccName("");
+        setNewAccOpening("");
+        setNewAccNotes("");
+        router.refresh();
+      } else {
+        showNotification("error", res.error || "Erreur création compte.");
+      }
+    });
+  };
+
+  const handleOpenAccountStatement = async (acc: TreasuryAccountData) => {
+    setIsLoadingAccountStatement(true);
+    try {
+      const res = await getAccountMovements(acc.id);
+      if (res.account) {
+        setPrintingAccountStatement({
+          account: res.account,
+          items: res.movements,
+        });
+      }
+    } catch {
+      showNotification("error", "Impossible de charger le relevé de compte.");
+    } finally {
+      setIsLoadingAccountStatement(false);
+    }
   };
 
   // ─── ACTION NOUVELLE DÉPENSE / ENCAISSEMENT ────────────────────────────────
@@ -260,6 +392,9 @@ export function CashClient({ initialData }: CashClientProps) {
     fd.set("beneficiary", expenseBeneficiary);
     fd.set("receiptNumber", expenseReceiptNumber);
     fd.set("notes", expenseNotes);
+    if (expenseAccountId) {
+      fd.set("accountId", expenseAccountId);
+    }
 
     startTransition(async () => {
       const res = await createExpenseAction(fd);
@@ -1253,78 +1388,181 @@ export function CashClient({ initialData }: CashClientProps) {
         </div>
       )}
 
-      {/* ─── ONGLET 5: TRÉSORERIE & RAPPORTS COMPLETS ───────────────────────── */}
+      {/* ─── ONGLET 5: TRÉSORERIE & MULTI-COMPTES ───────────────────────── */}
       {activeTab === "treasury" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-              <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-amber-600" />
-                Caisse Physique vs Trésorerie Dématérialisée
-              </h3>
-              <div className="space-y-4 text-xs">
-                <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-lg">
-                  <span className="font-bold text-amber-950 block">Liquidités Physiques (Espèces)</span>
-                  <div className="mt-2 flex justify-between items-center text-sm font-mono font-bold">
-                    <span className="text-slate-600">Solde théorique tiroir :</span>
-                    <span className="text-amber-950 text-base">{formatDA(metrics.physicalTheoretical)}</span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-lg">
-                  <span className="font-bold text-blue-950 block">Canaux Bancaires &amp; Électroniques</span>
-                  <div className="mt-2 flex justify-between items-center text-sm font-mono font-bold">
-                    <span className="text-slate-600">Solde net non-espèces :</span>
-                    <span className="text-blue-950 text-base">
-                      {formatDA(metrics.globalNet - (metrics.channels.cash.net))}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-slate-100 border border-slate-300 rounded-lg">
-                  <span className="font-bold text-slate-900 block">Trésorerie Nette Totale (Entreprise)</span>
-                  <div className="mt-2 flex justify-between items-center text-base font-mono font-black text-slate-900">
-                    <span>TOTAL :</span>
-                    <span>{formatDA(metrics.globalNet)}</span>
-                  </div>
-                </div>
-              </div>
+          {/* Bannière Total Trésorerie & Actions */}
+          <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <span className="text-xs uppercase font-bold text-amber-400 tracking-wider block">
+                Total des Disponibilités de Trésorerie
+              </span>
+              <p className="text-3xl font-black font-mono text-white mt-1">
+                {formatDA(initialData.treasury?.totalTreasuryFunds ?? metrics.globalNet)}
+              </p>
+              <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                Somme des fonds réels détenus sur l&apos;ensemble des caisses, coffres et comptes bancaires. Les transferts internes déplacent les fonds sans altérer ce total.
+              </p>
             </div>
 
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-              <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-slate-500" />
-                Répartition des Recettes par Mode de Règlement
-              </h3>
-              <div className="space-y-3 text-xs">
-                {Object.values(metrics.channels).map((ch) => {
-                  const percent = metrics.globalInflows > 0 ? (ch.inflows / metrics.globalInflows) * 100 : 0;
-                  return (
-                    <div key={ch.method} className="space-y-1">
-                      <div className="flex justify-between font-medium">
-                        <span className="text-slate-700">{ch.label}</span>
-                        <span className="font-mono font-semibold text-slate-900">
-                          {formatDA(ch.inflows)} ({percent.toFixed(1)}%)
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-full ${
-                            ch.method === "cash"
-                              ? "bg-amber-500"
-                              : ch.method === "cib"
-                              ? "bg-emerald-500"
-                              : ch.method === "check"
-                              ? "bg-purple-500"
-                              : "bg-blue-500"
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => {
+                  setTransferFromAccountId(initialData.treasury?.accounts[0]?.id || "");
+                  setTransferToAccountId(initialData.treasury?.accounts[1]?.id || "");
+                  setIsTransferModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 rounded-lg shadow-sm transition cursor-pointer"
+              >
+                <ArrowUpRight className="h-4 w-4" />
+                Effectuer un Transfert
+              </button>
+
+              <button
+                onClick={() => setIsNewAccountModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg shadow-sm transition cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                Nouveau Compte
+              </button>
+            </div>
+          </div>
+
+          {/* Grille des Comptes de Trésorerie */}
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-amber-600" />
+              Comptes de Trésorerie &amp; Coffres ({initialData.treasury?.accounts?.length || 0})
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {initialData.treasury?.accounts?.map((acc) => {
+                const isCash = acc.type === "cash";
+                const isSafe = acc.type === "safe";
+                const isBank = acc.type === "bank";
+
+                return (
+                  <div
+                    key={acc.id}
+                    className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs hover:border-amber-400 transition flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                            isCash
+                              ? "bg-amber-100 text-amber-900"
+                              : isSafe
+                              ? "bg-purple-100 text-purple-900"
+                              : isBank
+                              ? "bg-blue-100 text-blue-900"
+                              : "bg-slate-100 text-slate-800"
                           }`}
-                          style={{ width: `${percent}%` }}
-                        />
+                        >
+                          {isCash
+                            ? "Caisse Journalière"
+                            : isSafe
+                            ? "Coffre-fort"
+                            : isBank
+                            ? "Compte Bancaire"
+                            : "Autre Compte"}
+                        </span>
+                        <span className="font-mono text-[11px] text-slate-400">{acc.code}</span>
                       </div>
+
+                      <h4 className="font-bold text-slate-900 text-base leading-snug">{acc.name}</h4>
+                      <p className="text-2xl font-black font-mono text-slate-900 mt-2">
+                        {formatDA(acc.currentBalance)}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Solde initial : <span className="font-mono font-semibold">{formatDA(acc.openingBalance)}</span>
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
+
+                    <div className="mt-5 pt-3 border-t border-slate-100 flex items-center gap-2">
+                      <button
+                        onClick={() => handleOpenAccountStatement(acc)}
+                        disabled={isLoadingAccountStatement}
+                        className="flex-1 py-1.5 px-2 text-center text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 transition cursor-pointer"
+                      >
+                        Relevé
+                      </button>
+                      <button
+                        onClick={() => {
+                          setTransferFromAccountId(acc.id);
+                          setTransferToAccountId(
+                            initialData.treasury?.accounts.find((a) => a.id !== acc.id)?.id || ""
+                          );
+                          setIsTransferModalOpen(true);
+                        }}
+                        className="py-1.5 px-2.5 text-center text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 rounded border border-amber-200 transition cursor-pointer"
+                      >
+                        Transférer
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Table des transferts récents */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5">
+            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <ArrowUpRight className="h-4 w-4 text-slate-600" />
+              Historique des Virements Internes
+            </h3>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
+                  <tr>
+                    <th className="py-2.5 px-3">Date</th>
+                    <th className="py-2.5 px-3">Référence</th>
+                    <th className="py-2.5 px-3">Compte Source</th>
+                    <th className="py-2.5 px-3">Compte Destination</th>
+                    <th className="py-2.5 px-3">Motif</th>
+                    <th className="py-2.5 px-3 text-right">Montant</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {!initialData.treasury?.transfers || initialData.treasury.transfers.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-slate-500">
+                        Aucun virement interne enregistré pour le moment.
+                      </td>
+                    </tr>
+                  ) : (
+                    initialData.treasury.transfers.map((t) => (
+                      <tr key={t.id} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-mono text-slate-600">
+                          {formatDateTime(t.date)}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-800">
+                          {t.reference}
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-rose-800">
+                          {t.fromAccountName}
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-emerald-800">
+                          {t.toAccountName}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600">
+                          {t.motif}
+                          {t.sessionRef && (
+                            <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded ml-2">
+                              Clôture {t.sessionRef}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                          {formatDA(t.amount)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -1514,6 +1752,75 @@ export function CashClient({ initialData }: CashClientProps) {
                 })()
               )}
 
+              {/* Option de Transfert Manuel à la Clôture */}
+              <div className="bg-amber-50/70 p-3.5 rounded-lg border border-amber-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                    <ArrowUpRight className="h-4 w-4 text-amber-700" />
+                    Transférer des fonds vers un coffre ou une banque
+                  </label>
+                  <span className="text-[10px] text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-full font-bold">
+                    Optionnel
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Compte de destination
+                    </label>
+                    <select
+                      value={closingTransferDestId}
+                      onChange={(e) => setClosingTransferDestId(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="">Sélectionner un compte...</option>
+                      {initialData.treasury?.accounts
+                        ?.filter((a) => a.type !== "cash")
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.type === "safe" ? "Coffre" : a.type === "bank" ? "Banque" : "Autre"})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Montant à transférer (DA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="Ex: 480000"
+                      value={closingTransferAmount}
+                      onChange={(e) => setClosingTransferAmount(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {closingAmountInput && !isNaN(parseFloat(closingAmountInput)) && (
+                  <div className="pt-2 border-t border-amber-200/70 flex justify-between items-center text-xs">
+                    <span className="text-amber-900 font-medium">
+                      Espèces intentionnellement laissées en caisse :
+                    </span>
+                    <span className="font-mono font-black text-amber-950 text-sm">
+                      {formatDA(
+                        Math.max(
+                          0,
+                          parseFloat(closingAmountInput) -
+                            (closingTransferAmount && !isNaN(parseFloat(closingTransferAmount))
+                              ? parseFloat(closingTransferAmount)
+                              : 0)
+                        )
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   Justification / Observations de Clôture
@@ -1642,10 +1949,28 @@ export function CashClient({ initialData }: CashClientProps) {
                     onChange={(e) => setExpenseMethod(e.target.value)}
                     className="w-full py-2 px-3 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    <option value="cash">Espèces (Tiroir-caisse)</option>
+                    <option value="cash">Espèces</option>
                     <option value="transfer">Virement bancaire</option>
                     <option value="check">Chèque bancaire</option>
                     <option value="cib">Carte CIB / Edahabia</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Compte Débité (Source)
+                  </label>
+                  <select
+                    value={expenseAccountId}
+                    onChange={(e) => setExpenseAccountId(e.target.value)}
+                    className="w-full py-2 px-3 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                  >
+                    <option value="">Sélection automatique selon mode...</option>
+                    {initialData.treasury?.accounts?.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({acc.type === "cash" ? "Caisse" : acc.type === "safe" ? "Coffre" : acc.type === "bank" ? "Banque" : "Autre"}) &bull; {formatDA(acc.currentBalance)}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1777,6 +2102,261 @@ export function CashClient({ initialData }: CashClientProps) {
             router.refresh();
           }}
           autoPrint={shouldAutoPrint}
+        />
+      )}
+
+      {/* ─── MODAL EFFECTUER UN TRANSFERT DE FONDS ───────────────────────── */}
+      {isTransferModalOpen && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) setIsTransferModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ArrowUpRight className="h-5 w-5 text-amber-600" />
+                Effectuer un Transfert de Trésorerie
+              </h3>
+              <button
+                onClick={() => setIsTransferModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTransfer} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Compte Source (Débit) *
+                </label>
+                <select
+                  required
+                  value={transferFromAccountId}
+                  onChange={(e) => setTransferFromAccountId(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                >
+                  <option value="">Sélectionnez le compte source...</option>
+                  {initialData.treasury?.accounts?.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} &bull; Solde disponible : {formatDA(acc.currentBalance)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Compte Destination (Crédit) *
+                </label>
+                <select
+                  required
+                  value={transferToAccountId}
+                  onChange={(e) => setTransferToAccountId(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                >
+                  <option value="">Sélectionnez le compte destination...</option>
+                  {initialData.treasury?.accounts
+                    ?.filter((acc) => acc.id !== Number(transferFromAccountId))
+                    .map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} &bull; Solde actuel : {formatDA(acc.currentBalance)}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Montant (DA) *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    placeholder="Ex: 500000"
+                    value={transferAmount}
+                    onChange={(e) => setTransferAmount(e.target.value)}
+                    className="w-full px-3 py-2 text-sm font-mono font-bold border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Date du Virement
+                  </label>
+                  <input
+                    type="date"
+                    value={transferDate}
+                    onChange={(e) => setTransferDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Motif du Transfert *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Dépôt caisse vers coffre maison..."
+                  value={transferMotif}
+                  onChange={(e) => setTransferMotif(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Notes Complémentaires (Optionnel)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Remarques..."
+                  value={transferNotes}
+                  onChange={(e) => setTransferNotes(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsTransferModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="px-4 py-2 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 rounded-lg shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {isPending ? "Transfert en cours..." : "Confirmer le Transfert"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL NOUVEAU COMPTE DE TRÉSORERIE ─────────────────────────────── */}
+      {isNewAccountModalOpen && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) setIsNewAccountModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Plus className="h-5 w-5 text-slate-800" />
+                Nouveau Compte de Trésorerie
+              </h3>
+              <button
+                onClick={() => setIsNewAccountModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTreasuryAccount} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Nom du Compte *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Coffre maison, Banque Badr, etc."
+                  value={newAccName}
+                  onChange={(e) => setNewAccName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-800 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Type de Compte *
+                  </label>
+                  <select
+                    value={newAccType}
+                    onChange={(e) => setNewAccType(e.target.value as "cash" | "safe" | "bank" | "other")}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-800"
+                  >
+                    <option value="safe">Coffre-fort</option>
+                    <option value="bank">Compte Bancaire</option>
+                    <option value="cash">Caisse secondaire</option>
+                    <option value="other">Autre compte</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Solde Initial (DA) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    value={newAccOpening}
+                    onChange={(e) => setNewAccOpening(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-mono font-bold border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Notes (Optionnel)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Emplacement, responsable, remarques..."
+                  value={newAccNotes}
+                  onChange={(e) => setNewAccNotes(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-800"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsNewAccountModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {isPending ? "Création..." : "Créer le Compte"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL RELEVÉ DE COMPTE DE TRÉSORERIE IMPRIMABLE ──────────────── */}
+      {printingAccountStatement && (
+        <PrintableTreasuryAccountStatement
+          account={printingAccountStatement.account}
+          items={printingAccountStatement.items}
+          settings={initialData.settings}
+          onClose={() => setPrintingAccountStatement(null)}
         />
       )}
 
