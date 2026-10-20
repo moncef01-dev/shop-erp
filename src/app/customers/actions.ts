@@ -44,6 +44,7 @@ export async function getCustomersData(searchQuery?: string) {
         OR: [
           { name: { contains: query } },
           { phone: { contains: query } },
+          { phone2: { contains: query } },
           { code: { contains: query } },
           { address: { contains: query } },
         ],
@@ -94,6 +95,7 @@ export async function createCustomerAction(formData: FormData): Promise<Customer
   try {
     const name = (formData.get("name") as string)?.trim();
     const phone = (formData.get("phone") as string)?.trim() || null;
+    const phone2 = (formData.get("phone2") as string)?.trim() || null;
     const email = (formData.get("email") as string)?.trim() || null;
     const address = (formData.get("address") as string)?.trim() || null;
     const notes = (formData.get("notes") as string)?.trim() || null;
@@ -122,6 +124,7 @@ export async function createCustomerAction(formData: FormData): Promise<Customer
         code,
         name,
         phone,
+        phone2,
         email,
         address,
         notes,
@@ -150,6 +153,7 @@ export async function updateCustomerAction(
   try {
     const name = (formData.get("name") as string)?.trim();
     const phone = (formData.get("phone") as string)?.trim() || null;
+    const phone2 = (formData.get("phone2") as string)?.trim() || null;
     const email = (formData.get("email") as string)?.trim() || null;
     const address = (formData.get("address") as string)?.trim() || null;
     const notes = (formData.get("notes") as string)?.trim() || null;
@@ -183,6 +187,7 @@ export async function updateCustomerAction(
       data: {
         name,
         phone,
+        phone2,
         email,
         address,
         notes,
@@ -285,7 +290,6 @@ export async function getCustomerDetailsAction(customerId: number) {
           payments: {
             orderBy: { paymentDate: "desc" },
           },
-          deliveries: true,
         },
         orderBy: { saleDate: "desc" },
       },

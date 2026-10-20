@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
-import { Printer, X } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Printer, Download, X } from "lucide-react";
 import type { ShopSettingsData } from "@/app/settings/actions";
+import { downloadInvoicePdf, type InvoiceCopyType } from "@/lib/pdf/invoicePdf";
 
 export interface PrintableSaleItem {
   id?: number;
@@ -54,6 +55,7 @@ export interface PrintableSale {
   subtotal?: number;
   discount?: number;
   deliveryFee: number;
+  includeDeliveryFee?: boolean;
   totalAmount: number;
   paidAmount: number;
   notes?: string | null;
@@ -62,6 +64,7 @@ export interface PrintableSale {
     code?: string | null;
     name: string;
     phone?: string | null;
+    phone2?: string | null;
     address?: string | null;
   } | null;
   items?: PrintableSaleItem[];
@@ -76,52 +79,142 @@ interface PrintableInvoiceProps {
 }
 
 export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoiceProps) {
+  const [copyType, setCopyType] = useState<InvoiceCopyType>("client");
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   if (!sale) return null;
 
   const handlePrint = () => {
     window.print();
   };
 
+  const handleDownloadPdf = async (type: InvoiceCopyType) => {
+    try {
+      setIsDownloadingPdf(true);
+      await downloadInvoicePdf(sale, settings, type);
+    } catch (err) {
+      console.error("Erreur téléchargement PDF facture:", err);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   const isDraft = sale.status === "draft";
   const isCancelled = sale.status === "cancelled";
-  const docTitle = isDraft ? "DEVIS / BON DE COMMANDE" : "FACTURE DE VENTE";
+  const docTitle = isCancelled
+    ? "FACTURE ANNULÉE"
+    : isDraft
+    ? "DEVIS / BON DE COMMANDE"
+    : "FACTURE DE VENTE";
 
   const remainingBalance = Math.max(0, (sale.totalAmount || 0) - (sale.paidAmount || 0));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-white text-slate-900 rounded-xl shadow-2xl p-8 my-8 print:my-0 print:p-0 print:shadow-none print:w-full">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="relative w-full max-w-4xl bg-white text-slate-900 rounded-xl shadow-2xl p-8 my-8 print:my-0 print:p-0 print:shadow-none print:w-full max-h-[92vh] flex flex-col">
         {/* Actions bar (hidden in print) */}
-        <div className="no-print flex items-center justify-between pb-6 mb-6 border-b border-slate-200">
+        <div className="no-print flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-800">Aperçu avant impression (Format A4)</span>
+            <span className="font-bold text-xs uppercase tracking-wider text-slate-500 mr-1">Version :</span>
+            <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-xs">
+              <button
+                type="button"
+                onClick={() => setCopyType("client")}
+                className={`px-3 py-1 font-bold rounded-md transition cursor-pointer ${
+                  copyType === "client"
+                    ? "bg-slate-900 text-white shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Exemplaire Client
+              </button>
+              <button
+                type="button"
+                onClick={() => setCopyType("internal")}
+                className={`px-3 py-1 font-bold rounded-md transition cursor-pointer ${
+                  copyType === "internal"
+                    ? "bg-amber-600 text-white shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Exemplaire Interne
+              </button>
+              <button
+                type="button"
+                onClick={() => setCopyType("both")}
+                className={`px-3 py-1 font-bold rounded-md transition cursor-pointer ${
+                  copyType === "both"
+                    ? "bg-slate-700 text-white shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Les 2 Exemplaires
+              </button>
+            </div>
+
             {isDraft && (
-              <span className="rounded-full bg-amber-100 text-amber-800 text-xs px-2.5 py-0.5 font-medium">
+              <span className="rounded-full bg-amber-100 text-amber-800 text-[11px] px-2.5 py-0.5 font-bold">
                 Brouillon / Devis
               </span>
             )}
             {isCancelled && (
-              <span className="rounded-full bg-rose-100 text-rose-800 text-xs px-2.5 py-0.5 font-medium">
+              <span className="rounded-full bg-rose-100 text-rose-800 text-[11px] px-2.5 py-0.5 font-bold">
                 Vente Annulée
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2">
             <button
-              onClick={handlePrint}
-              className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium shadow-xs transition-colors cursor-pointer"
+              type="button"
+              onClick={() => handleDownloadPdf(copyType)}
+              disabled={isDownloadingPdf}
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+              title="Télécharger le fichier PDF directement"
             >
-              <Printer className="h-4 w-4" />
-              Imprimer le document
+              <Download className="h-3.5 w-3.5 text-slate-600" />
+              {isDownloadingPdf ? "Génération PDF..." : "Télécharger PDF"}
             </button>
+
             <button
+              type="button"
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-900 px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Imprimer
+            </button>
+
+            <button
+              type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              title="Fermer (Échap)"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
         </div>
+
+        {/* Scrollable Printable Container to prevent clipping */}
+        <div className="overflow-y-auto flex-1 pr-1">
 
         {/* ── Document Printable Body ────────────────────────────────────────── */}
         <div className="print-card font-sans text-sm">
@@ -152,8 +245,10 @@ export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoicePr
             </div>
 
             <div className="text-right">
-              <div className="inline-block bg-slate-900 text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-wider mb-2">
-                {docTitle}
+              <div className="mb-2">
+                <span className="inline-block bg-slate-900 text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-wider">
+                  {docTitle}
+                </span>
               </div>
               <p className="text-lg font-mono font-bold text-slate-900">{sale.reference}</p>
               <p className="text-xs text-slate-500 mt-1">
@@ -196,6 +291,9 @@ export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoicePr
                     <p className="text-xs text-slate-600">
                       <span className="font-medium text-slate-500">Tél : </span>
                       {sale.customer.phone}
+                      {sale.customer.phone2 && (
+                        <span className="ml-1 text-slate-500">/ {sale.customer.phone2}</span>
+                      )}
                     </p>
                   )}
                   {sale.customer.address && (
@@ -217,27 +315,26 @@ export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoicePr
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Modalités de Livraison :
               </p>
-              {sale.deliveries && sale.deliveries.length > 0 && sale.deliveries[0] ? (
+              {sale.deliveryFee > 0 ? (
                 <div>
                   <p className="text-xs font-semibold text-slate-800">
-                    Livraison à domicile prévue
+                    Livraison facturée
                   </p>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    <span className="font-medium text-slate-500">Adresse de livraison : </span>
-                    {sale.deliveries[0].address || "Selon adresse client"}
+                    <span className="font-medium text-slate-500">Frais de livraison : </span>
+                    <span className="font-mono font-bold text-slate-900">
+                      {sale.deliveryFee.toLocaleString("fr-DZ")} DA
+                    </span>
+                    {sale.includeDeliveryFee === false && (
+                      <span className="text-slate-500 text-[11px] ml-1">(non inclus au total)</span>
+                    )}
                   </p>
-                  {sale.deliveries[0].deliveryDate && (
+                  {sale.customer?.address && (
                     <p className="text-xs text-slate-600">
-                      <span className="font-medium text-slate-500">Date planifiée : </span>
-                      {new Date(sale.deliveries[0].deliveryDate).toLocaleDateString("fr-DZ")}
+                      <span className="font-medium text-slate-500">Adresse client : </span>
+                      {sale.customer.address}
                     </p>
                   )}
-                  <p className="text-xs text-slate-600">
-                    <span className="font-medium text-slate-500">Frais de livraison : </span>
-                    {sale.deliveryFee > 0
-                      ? `${sale.deliveryFee.toLocaleString("fr-DZ")} DA`
-                      : "Offerts / Inclus"}
-                  </p>
                 </div>
               ) : (
                 <p className="text-xs text-slate-600">
@@ -255,7 +352,7 @@ export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoicePr
                   <th className="py-2.5 px-3 w-10 text-center">N°</th>
                   <th className="py-2.5 px-3">Réf / SKU</th>
                   <th className="py-2.5 px-3">Désignation du Meuble</th>
-                  <th className="py-2.5 px-3">Dépôt</th>
+                  {copyType === "internal" && <th className="py-2.5 px-3">Dépôt</th>}
                   <th className="py-2.5 px-3 text-center">Qté</th>
                   <th className="py-2.5 px-3 text-right">P.U (DA)</th>
                   <th className="py-2.5 px-3 text-right">Remise</th>
@@ -277,9 +374,11 @@ export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoicePr
                         </p>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-slate-600">
-                      {item.location?.name || "Dépôt principal"}
-                    </td>
+                    {copyType === "internal" && (
+                      <td className="py-2.5 px-3 text-slate-600 font-mono text-[11px]">
+                        {item.location?.name || "Dépôt principal"}
+                      </td>
+                    )}
                     <td className="py-2.5 px-3 text-center font-bold text-slate-800">
                       {item.quantity}
                     </td>
@@ -302,9 +401,9 @@ export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoicePr
           <div className="grid grid-cols-2 gap-8 my-6">
             {/* Notes ou versements */}
             <div className="text-xs space-y-2">
-              {sale.notes && (
-                <div className="p-3 bg-amber-50/60 border border-amber-200 rounded">
-                  <p className="font-bold text-amber-900 mb-0.5">Observations / Remarques :</p>
+              {copyType === "internal" && sale.notes && (
+                <div className="p-3 bg-amber-50/70 border border-amber-300 rounded">
+                  <p className="font-bold text-amber-900 mb-0.5">Observations &amp; Directives Internes Magasin :</p>
                   <p className="text-slate-700 whitespace-pre-line">{sale.notes}</p>
                 </div>
               )}
@@ -348,9 +447,12 @@ export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoicePr
 
               {sale.deliveryFee > 0 && (
                 <div className="flex justify-between text-slate-600">
-                  <span>Frais de livraison :</span>
+                  <span>
+                    Frais de livraison{sale.includeDeliveryFee === false ? " (hors facture)" : ""} :
+                  </span>
                   <span className="font-mono font-semibold">
-                    +{sale.deliveryFee.toLocaleString("fr-DZ")} DA
+                    {sale.includeDeliveryFee === false ? "" : "+"}
+                    {sale.deliveryFee.toLocaleString("fr-DZ")} DA
                   </span>
                 </div>
               )}
@@ -421,6 +523,7 @@ export function PrintableInvoice({ sale, settings, onClose }: PrintableInvoicePr
             </div>
           </div>
         </div>
+        </div>
       </div>
     </div>
   );
@@ -439,6 +542,16 @@ export function PrintablePaymentReceipt({
   settings,
   onClose,
 }: PrintablePaymentReceiptProps) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   if (!payment || !sale) return null;
 
   const handlePrint = () => {
@@ -448,7 +561,14 @@ export function PrintablePaymentReceipt({
   const remainingBalance = Math.max(0, (sale.totalAmount || 0) - (sale.paidAmount || 0));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="relative w-full max-w-2xl bg-white text-slate-900 rounded-xl shadow-2xl p-8 my-8 print:my-0 print:p-0 print:shadow-none print:w-full">
         {/* Actions bar */}
         <div className="no-print flex items-center justify-between pb-4 mb-6 border-b border-slate-200">
@@ -464,6 +584,7 @@ export function PrintablePaymentReceipt({
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              title="Fermer (Échap)"
             >
               <X className="h-5 w-5" />
             </button>

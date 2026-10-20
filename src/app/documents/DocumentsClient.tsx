@@ -49,11 +49,9 @@ import {
   PrintableExpenseVoucher,
 } from "@/components/cash/PrintableCashDocuments";
 import {
-  PrintableDeliveryNote,
   PrintableStockTransfer,
   PrintableInventorySheet,
   PrintableAccountStatement,
-  type PrintableDeliveryNoteData,
   type PrintableTransferData,
   type PrintableInventoryItem,
   type PrintableAccountStatementData,
@@ -67,7 +65,6 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
 
   // Modal print targets
   const [activeSaleModal, setActiveSaleModal] = useState<PrintableSale | null>(null);
-  const [activeDeliveryModal, setActiveDeliveryModal] = useState<PrintableDeliveryNoteData | null>(null);
   const [activePurchaseModal, setActivePurchaseModal] = useState<PrintablePurchase | null>(null);
   const [activeReceiptModal, setActiveReceiptModal] = useState<{
     receipt: PrintablePurchaseReceipt;
@@ -161,9 +158,6 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
       case "invoice":
       case "quote":
         if (doc.salePayload) setActiveSaleModal(doc.salePayload);
-        break;
-      case "delivery":
-        if (doc.deliveryPayload) setActiveDeliveryModal(doc.deliveryPayload);
         break;
       case "purchase":
         if (doc.purchasePayload) setActivePurchaseModal(doc.purchasePayload);
@@ -273,12 +267,6 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
           bg: "bg-amber-50 text-amber-700 border-amber-200",
           icon: FileText,
           label: "Devis",
-        };
-      case "delivery":
-        return {
-          bg: "bg-violet-50 text-violet-700 border-violet-200",
-          icon: Truck,
-          label: "Livraison",
         };
       case "purchase":
         return {
@@ -400,12 +388,6 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
               {data.stats.invoicesCount}
             </p>
           </div>
-          <div className="bg-violet-50/60 p-2.5 rounded-lg border border-violet-100">
-            <p className="text-[11px] text-violet-700">Bons Livraison</p>
-            <p className="text-lg font-bold text-violet-900 font-mono mt-0.5">
-              {data.stats.deliveriesCount}
-            </p>
-          </div>
           <div className="bg-indigo-50/60 p-2.5 rounded-lg border border-indigo-100">
             <p className="text-[11px] text-indigo-700">Commandes Achats</p>
             <p className="text-lg font-bold text-indigo-900 font-mono mt-0.5">
@@ -489,7 +471,6 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
             [
               { id: "all", label: "Tous" },
               { id: "invoice", label: "Factures & Devis" },
-              { id: "delivery", label: "Bons de Livraison" },
               { id: "purchase", label: "Commandes Achats" },
               { id: "receipt", label: "Bons de Réception" },
               { id: "payment_client", label: "Versements Clients" },
@@ -613,14 +594,7 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
         />
       )}
 
-      {/* 2. Bon de Livraison */}
-      {activeDeliveryModal && (
-        <PrintableDeliveryNote
-          delivery={activeDeliveryModal}
-          settings={data.settings}
-          onClose={() => setActiveDeliveryModal(null)}
-        />
-      )}
+
 
       {/* 3. Commande Fournisseur */}
       {activePurchaseModal && (

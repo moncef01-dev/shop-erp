@@ -54,6 +54,7 @@ export type SalesMinAggregateOutputType = {
   subtotal: number | null
   discount: number | null
   deliveryFee: number | null
+  includeDeliveryFee: boolean | null
   totalAmount: number | null
   paidAmount: number | null
   paymentStatus: string | null
@@ -72,6 +73,7 @@ export type SalesMaxAggregateOutputType = {
   subtotal: number | null
   discount: number | null
   deliveryFee: number | null
+  includeDeliveryFee: boolean | null
   totalAmount: number | null
   paidAmount: number | null
   paymentStatus: string | null
@@ -90,6 +92,7 @@ export type SalesCountAggregateOutputType = {
   subtotal: number
   discount: number
   deliveryFee: number
+  includeDeliveryFee: number
   totalAmount: number
   paidAmount: number
   paymentStatus: number
@@ -130,6 +133,7 @@ export type SalesMinAggregateInputType = {
   subtotal?: true
   discount?: true
   deliveryFee?: true
+  includeDeliveryFee?: true
   totalAmount?: true
   paidAmount?: true
   paymentStatus?: true
@@ -148,6 +152,7 @@ export type SalesMaxAggregateInputType = {
   subtotal?: true
   discount?: true
   deliveryFee?: true
+  includeDeliveryFee?: true
   totalAmount?: true
   paidAmount?: true
   paymentStatus?: true
@@ -166,6 +171,7 @@ export type SalesCountAggregateInputType = {
   subtotal?: true
   discount?: true
   deliveryFee?: true
+  includeDeliveryFee?: true
   totalAmount?: true
   paidAmount?: true
   paymentStatus?: true
@@ -271,6 +277,7 @@ export type SalesGroupByOutputType = {
   subtotal: number
   discount: number
   deliveryFee: number
+  includeDeliveryFee: boolean
   totalAmount: number
   paidAmount: number
   paymentStatus: string
@@ -312,6 +319,7 @@ export type SalesWhereInput = {
   subtotal?: Prisma.FloatFilter<"Sales"> | number
   discount?: Prisma.FloatFilter<"Sales"> | number
   deliveryFee?: Prisma.FloatFilter<"Sales"> | number
+  includeDeliveryFee?: Prisma.BoolFilter<"Sales"> | boolean
   totalAmount?: Prisma.FloatFilter<"Sales"> | number
   paidAmount?: Prisma.FloatFilter<"Sales"> | number
   paymentStatus?: Prisma.StringFilter<"Sales"> | string
@@ -322,9 +330,9 @@ export type SalesWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"Sales"> | Date | string
   customer?: Prisma.XOR<Prisma.CustomerNullableScalarRelationFilter, Prisma.CustomerWhereInput> | null
   items?: Prisma.SaleItemListRelationFilter
-  deliveries?: Prisma.DeliveryListRelationFilter
   payments?: Prisma.PaymentListRelationFilter
   movements?: Prisma.StockMovementListRelationFilter
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationListRelationFilter
 }
 
 export type SalesOrderByWithRelationInput = {
@@ -335,6 +343,7 @@ export type SalesOrderByWithRelationInput = {
   subtotal?: Prisma.SortOrder
   discount?: Prisma.SortOrder
   deliveryFee?: Prisma.SortOrder
+  includeDeliveryFee?: Prisma.SortOrder
   totalAmount?: Prisma.SortOrder
   paidAmount?: Prisma.SortOrder
   paymentStatus?: Prisma.SortOrder
@@ -345,9 +354,9 @@ export type SalesOrderByWithRelationInput = {
   updatedAt?: Prisma.SortOrder
   customer?: Prisma.CustomerOrderByWithRelationInput
   items?: Prisma.SaleItemOrderByRelationAggregateInput
-  deliveries?: Prisma.DeliveryOrderByRelationAggregateInput
   payments?: Prisma.PaymentOrderByRelationAggregateInput
   movements?: Prisma.StockMovementOrderByRelationAggregateInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationOrderByRelationAggregateInput
 }
 
 export type SalesWhereUniqueInput = Prisma.AtLeast<{
@@ -361,6 +370,7 @@ export type SalesWhereUniqueInput = Prisma.AtLeast<{
   subtotal?: Prisma.FloatFilter<"Sales"> | number
   discount?: Prisma.FloatFilter<"Sales"> | number
   deliveryFee?: Prisma.FloatFilter<"Sales"> | number
+  includeDeliveryFee?: Prisma.BoolFilter<"Sales"> | boolean
   totalAmount?: Prisma.FloatFilter<"Sales"> | number
   paidAmount?: Prisma.FloatFilter<"Sales"> | number
   paymentStatus?: Prisma.StringFilter<"Sales"> | string
@@ -371,9 +381,9 @@ export type SalesWhereUniqueInput = Prisma.AtLeast<{
   updatedAt?: Prisma.DateTimeFilter<"Sales"> | Date | string
   customer?: Prisma.XOR<Prisma.CustomerNullableScalarRelationFilter, Prisma.CustomerWhereInput> | null
   items?: Prisma.SaleItemListRelationFilter
-  deliveries?: Prisma.DeliveryListRelationFilter
   payments?: Prisma.PaymentListRelationFilter
   movements?: Prisma.StockMovementListRelationFilter
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationListRelationFilter
 }, "id" | "reference">
 
 export type SalesOrderByWithAggregationInput = {
@@ -384,6 +394,7 @@ export type SalesOrderByWithAggregationInput = {
   subtotal?: Prisma.SortOrder
   discount?: Prisma.SortOrder
   deliveryFee?: Prisma.SortOrder
+  includeDeliveryFee?: Prisma.SortOrder
   totalAmount?: Prisma.SortOrder
   paidAmount?: Prisma.SortOrder
   paymentStatus?: Prisma.SortOrder
@@ -410,6 +421,7 @@ export type SalesScalarWhereWithAggregatesInput = {
   subtotal?: Prisma.FloatWithAggregatesFilter<"Sales"> | number
   discount?: Prisma.FloatWithAggregatesFilter<"Sales"> | number
   deliveryFee?: Prisma.FloatWithAggregatesFilter<"Sales"> | number
+  includeDeliveryFee?: Prisma.BoolWithAggregatesFilter<"Sales"> | boolean
   totalAmount?: Prisma.FloatWithAggregatesFilter<"Sales"> | number
   paidAmount?: Prisma.FloatWithAggregatesFilter<"Sales"> | number
   paymentStatus?: Prisma.StringWithAggregatesFilter<"Sales"> | string
@@ -426,6 +438,7 @@ export type SalesCreateInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -436,9 +449,9 @@ export type SalesCreateInput = {
   updatedAt?: Date | string
   customer?: Prisma.CustomerCreateNestedOneWithoutSalesInput
   items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
-  deliveries?: Prisma.DeliveryCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateInput = {
@@ -449,6 +462,7 @@ export type SalesUncheckedCreateInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -458,9 +472,9 @@ export type SalesUncheckedCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
-  deliveries?: Prisma.DeliveryUncheckedCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUpdateInput = {
@@ -469,6 +483,7 @@ export type SalesUpdateInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -479,9 +494,9 @@ export type SalesUpdateInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneWithoutSalesNestedInput
   items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
-  deliveries?: Prisma.DeliveryUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateInput = {
@@ -492,6 +507,7 @@ export type SalesUncheckedUpdateInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -501,9 +517,9 @@ export type SalesUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
-  deliveries?: Prisma.DeliveryUncheckedUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUncheckedUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesCreateManyInput = {
@@ -514,6 +530,7 @@ export type SalesCreateManyInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -530,6 +547,7 @@ export type SalesUpdateManyMutationInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -548,6 +566,7 @@ export type SalesUncheckedUpdateManyInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -581,6 +600,7 @@ export type SalesCountOrderByAggregateInput = {
   subtotal?: Prisma.SortOrder
   discount?: Prisma.SortOrder
   deliveryFee?: Prisma.SortOrder
+  includeDeliveryFee?: Prisma.SortOrder
   totalAmount?: Prisma.SortOrder
   paidAmount?: Prisma.SortOrder
   paymentStatus?: Prisma.SortOrder
@@ -609,6 +629,7 @@ export type SalesMaxOrderByAggregateInput = {
   subtotal?: Prisma.SortOrder
   discount?: Prisma.SortOrder
   deliveryFee?: Prisma.SortOrder
+  includeDeliveryFee?: Prisma.SortOrder
   totalAmount?: Prisma.SortOrder
   paidAmount?: Prisma.SortOrder
   paymentStatus?: Prisma.SortOrder
@@ -627,6 +648,7 @@ export type SalesMinOrderByAggregateInput = {
   subtotal?: Prisma.SortOrder
   discount?: Prisma.SortOrder
   deliveryFee?: Prisma.SortOrder
+  includeDeliveryFee?: Prisma.SortOrder
   totalAmount?: Prisma.SortOrder
   paidAmount?: Prisma.SortOrder
   paymentStatus?: Prisma.SortOrder
@@ -748,20 +770,18 @@ export type SalesUpdateOneWithoutPaymentsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.SalesUpdateToOneWithWhereWithoutPaymentsInput, Prisma.SalesUpdateWithoutPaymentsInput>, Prisma.SalesUncheckedUpdateWithoutPaymentsInput>
 }
 
-export type SalesCreateNestedOneWithoutDeliveriesInput = {
-  create?: Prisma.XOR<Prisma.SalesCreateWithoutDeliveriesInput, Prisma.SalesUncheckedCreateWithoutDeliveriesInput>
-  connectOrCreate?: Prisma.SalesCreateOrConnectWithoutDeliveriesInput
+export type SalesCreateNestedOneWithoutAdvanceAllocationsInput = {
+  create?: Prisma.XOR<Prisma.SalesCreateWithoutAdvanceAllocationsInput, Prisma.SalesUncheckedCreateWithoutAdvanceAllocationsInput>
+  connectOrCreate?: Prisma.SalesCreateOrConnectWithoutAdvanceAllocationsInput
   connect?: Prisma.SalesWhereUniqueInput
 }
 
-export type SalesUpdateOneWithoutDeliveriesNestedInput = {
-  create?: Prisma.XOR<Prisma.SalesCreateWithoutDeliveriesInput, Prisma.SalesUncheckedCreateWithoutDeliveriesInput>
-  connectOrCreate?: Prisma.SalesCreateOrConnectWithoutDeliveriesInput
-  upsert?: Prisma.SalesUpsertWithoutDeliveriesInput
-  disconnect?: Prisma.SalesWhereInput | boolean
-  delete?: Prisma.SalesWhereInput | boolean
+export type SalesUpdateOneRequiredWithoutAdvanceAllocationsNestedInput = {
+  create?: Prisma.XOR<Prisma.SalesCreateWithoutAdvanceAllocationsInput, Prisma.SalesUncheckedCreateWithoutAdvanceAllocationsInput>
+  connectOrCreate?: Prisma.SalesCreateOrConnectWithoutAdvanceAllocationsInput
+  upsert?: Prisma.SalesUpsertWithoutAdvanceAllocationsInput
   connect?: Prisma.SalesWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.SalesUpdateToOneWithWhereWithoutDeliveriesInput, Prisma.SalesUpdateWithoutDeliveriesInput>, Prisma.SalesUncheckedUpdateWithoutDeliveriesInput>
+  update?: Prisma.XOR<Prisma.XOR<Prisma.SalesUpdateToOneWithWhereWithoutAdvanceAllocationsInput, Prisma.SalesUpdateWithoutAdvanceAllocationsInput>, Prisma.SalesUncheckedUpdateWithoutAdvanceAllocationsInput>
 }
 
 export type SalesCreateWithoutMovementsInput = {
@@ -770,6 +790,7 @@ export type SalesCreateWithoutMovementsInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -780,8 +801,8 @@ export type SalesCreateWithoutMovementsInput = {
   updatedAt?: Date | string
   customer?: Prisma.CustomerCreateNestedOneWithoutSalesInput
   items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
-  deliveries?: Prisma.DeliveryCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateWithoutMovementsInput = {
@@ -792,6 +813,7 @@ export type SalesUncheckedCreateWithoutMovementsInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -801,8 +823,8 @@ export type SalesUncheckedCreateWithoutMovementsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
-  deliveries?: Prisma.DeliveryUncheckedCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesCreateOrConnectWithoutMovementsInput = {
@@ -827,6 +849,7 @@ export type SalesUpdateWithoutMovementsInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -837,8 +860,8 @@ export type SalesUpdateWithoutMovementsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneWithoutSalesNestedInput
   items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
-  deliveries?: Prisma.DeliveryUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateWithoutMovementsInput = {
@@ -849,6 +872,7 @@ export type SalesUncheckedUpdateWithoutMovementsInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -858,8 +882,8 @@ export type SalesUncheckedUpdateWithoutMovementsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
-  deliveries?: Prisma.DeliveryUncheckedUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesCreateWithoutCustomerInput = {
@@ -868,6 +892,7 @@ export type SalesCreateWithoutCustomerInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -877,9 +902,9 @@ export type SalesCreateWithoutCustomerInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
-  deliveries?: Prisma.DeliveryCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateWithoutCustomerInput = {
@@ -889,6 +914,7 @@ export type SalesUncheckedCreateWithoutCustomerInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -898,9 +924,9 @@ export type SalesUncheckedCreateWithoutCustomerInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
-  deliveries?: Prisma.DeliveryUncheckedCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesCreateOrConnectWithoutCustomerInput = {
@@ -939,6 +965,7 @@ export type SalesScalarWhereInput = {
   subtotal?: Prisma.FloatFilter<"Sales"> | number
   discount?: Prisma.FloatFilter<"Sales"> | number
   deliveryFee?: Prisma.FloatFilter<"Sales"> | number
+  includeDeliveryFee?: Prisma.BoolFilter<"Sales"> | boolean
   totalAmount?: Prisma.FloatFilter<"Sales"> | number
   paidAmount?: Prisma.FloatFilter<"Sales"> | number
   paymentStatus?: Prisma.StringFilter<"Sales"> | string
@@ -955,6 +982,7 @@ export type SalesCreateWithoutItemsInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -964,9 +992,9 @@ export type SalesCreateWithoutItemsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   customer?: Prisma.CustomerCreateNestedOneWithoutSalesInput
-  deliveries?: Prisma.DeliveryCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateWithoutItemsInput = {
@@ -977,6 +1005,7 @@ export type SalesUncheckedCreateWithoutItemsInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -985,9 +1014,9 @@ export type SalesUncheckedCreateWithoutItemsInput = {
   saleDate?: Date | string
   createdAt?: Date | string
   updatedAt?: Date | string
-  deliveries?: Prisma.DeliveryUncheckedCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesCreateOrConnectWithoutItemsInput = {
@@ -1012,6 +1041,7 @@ export type SalesUpdateWithoutItemsInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1021,9 +1051,9 @@ export type SalesUpdateWithoutItemsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneWithoutSalesNestedInput
-  deliveries?: Prisma.DeliveryUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateWithoutItemsInput = {
@@ -1034,6 +1064,7 @@ export type SalesUncheckedUpdateWithoutItemsInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1042,9 +1073,9 @@ export type SalesUncheckedUpdateWithoutItemsInput = {
   saleDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  deliveries?: Prisma.DeliveryUncheckedUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUncheckedUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesCreateWithoutPaymentsInput = {
@@ -1053,6 +1084,7 @@ export type SalesCreateWithoutPaymentsInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -1063,8 +1095,8 @@ export type SalesCreateWithoutPaymentsInput = {
   updatedAt?: Date | string
   customer?: Prisma.CustomerCreateNestedOneWithoutSalesInput
   items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
-  deliveries?: Prisma.DeliveryCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateWithoutPaymentsInput = {
@@ -1075,6 +1107,7 @@ export type SalesUncheckedCreateWithoutPaymentsInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -1084,8 +1117,8 @@ export type SalesUncheckedCreateWithoutPaymentsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
-  deliveries?: Prisma.DeliveryUncheckedCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesCreateOrConnectWithoutPaymentsInput = {
@@ -1110,6 +1143,7 @@ export type SalesUpdateWithoutPaymentsInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1120,8 +1154,8 @@ export type SalesUpdateWithoutPaymentsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneWithoutSalesNestedInput
   items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
-  deliveries?: Prisma.DeliveryUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateWithoutPaymentsInput = {
@@ -1132,6 +1166,7 @@ export type SalesUncheckedUpdateWithoutPaymentsInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1141,16 +1176,17 @@ export type SalesUncheckedUpdateWithoutPaymentsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
-  deliveries?: Prisma.DeliveryUncheckedUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUncheckedUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
 }
 
-export type SalesCreateWithoutDeliveriesInput = {
+export type SalesCreateWithoutAdvanceAllocationsInput = {
   reference: string
   status?: string
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -1165,7 +1201,7 @@ export type SalesCreateWithoutDeliveriesInput = {
   movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
 }
 
-export type SalesUncheckedCreateWithoutDeliveriesInput = {
+export type SalesUncheckedCreateWithoutAdvanceAllocationsInput = {
   id?: number
   reference: string
   customerId?: number | null
@@ -1173,6 +1209,7 @@ export type SalesUncheckedCreateWithoutDeliveriesInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -1186,28 +1223,29 @@ export type SalesUncheckedCreateWithoutDeliveriesInput = {
   movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
 }
 
-export type SalesCreateOrConnectWithoutDeliveriesInput = {
+export type SalesCreateOrConnectWithoutAdvanceAllocationsInput = {
   where: Prisma.SalesWhereUniqueInput
-  create: Prisma.XOR<Prisma.SalesCreateWithoutDeliveriesInput, Prisma.SalesUncheckedCreateWithoutDeliveriesInput>
+  create: Prisma.XOR<Prisma.SalesCreateWithoutAdvanceAllocationsInput, Prisma.SalesUncheckedCreateWithoutAdvanceAllocationsInput>
 }
 
-export type SalesUpsertWithoutDeliveriesInput = {
-  update: Prisma.XOR<Prisma.SalesUpdateWithoutDeliveriesInput, Prisma.SalesUncheckedUpdateWithoutDeliveriesInput>
-  create: Prisma.XOR<Prisma.SalesCreateWithoutDeliveriesInput, Prisma.SalesUncheckedCreateWithoutDeliveriesInput>
+export type SalesUpsertWithoutAdvanceAllocationsInput = {
+  update: Prisma.XOR<Prisma.SalesUpdateWithoutAdvanceAllocationsInput, Prisma.SalesUncheckedUpdateWithoutAdvanceAllocationsInput>
+  create: Prisma.XOR<Prisma.SalesCreateWithoutAdvanceAllocationsInput, Prisma.SalesUncheckedCreateWithoutAdvanceAllocationsInput>
   where?: Prisma.SalesWhereInput
 }
 
-export type SalesUpdateToOneWithWhereWithoutDeliveriesInput = {
+export type SalesUpdateToOneWithWhereWithoutAdvanceAllocationsInput = {
   where?: Prisma.SalesWhereInput
-  data: Prisma.XOR<Prisma.SalesUpdateWithoutDeliveriesInput, Prisma.SalesUncheckedUpdateWithoutDeliveriesInput>
+  data: Prisma.XOR<Prisma.SalesUpdateWithoutAdvanceAllocationsInput, Prisma.SalesUncheckedUpdateWithoutAdvanceAllocationsInput>
 }
 
-export type SalesUpdateWithoutDeliveriesInput = {
+export type SalesUpdateWithoutAdvanceAllocationsInput = {
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1222,7 +1260,7 @@ export type SalesUpdateWithoutDeliveriesInput = {
   movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
 }
 
-export type SalesUncheckedUpdateWithoutDeliveriesInput = {
+export type SalesUncheckedUpdateWithoutAdvanceAllocationsInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   customerId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -1230,6 +1268,7 @@ export type SalesUncheckedUpdateWithoutDeliveriesInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1250,6 +1289,7 @@ export type SalesCreateManyCustomerInput = {
   subtotal?: number
   discount?: number
   deliveryFee?: number
+  includeDeliveryFee?: boolean
   totalAmount?: number
   paidAmount?: number
   paymentStatus?: string
@@ -1266,6 +1306,7 @@ export type SalesUpdateWithoutCustomerInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1275,9 +1316,9 @@ export type SalesUpdateWithoutCustomerInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
-  deliveries?: Prisma.DeliveryUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateWithoutCustomerInput = {
@@ -1287,6 +1328,7 @@ export type SalesUncheckedUpdateWithoutCustomerInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1296,9 +1338,9 @@ export type SalesUncheckedUpdateWithoutCustomerInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
-  deliveries?: Prisma.DeliveryUncheckedUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUncheckedUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateManyWithoutCustomerInput = {
@@ -1308,6 +1350,7 @@ export type SalesUncheckedUpdateManyWithoutCustomerInput = {
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
   totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
   paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1325,16 +1368,16 @@ export type SalesUncheckedUpdateManyWithoutCustomerInput = {
 
 export type SalesCountOutputType = {
   items: number
-  deliveries: number
   payments: number
   movements: number
+  advanceAllocations: number
 }
 
 export type SalesCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   items?: boolean | SalesCountOutputTypeCountItemsArgs
-  deliveries?: boolean | SalesCountOutputTypeCountDeliveriesArgs
   payments?: boolean | SalesCountOutputTypeCountPaymentsArgs
   movements?: boolean | SalesCountOutputTypeCountMovementsArgs
+  advanceAllocations?: boolean | SalesCountOutputTypeCountAdvanceAllocationsArgs
 }
 
 /**
@@ -1357,13 +1400,6 @@ export type SalesCountOutputTypeCountItemsArgs<ExtArgs extends runtime.Types.Ext
 /**
  * SalesCountOutputType without action
  */
-export type SalesCountOutputTypeCountDeliveriesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.DeliveryWhereInput
-}
-
-/**
- * SalesCountOutputType without action
- */
 export type SalesCountOutputTypeCountPaymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.PaymentWhereInput
 }
@@ -1375,6 +1411,13 @@ export type SalesCountOutputTypeCountMovementsArgs<ExtArgs extends runtime.Types
   where?: Prisma.StockMovementWhereInput
 }
 
+/**
+ * SalesCountOutputType without action
+ */
+export type SalesCountOutputTypeCountAdvanceAllocationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.CustomerAdvanceAllocationWhereInput
+}
+
 
 export type SalesSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1384,6 +1427,7 @@ export type SalesSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   subtotal?: boolean
   discount?: boolean
   deliveryFee?: boolean
+  includeDeliveryFee?: boolean
   totalAmount?: boolean
   paidAmount?: boolean
   paymentStatus?: boolean
@@ -1394,9 +1438,9 @@ export type SalesSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   updatedAt?: boolean
   customer?: boolean | Prisma.Sales$customerArgs<ExtArgs>
   items?: boolean | Prisma.Sales$itemsArgs<ExtArgs>
-  deliveries?: boolean | Prisma.Sales$deliveriesArgs<ExtArgs>
   payments?: boolean | Prisma.Sales$paymentsArgs<ExtArgs>
   movements?: boolean | Prisma.Sales$movementsArgs<ExtArgs>
+  advanceAllocations?: boolean | Prisma.Sales$advanceAllocationsArgs<ExtArgs>
   _count?: boolean | Prisma.SalesCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["sales"]>
 
@@ -1408,6 +1452,7 @@ export type SalesSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   subtotal?: boolean
   discount?: boolean
   deliveryFee?: boolean
+  includeDeliveryFee?: boolean
   totalAmount?: boolean
   paidAmount?: boolean
   paymentStatus?: boolean
@@ -1427,6 +1472,7 @@ export type SalesSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   subtotal?: boolean
   discount?: boolean
   deliveryFee?: boolean
+  includeDeliveryFee?: boolean
   totalAmount?: boolean
   paidAmount?: boolean
   paymentStatus?: boolean
@@ -1446,6 +1492,7 @@ export type SalesSelectScalar = {
   subtotal?: boolean
   discount?: boolean
   deliveryFee?: boolean
+  includeDeliveryFee?: boolean
   totalAmount?: boolean
   paidAmount?: boolean
   paymentStatus?: boolean
@@ -1456,13 +1503,13 @@ export type SalesSelectScalar = {
   updatedAt?: boolean
 }
 
-export type SalesOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "customerId" | "status" | "subtotal" | "discount" | "deliveryFee" | "totalAmount" | "paidAmount" | "paymentStatus" | "deliveryStatus" | "notes" | "saleDate" | "createdAt" | "updatedAt", ExtArgs["result"]["sales"]>
+export type SalesOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "customerId" | "status" | "subtotal" | "discount" | "deliveryFee" | "includeDeliveryFee" | "totalAmount" | "paidAmount" | "paymentStatus" | "deliveryStatus" | "notes" | "saleDate" | "createdAt" | "updatedAt", ExtArgs["result"]["sales"]>
 export type SalesInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   customer?: boolean | Prisma.Sales$customerArgs<ExtArgs>
   items?: boolean | Prisma.Sales$itemsArgs<ExtArgs>
-  deliveries?: boolean | Prisma.Sales$deliveriesArgs<ExtArgs>
   payments?: boolean | Prisma.Sales$paymentsArgs<ExtArgs>
   movements?: boolean | Prisma.Sales$movementsArgs<ExtArgs>
+  advanceAllocations?: boolean | Prisma.Sales$advanceAllocationsArgs<ExtArgs>
   _count?: boolean | Prisma.SalesCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type SalesIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1477,9 +1524,9 @@ export type $SalesPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   objects: {
     customer: Prisma.$CustomerPayload<ExtArgs> | null
     items: Prisma.$SaleItemPayload<ExtArgs>[]
-    deliveries: Prisma.$DeliveryPayload<ExtArgs>[]
     payments: Prisma.$PaymentPayload<ExtArgs>[]
     movements: Prisma.$StockMovementPayload<ExtArgs>[]
+    advanceAllocations: Prisma.$CustomerAdvanceAllocationPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1489,6 +1536,7 @@ export type $SalesPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     subtotal: number
     discount: number
     deliveryFee: number
+    includeDeliveryFee: boolean
     totalAmount: number
     paidAmount: number
     paymentStatus: string
@@ -1893,9 +1941,9 @@ export interface Prisma__SalesClient<T, Null = never, ExtArgs extends runtime.Ty
   readonly [Symbol.toStringTag]: "PrismaPromise"
   customer<T extends Prisma.Sales$customerArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sales$customerArgs<ExtArgs>>): Prisma.Prisma__CustomerClient<runtime.Types.Result.GetResult<Prisma.$CustomerPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   items<T extends Prisma.Sales$itemsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sales$itemsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SaleItemPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  deliveries<T extends Prisma.Sales$deliveriesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sales$deliveriesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$DeliveryPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   payments<T extends Prisma.Sales$paymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sales$paymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PaymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   movements<T extends Prisma.Sales$movementsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sales$movementsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$StockMovementPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  advanceAllocations<T extends Prisma.Sales$advanceAllocationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sales$advanceAllocationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CustomerAdvanceAllocationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1932,6 +1980,7 @@ export interface SalesFieldRefs {
   readonly subtotal: Prisma.FieldRef<"Sales", 'Float'>
   readonly discount: Prisma.FieldRef<"Sales", 'Float'>
   readonly deliveryFee: Prisma.FieldRef<"Sales", 'Float'>
+  readonly includeDeliveryFee: Prisma.FieldRef<"Sales", 'Boolean'>
   readonly totalAmount: Prisma.FieldRef<"Sales", 'Float'>
   readonly paidAmount: Prisma.FieldRef<"Sales", 'Float'>
   readonly paymentStatus: Prisma.FieldRef<"Sales", 'String'>
@@ -2382,30 +2431,6 @@ export type Sales$itemsArgs<ExtArgs extends runtime.Types.Extensions.InternalArg
 }
 
 /**
- * Sales.deliveries
- */
-export type Sales$deliveriesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the Delivery
-   */
-  select?: Prisma.DeliverySelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the Delivery
-   */
-  omit?: Prisma.DeliveryOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.DeliveryInclude<ExtArgs> | null
-  where?: Prisma.DeliveryWhereInput
-  orderBy?: Prisma.DeliveryOrderByWithRelationInput | Prisma.DeliveryOrderByWithRelationInput[]
-  cursor?: Prisma.DeliveryWhereUniqueInput
-  take?: number
-  skip?: number
-  distinct?: Prisma.DeliveryScalarFieldEnum | Prisma.DeliveryScalarFieldEnum[]
-}
-
-/**
  * Sales.payments
  */
 export type Sales$paymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -2451,6 +2476,30 @@ export type Sales$movementsArgs<ExtArgs extends runtime.Types.Extensions.Interna
   take?: number
   skip?: number
   distinct?: Prisma.StockMovementScalarFieldEnum | Prisma.StockMovementScalarFieldEnum[]
+}
+
+/**
+ * Sales.advanceAllocations
+ */
+export type Sales$advanceAllocationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the CustomerAdvanceAllocation
+   */
+  select?: Prisma.CustomerAdvanceAllocationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the CustomerAdvanceAllocation
+   */
+  omit?: Prisma.CustomerAdvanceAllocationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CustomerAdvanceAllocationInclude<ExtArgs> | null
+  where?: Prisma.CustomerAdvanceAllocationWhereInput
+  orderBy?: Prisma.CustomerAdvanceAllocationOrderByWithRelationInput | Prisma.CustomerAdvanceAllocationOrderByWithRelationInput[]
+  cursor?: Prisma.CustomerAdvanceAllocationWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.CustomerAdvanceAllocationScalarFieldEnum | Prisma.CustomerAdvanceAllocationScalarFieldEnum[]
 }
 
 /**

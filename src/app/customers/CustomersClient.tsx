@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import {
   Users,
   Search,
@@ -16,6 +16,8 @@ import {
   CreditCard,
   ShoppingBag,
   X,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   createCustomerAction,
@@ -30,6 +32,7 @@ export interface CustomerItem {
   code?: string | null;
   name: string;
   phone?: string | null;
+  phone2?: string | null;
   email?: string | null;
   address?: string | null;
   notes?: string | null;
@@ -39,6 +42,16 @@ export interface CustomerItem {
   outstandingBalance: number;
   confirmedSalesCount?: number;
   lastPurchaseDate?: string | Date | null;
+}
+
+export interface CustomerPaymentItem {
+  id: number;
+  reference?: string | null;
+  amount: number;
+  method: string;
+  paymentDate: string | Date;
+  status: string;
+  notes?: string | null;
 }
 
 export interface CustomerSaleItem {
@@ -59,6 +72,7 @@ export interface CustomerSale {
   totalAmount: number;
   paidAmount: number;
   items?: CustomerSaleItem[];
+  payments?: CustomerPaymentItem[];
 }
 
 export interface CustomerDetails extends CustomerItem {
@@ -79,6 +93,21 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
   const [editingCustomer, setEditingCustomer] = useState<CustomerItem | null>(null);
   const [selectedCustomerDetails, setSelectedCustomerDetails] = useState<CustomerDetails | null>(null);
   const [deleteConfirmCustomer, setDeleteConfirmCustomer] = useState<CustomerItem | null>(null);
+  const [expandedSalePayments, setExpandedSalePayments] = useState<number | null>(null);
+
+  // Keyboard navigation & standardized modal close (Feature F)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (selectedCustomerDetails) setSelectedCustomerDetails(null);
+        else if (editingCustomer) setEditingCustomer(null);
+        else if (isCreateOpen) setIsCreateOpen(false);
+        else if (deleteConfirmCustomer) setDeleteConfirmCustomer(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedCustomerDetails, editingCustomer, isCreateOpen, deleteConfirmCustomer]);
 
   // Notifications & loading
   const [notification, setNotification] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -102,6 +131,7 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
       !q ||
       c.name.toLowerCase().includes(q) ||
       (c.phone && c.phone.includes(q)) ||
+      (c.phone2 && c.phone2.includes(q)) ||
       (c.code && c.code.toLowerCase().includes(q)) ||
       (c.address && c.address.toLowerCase().includes(q));
 
@@ -395,14 +425,29 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      {customer.phone ? (
-                        <a
-                          href={`tel:${customer.phone}`}
-                          className="font-mono text-sm text-slate-700 hover:text-amber-600 flex items-center gap-1.5"
-                        >
-                          <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                          {customer.phone}
-                        </a>
+                      {customer.phone || customer.phone2 ? (
+                        <div className="space-y-0.5">
+                          {customer.phone && (
+                            <a
+                              href={`tel:${customer.phone}`}
+                              className="font-mono text-sm text-slate-700 hover:text-amber-600 flex items-center gap-1.5"
+                            >
+                              <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                              {customer.phone}
+                            </a>
+                          )}
+                          {customer.phone2 && (
+                            <a
+                              href={`tel:${customer.phone2}`}
+                              className="font-mono text-xs text-slate-500 hover:text-amber-600 flex items-center gap-1.5"
+                              title="Numéro secondaire"
+                            >
+                              <Phone className="h-3 w-3 text-slate-400 shrink-0" />
+                              <span>{customer.phone2}</span>
+                              <span className="text-[10px] text-slate-400 font-sans">(sec.)</span>
+                            </a>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-slate-400 text-xs">Non renseigné</span>
                       )}
@@ -482,13 +527,22 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
 
       {/* ── Modal: Nouveau Client ───────────────────────────────────────────── */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) {
+              setIsCreateOpen(false);
+            }
+          }}
+        >
           <div className="relative w-full max-w-lg bg-white rounded-xl shadow-xl p-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
               <h2 className="text-lg font-bold text-slate-900">Ajouter un Nouveau Client</h2>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                disabled={isPending}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer disabled:opacity-50"
+                title="Fermer (Échap)"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -505,13 +559,14 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                   required
                   placeholder="Ex : M. Benali Karim"
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  autoFocus
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Numéro de Téléphone
+                    Numéro de Téléphone Principal
                   </label>
                   <input
                     type="tel"
@@ -522,15 +577,27 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Adresse Email (Optionnelle)
+                    Téléphone Secondaire (Optionnel)
                   </label>
                   <input
-                    type="email"
-                    name="email"
-                    placeholder="client@mail.com"
+                    type="tel"
+                    name="phone2"
+                    placeholder="Ex : 0661 98 76 54"
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Adresse Email (Optionnelle)
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="client@mail.com"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                />
               </div>
 
               <div>
@@ -561,7 +628,8 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                 <button
                   type="button"
                   onClick={() => setIsCreateOpen(false)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  disabled={isPending}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Annuler
                 </button>
@@ -580,7 +648,14 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
 
       {/* ── Modal: Modifier Client ─────────────────────────────────────────── */}
       {editingCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) {
+              setEditingCustomer(null);
+            }
+          }}
+        >
           <div className="relative w-full max-w-lg bg-white rounded-xl shadow-xl p-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
               <h2 className="text-lg font-bold text-slate-900">
@@ -588,7 +663,9 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
               </h2>
               <button
                 onClick={() => setEditingCustomer(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                disabled={isPending}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer disabled:opacity-50"
+                title="Fermer (Échap)"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -608,10 +685,10 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Numéro de Téléphone
+                    Numéro de Téléphone Principal
                   </label>
                   <input
                     type="tel"
@@ -622,15 +699,27 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Email
+                    Téléphone Secondaire (Optionnel)
                   </label>
                   <input
-                    type="email"
-                    name="email"
-                    defaultValue={editingCustomer.email || ""}
+                    type="tel"
+                    name="phone2"
+                    defaultValue={editingCustomer.phone2 || ""}
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  defaultValue={editingCustomer.email || ""}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                />
               </div>
 
               <div>
@@ -661,7 +750,8 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                 <button
                   type="button"
                   onClick={() => setEditingCustomer(null)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  disabled={isPending}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Annuler
                 </button>
@@ -680,8 +770,15 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
 
       {/* ── Modal: Fiche Complète & Historique Client ────────────────────────── */}
       {selectedCustomerDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto">
-          <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl p-6 my-8 max-h-[90vh] flex flex-col">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedCustomerDetails(null);
+            }
+          }}
+        >
+          <div className="relative w-full max-w-4xl bg-white rounded-xl shadow-2xl p-6 my-8 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
@@ -701,6 +798,7 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
               <button
                 onClick={() => setSelectedCustomerDetails(null)}
                 className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                title="Fermer (Échap)"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -737,26 +835,40 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
               </div>
 
               {/* Coordonnées */}
-              <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                  <span className="font-bold text-slate-500 uppercase">Téléphone</span>
-                  <p className="font-mono text-sm text-slate-800 mt-1">
-                    {selectedCustomerDetails.phone || "Non renseigné"}
-                  </p>
+                  <span className="font-bold text-slate-500 uppercase">Téléphone(s)</span>
+                  <div className="font-mono text-sm text-slate-800 mt-1 space-y-1">
+                    <p>
+                      <span className="text-slate-500 font-sans text-xs">Principal : </span>
+                      {selectedCustomerDetails.phone || "Non renseigné"}
+                    </p>
+                    {selectedCustomerDetails.phone2 && (
+                      <p>
+                        <span className="text-slate-500 font-sans text-xs">Secondaire : </span>
+                        {selectedCustomerDetails.phone2}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                  <span className="font-bold text-slate-500 uppercase">Adresse</span>
+                  <span className="font-bold text-slate-500 uppercase">Adresse de Livraison</span>
                   <p className="text-sm text-slate-800 mt-1">
                     {selectedCustomerDetails.address || "Non renseignée"}
                   </p>
                 </div>
               </div>
 
-              {/* Historique des achats */}
+              {/* Historique des achats & règlements échelonnés */}
               <div>
-                <h3 className="text-sm font-bold text-slate-900 mb-2 flex items-center gap-2">
-                  <ShoppingBag className="h-4 w-4 text-amber-500" />
-                  Historique des Ventes & Factures ({selectedCustomerDetails.sales?.length || 0})
+                <h3 className="text-sm font-bold text-slate-900 mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4 text-amber-500" />
+                    Historique des Ventes & Règlements Échelonnés ({selectedCustomerDetails.sales?.length || 0})
+                  </span>
+                  <span className="text-xs font-normal text-slate-500">
+                    Cliquez sur une facture pour détailler ses versements
+                  </span>
                 </h3>
 
                 {selectedCustomerDetails.sales?.length === 0 ? (
@@ -764,61 +876,151 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                     Aucun achat enregistré pour ce client.
                   </p>
                 ) : (
-                  <div className="overflow-hidden border border-slate-200 rounded-lg">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
-                        <tr>
-                          <th className="py-2 px-3">Réf Facture</th>
-                          <th className="py-2 px-3">Date</th>
-                          <th className="py-2 px-3">Articles</th>
-                          <th className="py-2 px-3 text-right">Montant (DA)</th>
-                          <th className="py-2 px-3 text-right">Versé</th>
-                          <th className="py-2 px-3 text-right">Reste</th>
-                          <th className="py-2 px-3 text-center">Statut</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {selectedCustomerDetails.sales.map((s: CustomerSale) => (
-                          <tr key={s.id} className="hover:bg-slate-50">
-                            <td className="py-2 px-3 font-mono font-bold text-slate-900">
-                              {s.reference}
-                            </td>
-                            <td className="py-2 px-3 text-slate-600">
-                              {new Date(s.saleDate).toLocaleDateString("fr-DZ")}
-                            </td>
-                            <td className="py-2 px-3 text-slate-600">
-                              {s.items?.length || 0} article(s)
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono font-semibold">
-                              {s.totalAmount.toLocaleString("fr-DZ")} DA
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono text-emerald-700">
-                              {s.paidAmount.toLocaleString("fr-DZ")}
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono text-rose-700 font-semibold">
-                              {(s.totalAmount - s.paidAmount).toLocaleString("fr-DZ")}
-                            </td>
-                            <td className="py-2 px-3 text-center">
+                  <div className="space-y-3">
+                    {selectedCustomerDetails.sales.map((s: CustomerSale) => {
+                      const isExpanded = expandedSalePayments === s.id;
+                      const remaining = Math.max(0, s.totalAmount - s.paidAmount);
+                      return (
+                        <div
+                          key={s.id}
+                          className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs"
+                        >
+                          <div
+                            onClick={() =>
+                              setExpandedSalePayments(isExpanded ? null : s.id)
+                            }
+                            className="p-3 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                className="text-slate-400 hover:text-slate-600"
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </button>
+                              <div>
+                                <span className="font-mono font-bold text-sm text-slate-900">
+                                  {s.reference}
+                                </span>
+                                <span className="text-xs text-slate-500 ml-2">
+                                  ({new Date(s.saleDate).toLocaleDateString("fr-DZ")})
+                                </span>
+                                <span className="text-xs text-slate-500 ml-2">
+                                  • {s.items?.length || 0} article(s)
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-right">
+                              <div>
+                                <span className="text-[10px] text-slate-400 block uppercase">
+                                  Montant Facture
+                                </span>
+                                <span className="font-mono font-bold text-sm text-slate-900">
+                                  {s.totalAmount.toLocaleString("fr-DZ")} DA
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 block uppercase">
+                                  Versé
+                                </span>
+                                <span className="font-mono font-bold text-sm text-emerald-700">
+                                  {s.paidAmount.toLocaleString("fr-DZ")} DA
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 block uppercase">
+                                  Reste Dû
+                                </span>
+                                <span
+                                  className={`font-mono font-bold text-sm ${
+                                    remaining > 0 ? "text-rose-700" : "text-slate-400"
+                                  }`}
+                                >
+                                  {remaining.toLocaleString("fr-DZ")} DA
+                                </span>
+                              </div>
                               <span
-                                className={`inline-block px-2.5 py-1 rounded text-xs font-bold ${
+                                className={`px-2 py-0.5 rounded text-[11px] font-bold ${
                                   s.status === "confirmed"
-                                    ? "bg-emerald-100 text-emerald-800"
+                                    ? remaining === 0
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-amber-100 text-amber-800"
                                     : s.status === "draft"
-                                    ? "bg-amber-100 text-amber-800"
+                                    ? "bg-slate-100 text-slate-700"
                                     : "bg-rose-100 text-rose-800"
                                 }`}
                               >
                                 {s.status === "confirmed"
-                                  ? "Confirmée"
+                                  ? remaining === 0
+                                    ? "Soldée"
+                                    : "Partielle"
                                   : s.status === "draft"
                                   ? "Brouillon"
                                   : "Annulée"}
                               </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </div>
+                          </div>
+
+                          {/* Expanded payments breakdown */}
+                          {isExpanded && (
+                            <div className="bg-slate-50 p-3 border-t border-slate-200">
+                              <h4 className="text-xs font-bold text-slate-700 uppercase mb-2">
+                                Versements & Règlements Reçus pour {s.reference}
+                              </h4>
+                              {!s.payments || s.payments.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic">
+                                  Aucun versement enregistré sur cette facture.
+                                </p>
+                              ) : (
+                                <table className="w-full text-left border-collapse text-xs bg-white rounded border border-slate-200">
+                                  <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 font-semibold">
+                                    <tr>
+                                      <th className="py-1.5 px-3">Réf Versement</th>
+                                      <th className="py-1.5 px-3">Date</th>
+                                      <th className="py-1.5 px-3">Mode</th>
+                                      <th className="py-1.5 px-3 text-right">Montant Encaissé</th>
+                                      <th className="py-1.5 px-3">Observation</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {s.payments.map((p) => (
+                                      <tr key={p.id} className="hover:bg-slate-50">
+                                        <td className="py-1.5 px-3 font-mono text-slate-800">
+                                          {p.reference || `REC-${p.id}`}
+                                        </td>
+                                        <td className="py-1.5 px-3 text-slate-600">
+                                          {new Date(p.paymentDate).toLocaleDateString("fr-DZ")}
+                                        </td>
+                                        <td className="py-1.5 px-3 capitalize">
+                                          {p.method === "cash"
+                                            ? "Espèces"
+                                            : p.method === "transfer"
+                                            ? "Virement"
+                                            : p.method === "check"
+                                            ? "Chèque"
+                                            : p.method}
+                                        </td>
+                                        <td className="py-1.5 px-3 text-right font-mono font-bold text-emerald-700">
+                                          {p.amount.toLocaleString("fr-DZ")} DA
+                                        </td>
+                                        <td className="py-1.5 px-3 text-slate-500 italic">
+                                          {p.notes || "—"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -838,7 +1040,14 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
 
       {/* ── Modal: Confirmation Suppression Protégée ────────────────────────── */}
       {deleteConfirmCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) {
+              setDeleteConfirmCustomer(null);
+            }
+          }}
+        >
           <div className="relative w-full max-w-md bg-white rounded-xl shadow-xl p-6">
             <div className="flex items-center gap-3 text-rose-600 pb-3 border-b border-slate-200">
               <AlertCircle className="h-6 w-6 shrink-0" />
@@ -858,7 +1067,8 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
             <div className="flex justify-end gap-3 pt-5 border-t border-slate-200 mt-4">
               <button
                 onClick={() => setDeleteConfirmCustomer(null)}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                disabled={isPending}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-50"
               >
                 Annuler
               </button>

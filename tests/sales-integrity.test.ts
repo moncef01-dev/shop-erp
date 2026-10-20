@@ -548,19 +548,15 @@ async function runTests() {
   // --------------------------------------------------------------------------
   // TEST 9: Gestion de la Livraison (Frais Séparés & Mise à Jour du Statut)
   // --------------------------------------------------------------------------
+  // TEST 9: Frais de Livraison sur Facture (Inclusion, Séparation et Absence de Dépense Caisse)
+  // --------------------------------------------------------------------------
   try {
-    // Vente avec frais de livraison de 4 500 DA
+    // Vente avec frais de livraison de 4 500 DA inclus dans la facture
     const resDelivSale = await salesActions.createSaleAction({
       customerId: clientKarim!.id,
       status: "confirmed",
       deliveryFee: 4500,
-      delivery: {
-        hasDelivery: true,
-        fee: 4500,
-        address: "Résidence des Pins, Hydra, Alger",
-        plannedDate: "2026-10-25",
-        notes: "Livraison 3ème étage sans ascenseur",
-      },
+      includeDeliveryFee: true,
       items: [
         {
           productId: prodA.id,
@@ -577,30 +573,28 @@ async function runTests() {
 
     const dbDelivSale = await prisma.sales.findUnique({
       where: { id: delivSaleId },
-      include: { deliveries: true },
     });
 
     assert(dbDelivSale!.deliveryFee === 4500, `Frais attendus 4500 DA, trouvé ${dbDelivSale!.deliveryFee}`);
+    assert(dbDelivSale!.includeDeliveryFee === true, "includeDeliveryFee doit être true");
+    assert(dbDelivSale!.subtotal === 125000, `Sous-total attendu 125000 DA, trouvé ${dbDelivSale!.subtotal}`);
     assert(dbDelivSale!.totalAmount === 129500, `Total attendu 129500 DA, trouvé ${dbDelivSale!.totalAmount}`);
-    assert(dbDelivSale!.deliveries.length === 1, "Fiche de livraison manquante");
+    assert(dbDelivSale!.paidAmount === 129500, `Montant versé attendu 129500 DA`);
 
-    const deliveryRecord = dbDelivSale!.deliveries[0];
-    assert(deliveryRecord.status === "pending", "Statut initial attendu 'pending'");
+    // Vérifier l'absence absolue de dépense automatique en caisse
+    const deliveryExpenses = await prisma.expense.findMany({
+      where: {
+        OR: [
+          { description: { contains: "livraison" } },
+          { description: { contains: "Livraison" } },
+          { description: { contains: dbDelivSale!.reference } },
+        ],
+      },
+    });
+    assert(deliveryExpenses.length === 0, "Aucune dépense de livraison automatique ne doit être créée");
 
-    // Changer le statut de livraison vers "in_transit" puis "delivered"
-    const resUpdate = await salesActions.updateDeliveryStatusAction(deliveryRecord.id, "delivered", "Remis en main propre");
-    assert(resUpdate.success, `Échec mise à jour livraison: ${resUpdate.error}`);
-
-    const dbDelivAfter = await prisma.delivery.findUnique({ where: { id: deliveryRecord.id } });
-    assert(dbDelivAfter!.status === "delivered", "Statut livraison attendu 'delivered'");
-
-    // Vérifier que changer le statut de livraison n'a PAS altéré les montants ni le stock
-    const saleCheck = await prisma.sales.findUnique({ where: { id: delivSaleId } });
-    assert(saleCheck!.totalAmount === 129500, "Le montant total de la vente a été modifié par le statut de livraison !");
-    assert(saleCheck!.paidAmount === 129500, "Le montant payé a été modifié par le statut de livraison !");
-
-    results.push({ num: 9, name: "Gestion de Livraison: Frais Séparés et Changements de Statut", passed: true });
-    console.log("✓ Test 9: Gestion de Livraison: Frais Séparés et Changements de Statut réussi.");
+    results.push({ num: 9, name: "Frais de Livraison sur Facture: Séparation et Absence de Dépense Caisse", passed: true });
+    console.log("✓ Test 9: Frais de Livraison sur Facture: Séparation et Absence de Dépense Caisse réussi.");
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     results.push({ num: 9, name: "Gestion de Livraison: Frais Séparés et Changements de Statut", passed: false, error: msg });

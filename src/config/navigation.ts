@@ -3,7 +3,6 @@ import {
   Package,
   ShoppingCart,
   Truck,
-  PackageCheck,
   Users,
   Building2,
   Wallet,
@@ -43,12 +42,6 @@ export const navItems: NavItem[] = [
     href: "/purchases",
     icon: Truck,
     description: "Commandes fournisseurs, réceptions et dettes",
-  },
-  {
-    label: "Livraisons",
-    href: "/deliveries",
-    icon: PackageCheck,
-    description: "Suivi des expéditions et livraisons",
   },
   {
     label: "Clients",

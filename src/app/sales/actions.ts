@@ -7,6 +7,8 @@ import {
   restoreStockForCancelledSale,
   type PrismaTransactionClient,
 } from "@/lib/inventory-transaction";
+import { roundMoney } from "@/lib/formatters";
+import { getCustomerAdvancesData } from "./advances-actions";
 
 export type SaleActionResponse<T = unknown> = {
   success: boolean;
@@ -71,28 +73,6 @@ async function generateNextPaymentReference(tx: PrismaTransactionClient): Promis
   return `${prefix}${String(nextSeq).padStart(4, "0")}`;
 }
 
-async function generateNextDeliveryReference(tx: PrismaTransactionClient): Promise<string> {
-  const now = new Date();
-  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const prefix = `LIV-${yearMonth}-`;
-
-  const lastDelivery = await tx.delivery.findFirst({
-    where: { reference: { startsWith: prefix } },
-    orderBy: { reference: "desc" },
-    select: { reference: true },
-  });
-
-  let nextSeq = 1;
-  if (lastDelivery?.reference) {
-    const parts = lastDelivery.reference.split("-");
-    const num = parseInt(parts[parts.length - 1], 10);
-    if (!isNaN(num)) {
-      nextSeq = num + 1;
-    }
-  }
-
-  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
 
 // ─── RÉCUPÉRATION GLOBALE DES DONNÉES DU MODULE VENTES ────────────────────────
 
@@ -121,9 +101,6 @@ export async function getSalesModuleData() {
         payments: {
           orderBy: { paymentDate: "desc" },
         },
-        deliveries: {
-          orderBy: { createdAt: "desc" },
-        },
         movements: true,
       },
       orderBy: { saleDate: "desc" },
@@ -150,16 +127,21 @@ export async function getSalesModuleData() {
   ]);
 
   // Statistiques calculées à partir des enregistrements réels
+  const activeSales = sales.filter((s) => s.status !== "cancelled");
   const confirmedSales = sales.filter((s) => s.status === "confirmed");
-  const totalRevenue = confirmedSales.reduce((acc, s) => acc + s.totalAmount, 0);
-  const totalCollected = confirmedSales.reduce((acc, s) => acc + s.paidAmount, 0);
-  const totalOutstandingCredit = Math.max(0, totalRevenue - totalCollected);
-  const pendingDeliveriesCount = sales.reduce((count, s) => {
-    const hasPending = s.deliveries.some((d) => d.status === "pending" || d.status === "in_transit");
-    return count + (hasPending ? 1 : 0);
-  }, 0);
-
-  const settings = await prisma.shopSettings.findUnique({ where: { id: 1 } });
+  const totalRevenue = roundMoney(confirmedSales.reduce((acc, s) => acc + s.totalAmount, 0));
+  const totalCollected = roundMoney(activeSales.reduce((acc, s) => acc + s.paidAmount, 0));
+  const totalOutstandingCredit = roundMoney(
+    activeSales.reduce((acc, s) => acc + Math.max(0, s.totalAmount - s.paidAmount), 0)
+  );
+  const [settings, activeSession, advances] = await Promise.all([
+    prisma.shopSettings.findUnique({ where: { id: 1 } }),
+    prisma.cashSession.findFirst({
+      where: { status: "open" },
+      select: { id: true, reference: true },
+    }),
+    getCustomerAdvancesData(),
+  ]);
 
   return {
     sales,
@@ -167,12 +149,13 @@ export async function getSalesModuleData() {
     products,
     locations,
     settings,
+    advances,
+    activeCashSession: activeSession ? { id: activeSession.id, reference: activeSession.reference } : null,
     metrics: {
       totalRevenue,
       totalCollected,
       totalOutstandingCredit,
       totalSalesCount: confirmedSales.length,
-      pendingDeliveriesCount,
     },
   };
 }
@@ -193,22 +176,13 @@ export interface CreateSaleInput {
   status: "confirmed" | "draft";
   notes?: string | null;
   deliveryFee?: number;
+  includeDeliveryFee?: boolean;
   discount?: number;
   items: SaleItemInput[];
   initialPayment?: {
     amount: number;
     method: "cash" | "cib" | "check" | "transfer";
     notes?: string;
-  };
-  delivery?: {
-    hasDelivery: boolean;
-    method?: "home_delivery" | "store_pickup";
-    fee: number;
-    address: string;
-    plannedDate?: string;
-    notes?: string;
-    recipientName?: string;
-    carrierName?: string;
   };
 }
 
@@ -222,10 +196,10 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
       status = "confirmed",
       notes = null,
       deliveryFee = 0,
+      includeDeliveryFee,
       discount = 0,
       items,
       initialPayment,
-      delivery,
     } = payload;
 
     if (!items || items.length === 0) {
@@ -249,9 +223,9 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
     // Calculs stricts des montants côté serveur
     let subtotal = 0;
     const validatedItems = items.map((it) => {
-      const lineDiscount = Math.max(0, it.discount || 0);
-      const lineSubtotal = Math.max(0, it.quantity * it.unitPrice - lineDiscount);
-      subtotal += lineSubtotal;
+      const lineDiscount = roundMoney(Math.max(0, it.discount || 0));
+      const lineSubtotal = roundMoney(Math.max(0, it.quantity * it.unitPrice - lineDiscount));
+      subtotal = roundMoney(subtotal + lineSubtotal);
       return {
         ...it,
         discount: lineDiscount,
@@ -259,12 +233,16 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
       };
     });
 
-    const safeDeliveryFee = Math.max(0, deliveryFee || 0);
-    const safeGlobalDiscount = Math.max(0, discount || 0);
-    const totalAmount = Math.max(0, subtotal + safeDeliveryFee - safeGlobalDiscount);
+    const parsedDeliveryFee = roundMoney(Math.max(0, deliveryFee || 0));
+    // Si includeDeliveryFee est explicitement fourni, on l'utilise ; sinon si deliveryFee > 0, compatibilité descendante
+    const shouldIncludeDeliveryFee =
+      includeDeliveryFee !== undefined ? Boolean(includeDeliveryFee) : parsedDeliveryFee > 0;
+    const effectiveDeliveryFee = shouldIncludeDeliveryFee ? parsedDeliveryFee : 0;
+    const safeGlobalDiscount = roundMoney(Math.max(0, discount || 0));
+    const totalAmount = roundMoney(Math.max(0, subtotal + effectiveDeliveryFee - safeGlobalDiscount));
 
     // Initialisation paiement
-    const paymentAmount = initialPayment && initialPayment.amount > 0 ? initialPayment.amount : 0;
+    const paymentAmount = initialPayment && initialPayment.amount > 0 ? roundMoney(initialPayment.amount) : 0;
     if (paymentAmount > totalAmount) {
       return {
         success: false,
@@ -282,7 +260,7 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
       paymentStatus = "partial";
     }
 
-    const deliveryStatus = delivery?.hasDelivery ? "pending" : "none";
+    const deliveryStatus = "none";
 
     // Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
@@ -310,7 +288,8 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
           status,
           subtotal,
           discount: safeGlobalDiscount,
-          deliveryFee: safeDeliveryFee,
+          deliveryFee: parsedDeliveryFee,
+          includeDeliveryFee: shouldIncludeDeliveryFee,
           totalAmount,
           paidAmount: paymentAmount,
           paymentStatus,
@@ -347,41 +326,40 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
         }
       }
 
-      // 5. Enregistrer le paiement initial si fourni et vente confirmée
-      if (status === "confirmed" && paymentAmount > 0 && initialPayment) {
+      // 5. Enregistrer le paiement initial / acompte si fourni (valable sur vente confirmée ou commande/devis)
+      if (paymentAmount > 0 && initialPayment) {
+        let sessionId: number | null = null;
+        const payMethod = initialPayment.method || "cash";
+        if (payMethod === "cash") {
+          const activeSession = await tx.cashSession.findFirst({
+            where: { status: "open" },
+            select: { id: true },
+          });
+          if (activeSession) {
+            sessionId = activeSession.id;
+          }
+        }
+
         const payRef = await generateNextPaymentReference(tx);
         await tx.payment.create({
           data: {
             reference: payRef,
             saleId: sale.id,
             amount: paymentAmount,
-            method: initialPayment.method || "cash",
+            method: payMethod,
             status: "completed",
-            notes: initialPayment.notes?.trim() || `Règlement initial pour facture ${sale.reference}`,
+            notes:
+              initialPayment.notes?.trim() ||
+              (isDraft
+                ? `Acompte initial sur commande ${sale.reference}`
+                : `Règlement initial pour facture ${sale.reference}`),
             paymentDate: new Date(saleDate),
+            sessionId,
           },
         });
       }
 
-      // 6. Enregistrer la livraison si demandée
-      if (delivery?.hasDelivery) {
-        const livRef = await generateNextDeliveryReference(tx);
-        const delMethod = delivery.method || (delivery.address?.trim() ? "home_delivery" : "store_pickup");
-        await tx.delivery.create({
-          data: {
-            reference: livRef,
-            saleId: sale.id,
-            status: "pending",
-            method: delMethod,
-            fee: delMethod === "store_pickup" ? 0 : safeDeliveryFee,
-            address: delMethod === "store_pickup" ? "Retrait au magasin" : (delivery.address?.trim() || "Adresse client"),
-            deliveryDate: delivery.plannedDate ? new Date(delivery.plannedDate) : null,
-            recipientName: delivery.recipientName?.trim() || null,
-            carrierName: delivery.carrierName?.trim() || null,
-            notes: delivery.notes?.trim() || null,
-          },
-        });
-      }
+
 
       return sale;
     });
@@ -427,9 +405,13 @@ export async function confirmDraftSaleAction(
       return { success: false, error: "Impossible de confirmer une vente annulée." };
     }
 
-    const paymentAmount = initialPayment && initialPayment.amount > 0 ? initialPayment.amount : 0;
-    if (paymentAmount > sale.totalAmount) {
-      return { success: false, error: "Le montant du paiement dépasse le total de la facture." };
+    const remainingBalance = roundMoney(Math.max(0, sale.totalAmount - sale.paidAmount));
+    const paymentAmount = initialPayment && initialPayment.amount > 0 ? roundMoney(initialPayment.amount) : 0;
+    if (paymentAmount > remainingBalance) {
+      return {
+        success: false,
+        error: `Le montant du versement (${paymentAmount.toLocaleString("fr-DZ")} DA) dépasse le solde restant dû (${remainingBalance.toLocaleString("fr-DZ")} DA).`,
+      };
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -458,18 +440,31 @@ export async function confirmDraftSaleAction(
       let newPaid = sale.paidAmount;
 
       if (paymentAmount > 0 && initialPayment) {
+        let sessionId: number | null = null;
+        const payMethod = initialPayment.method || "cash";
+        if (payMethod === "cash") {
+          const activeSession = await tx.cashSession.findFirst({
+            where: { status: "open" },
+            select: { id: true },
+          });
+          if (activeSession) {
+            sessionId = activeSession.id;
+          }
+        }
+
         const payRef = await generateNextPaymentReference(tx);
         await tx.payment.create({
           data: {
             reference: payRef,
             saleId: sale.id,
             amount: paymentAmount,
-            method: initialPayment.method || "cash",
+            method: payMethod,
             status: "completed",
             notes: initialPayment.notes?.trim() || `Paiement à la confirmation de facture ${reference}`,
+            sessionId,
           },
         });
-        newPaid += paymentAmount;
+        newPaid = roundMoney(newPaid + paymentAmount);
         paymentStatus = newPaid >= sale.totalAmount ? "paid" : "partial";
       }
 
@@ -580,7 +575,7 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
     }
 
     const saleId = parseInt(saleIdStr, 10);
-    const amount = parseFloat(amountStr);
+    const amount = roundMoney(parseFloat(amountStr));
 
     if (isNaN(amount) || amount <= 0) {
       return { success: false, error: "Le montant du règlement doit être un nombre strictement supérieur à 0 DA." };
@@ -592,11 +587,11 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
     });
 
     if (!sale) return { success: false, error: "Facture introuvable." };
-    if (sale.status !== "confirmed") {
-      return { success: false, error: "Les règlements ne peuvent être enregistrés que sur des ventes confirmées." };
+    if (sale.status === "cancelled") {
+      return { success: false, error: "Impossible d'enregistrer un règlement sur une vente ou commande annulée." };
     }
 
-    const remainingBalance = Math.max(0, sale.totalAmount - sale.paidAmount);
+    const remainingBalance = roundMoney(Math.max(0, sale.totalAmount - sale.paidAmount));
     if (amount > remainingBalance) {
       return {
         success: false,
@@ -605,6 +600,17 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      let sessionId: number | null = null;
+      if (method === "cash") {
+        const activeSession = await tx.cashSession.findFirst({
+          where: { status: "open" },
+          select: { id: true },
+        });
+        if (activeSession) {
+          sessionId = activeSession.id;
+        }
+      }
+
       const payRef = await generateNextPaymentReference(tx);
       const paymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
 
@@ -615,12 +621,13 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
           amount,
           method,
           status: "completed",
-          notes: notes || `Règlement sur facture ${sale.reference}`,
+          notes: notes || `Règlement sur commande/facture ${sale.reference}`,
           paymentDate,
+          sessionId,
         },
       });
 
-      const newPaid = sale.paidAmount + amount;
+      const newPaid = roundMoney(sale.paidAmount + amount);
       const newPaymentStatus = newPaid >= sale.totalAmount ? "paid" : "partial";
 
       await tx.sales.update({
@@ -651,70 +658,4 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
   }
 }
 
-// ─── MISE À JOUR DU STATUT DE LIVRAISON ──────────────────────────────────────
 
-export async function updateDeliveryStatusAction(
-  deliveryId: number,
-  newStatus: string,
-  notes?: string,
-  extra?: { carrierName?: string; recipientName?: string; deliveredAt?: string }
-): Promise<SaleActionResponse> {
-  try {
-    const validStatuses = [
-      "to_prepare",
-      "ready",
-      "in_transit",
-      "delivered",
-      "postponed",
-      "cancelled",
-      "pending",
-    ];
-    if (!validStatuses.includes(newStatus)) {
-      return { success: false, error: "Statut de livraison non valide." };
-    }
-
-    const delivery = await prisma.delivery.findUnique({
-      where: { id: deliveryId },
-    });
-    if (!delivery) return { success: false, error: "Fiche livraison introuvable." };
-
-    const isDelivered = newStatus === "delivered";
-    const deliveredAtValue = isDelivered
-      ? extra?.deliveredAt
-        ? new Date(extra.deliveredAt)
-        : delivery.deliveredAt || new Date()
-      : delivery.deliveredAt;
-
-    await prisma.$transaction(async (tx) => {
-      await tx.delivery.update({
-        where: { id: deliveryId },
-        data: {
-          status: newStatus,
-          notes: notes?.trim() || delivery.notes,
-          carrierName: extra?.carrierName !== undefined ? extra.carrierName.trim() || null : delivery.carrierName,
-          recipientName: extra?.recipientName !== undefined ? extra.recipientName.trim() || null : delivery.recipientName,
-          deliveredAt: deliveredAtValue,
-        },
-      });
-
-      if (delivery.saleId) {
-        await tx.sales.update({
-          where: { id: delivery.saleId },
-          data: { deliveryStatus: newStatus },
-        });
-      }
-    });
-
-    safeRevalidate("/sales");
-    safeRevalidate("/deliveries");
-    safeRevalidate("/documents");
-
-    return {
-      success: true,
-      message: `Statut de livraison mis à jour : ${newStatus}.`,
-    };
-  } catch (err: unknown) {
-    console.error("Erreur statut livraison:", err);
-    return { success: false, error: "Erreur lors de la mise à jour de la livraison." };
-  }
-}

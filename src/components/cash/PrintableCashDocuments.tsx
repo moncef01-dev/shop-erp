@@ -61,6 +61,14 @@ export function PrintableDailyCashJournal({
   settings?: ShopSettingsData | null;
   onClose: () => void;
 }) {
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -83,7 +91,12 @@ export function PrintableDailyCashJournal({
     .reduce((acc, i) => acc + i.amount, 0);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0"
+    >
       <div className="relative w-full max-w-5xl bg-white rounded-xl shadow-2xl p-8 print:p-6 print:shadow-none print:w-full print:max-w-none print:rounded-none">
         {/* Navigation Modal TopBar */}
         <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-200 print:hidden">
@@ -338,6 +351,14 @@ export function PrintableCashClosingReport({
   settings?: ShopSettingsData | null;
   onClose: () => void;
 }) {
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -347,7 +368,12 @@ export function PrintableCashClosingReport({
   const isSurplus = diff > 0;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0"
+    >
       <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl p-8 print:p-6 print:shadow-none print:w-full print:max-w-none print:rounded-none">
         {/* Top bar */}
         <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-200 print:hidden">
@@ -549,6 +575,14 @@ export function PrintableExpenseVoucher({
   settings?: ShopSettingsData | null;
   onClose: () => void;
 }) {
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -556,7 +590,12 @@ export function PrintableExpenseVoucher({
   const isIncome = expense.type === "income";
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0"
+    >
       <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl p-8 print:p-6 print:shadow-none print:w-full print:max-w-none print:rounded-none">
         {/* Top Bar */}
         <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-200 print:hidden">

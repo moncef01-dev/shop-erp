@@ -407,11 +407,12 @@ export const ModelName = {
   Sales: 'Sales',
   SaleItem: 'SaleItem',
   Payment: 'Payment',
+  CustomerAdvance: 'CustomerAdvance',
+  CustomerAdvanceAllocation: 'CustomerAdvanceAllocation',
   Purchase: 'Purchase',
   PurchaseItem: 'PurchaseItem',
   PurchaseReceipt: 'PurchaseReceipt',
   PurchaseReceiptItem: 'PurchaseReceiptItem',
-  Delivery: 'Delivery',
   CashSession: 'CashSession',
   Expense: 'Expense',
   Transaction: 'Transaction',
@@ -431,7 +432,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "location" | "productStock" | "stockMovement" | "customer" | "supplier" | "sales" | "saleItem" | "payment" | "purchase" | "purchaseItem" | "purchaseReceipt" | "purchaseReceiptItem" | "delivery" | "cashSession" | "expense" | "transaction" | "shopSettings"
+    modelProps: "category" | "product" | "location" | "productStock" | "stockMovement" | "customer" | "supplier" | "sales" | "saleItem" | "payment" | "customerAdvance" | "customerAdvanceAllocation" | "purchase" | "purchaseItem" | "purchaseReceipt" | "purchaseReceiptItem" | "cashSession" | "expense" | "transaction" | "shopSettings"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1175,6 +1176,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    CustomerAdvance: {
+      payload: Prisma.$CustomerAdvancePayload<ExtArgs>
+      fields: Prisma.CustomerAdvanceFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CustomerAdvanceFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CustomerAdvanceFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload>
+        }
+        findFirst: {
+          args: Prisma.CustomerAdvanceFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CustomerAdvanceFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload>
+        }
+        findMany: {
+          args: Prisma.CustomerAdvanceFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload>[]
+        }
+        create: {
+          args: Prisma.CustomerAdvanceCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload>
+        }
+        createMany: {
+          args: Prisma.CustomerAdvanceCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CustomerAdvanceCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload>[]
+        }
+        delete: {
+          args: Prisma.CustomerAdvanceDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload>
+        }
+        update: {
+          args: Prisma.CustomerAdvanceUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload>
+        }
+        deleteMany: {
+          args: Prisma.CustomerAdvanceDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CustomerAdvanceUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CustomerAdvanceUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload>[]
+        }
+        upsert: {
+          args: Prisma.CustomerAdvanceUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvancePayload>
+        }
+        aggregate: {
+          args: Prisma.CustomerAdvanceAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCustomerAdvance>
+        }
+        groupBy: {
+          args: Prisma.CustomerAdvanceGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CustomerAdvanceGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CustomerAdvanceCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CustomerAdvanceCountAggregateOutputType> | number
+        }
+      }
+    }
+    CustomerAdvanceAllocation: {
+      payload: Prisma.$CustomerAdvanceAllocationPayload<ExtArgs>
+      fields: Prisma.CustomerAdvanceAllocationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CustomerAdvanceAllocationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CustomerAdvanceAllocationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload>
+        }
+        findFirst: {
+          args: Prisma.CustomerAdvanceAllocationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CustomerAdvanceAllocationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload>
+        }
+        findMany: {
+          args: Prisma.CustomerAdvanceAllocationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload>[]
+        }
+        create: {
+          args: Prisma.CustomerAdvanceAllocationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload>
+        }
+        createMany: {
+          args: Prisma.CustomerAdvanceAllocationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CustomerAdvanceAllocationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload>[]
+        }
+        delete: {
+          args: Prisma.CustomerAdvanceAllocationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload>
+        }
+        update: {
+          args: Prisma.CustomerAdvanceAllocationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload>
+        }
+        deleteMany: {
+          args: Prisma.CustomerAdvanceAllocationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CustomerAdvanceAllocationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CustomerAdvanceAllocationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload>[]
+        }
+        upsert: {
+          args: Prisma.CustomerAdvanceAllocationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerAdvanceAllocationPayload>
+        }
+        aggregate: {
+          args: Prisma.CustomerAdvanceAllocationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCustomerAdvanceAllocation>
+        }
+        groupBy: {
+          args: Prisma.CustomerAdvanceAllocationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CustomerAdvanceAllocationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CustomerAdvanceAllocationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CustomerAdvanceAllocationCountAggregateOutputType> | number
+        }
+      }
+    }
     Purchase: {
       payload: Prisma.$PurchasePayload<ExtArgs>
       fields: Prisma.PurchaseFieldRefs
@@ -1468,80 +1617,6 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.PurchaseReceiptItemCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.PurchaseReceiptItemCountAggregateOutputType> | number
-        }
-      }
-    }
-    Delivery: {
-      payload: Prisma.$DeliveryPayload<ExtArgs>
-      fields: Prisma.DeliveryFieldRefs
-      operations: {
-        findUnique: {
-          args: Prisma.DeliveryFindUniqueArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload> | null
-        }
-        findUniqueOrThrow: {
-          args: Prisma.DeliveryFindUniqueOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload>
-        }
-        findFirst: {
-          args: Prisma.DeliveryFindFirstArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload> | null
-        }
-        findFirstOrThrow: {
-          args: Prisma.DeliveryFindFirstOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload>
-        }
-        findMany: {
-          args: Prisma.DeliveryFindManyArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload>[]
-        }
-        create: {
-          args: Prisma.DeliveryCreateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload>
-        }
-        createMany: {
-          args: Prisma.DeliveryCreateManyArgs<ExtArgs>
-          result: BatchPayload
-        }
-        createManyAndReturn: {
-          args: Prisma.DeliveryCreateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload>[]
-        }
-        delete: {
-          args: Prisma.DeliveryDeleteArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload>
-        }
-        update: {
-          args: Prisma.DeliveryUpdateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload>
-        }
-        deleteMany: {
-          args: Prisma.DeliveryDeleteManyArgs<ExtArgs>
-          result: BatchPayload
-        }
-        updateMany: {
-          args: Prisma.DeliveryUpdateManyArgs<ExtArgs>
-          result: BatchPayload
-        }
-        updateManyAndReturn: {
-          args: Prisma.DeliveryUpdateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload>[]
-        }
-        upsert: {
-          args: Prisma.DeliveryUpsertArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryPayload>
-        }
-        aggregate: {
-          args: Prisma.DeliveryAggregateArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.AggregateDelivery>
-        }
-        groupBy: {
-          args: Prisma.DeliveryGroupByArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.DeliveryGroupByOutputType>[]
-        }
-        count: {
-          args: Prisma.DeliveryCountArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.DeliveryCountAggregateOutputType> | number
         }
       }
     }
@@ -1964,6 +2039,7 @@ export const CustomerScalarFieldEnum = {
   code: 'code',
   name: 'name',
   phone: 'phone',
+  phone2: 'phone2',
   email: 'email',
   address: 'address',
   notes: 'notes',
@@ -1999,6 +2075,7 @@ export const SalesScalarFieldEnum = {
   subtotal: 'subtotal',
   discount: 'discount',
   deliveryFee: 'deliveryFee',
+  includeDeliveryFee: 'includeDeliveryFee',
   totalAmount: 'totalAmount',
   paidAmount: 'paidAmount',
   paymentStatus: 'paymentStatus',
@@ -2042,6 +2119,38 @@ export const PaymentScalarFieldEnum = {
 } as const
 
 export type PaymentScalarFieldEnum = (typeof PaymentScalarFieldEnum)[keyof typeof PaymentScalarFieldEnum]
+
+
+export const CustomerAdvanceScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  customerId: 'customerId',
+  amount: 'amount',
+  allocatedAmount: 'allocatedAmount',
+  refundedAmount: 'refundedAmount',
+  method: 'method',
+  paymentDate: 'paymentDate',
+  productInterest: 'productInterest',
+  notes: 'notes',
+  status: 'status',
+  sessionId: 'sessionId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CustomerAdvanceScalarFieldEnum = (typeof CustomerAdvanceScalarFieldEnum)[keyof typeof CustomerAdvanceScalarFieldEnum]
+
+
+export const CustomerAdvanceAllocationScalarFieldEnum = {
+  id: 'id',
+  advanceId: 'advanceId',
+  saleId: 'saleId',
+  amount: 'amount',
+  allocatedAt: 'allocatedAt',
+  notes: 'notes'
+} as const
+
+export type CustomerAdvanceAllocationScalarFieldEnum = (typeof CustomerAdvanceAllocationScalarFieldEnum)[keyof typeof CustomerAdvanceAllocationScalarFieldEnum]
 
 
 export const PurchaseScalarFieldEnum = {
@@ -2103,26 +2212,6 @@ export const PurchaseReceiptItemScalarFieldEnum = {
 } as const
 
 export type PurchaseReceiptItemScalarFieldEnum = (typeof PurchaseReceiptItemScalarFieldEnum)[keyof typeof PurchaseReceiptItemScalarFieldEnum]
-
-
-export const DeliveryScalarFieldEnum = {
-  id: 'id',
-  reference: 'reference',
-  saleId: 'saleId',
-  method: 'method',
-  status: 'status',
-  fee: 'fee',
-  deliveryDate: 'deliveryDate',
-  address: 'address',
-  recipientName: 'recipientName',
-  carrierName: 'carrierName',
-  deliveredAt: 'deliveredAt',
-  notes: 'notes',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
-} as const
-
-export type DeliveryScalarFieldEnum = (typeof DeliveryScalarFieldEnum)[keyof typeof DeliveryScalarFieldEnum]
 
 
 export const CashSessionScalarFieldEnum = {
@@ -2420,11 +2509,12 @@ export type GlobalOmitConfig = {
   sales?: Prisma.SalesOmit
   saleItem?: Prisma.SaleItemOmit
   payment?: Prisma.PaymentOmit
+  customerAdvance?: Prisma.CustomerAdvanceOmit
+  customerAdvanceAllocation?: Prisma.CustomerAdvanceAllocationOmit
   purchase?: Prisma.PurchaseOmit
   purchaseItem?: Prisma.PurchaseItemOmit
   purchaseReceipt?: Prisma.PurchaseReceiptOmit
   purchaseReceiptItem?: Prisma.PurchaseReceiptItemOmit
-  delivery?: Prisma.DeliveryOmit
   cashSession?: Prisma.CashSessionOmit
   expense?: Prisma.ExpenseOmit
   transaction?: Prisma.TransactionOmit

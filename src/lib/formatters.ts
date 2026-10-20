@@ -1,5 +1,9 @@
 // Utilitaires de formatage pour l'application en français (Dinar algérien DA / DZD)
 
+export function roundMoney(amount: number): number {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
 export function formatCurrency(amount: number | null | undefined, showDecimals: boolean = false): string {
   if (amount === null || amount === undefined || isNaN(amount)) return "0 DA";
   

@@ -3,7 +3,7 @@ import {
   Package,
   ShoppingCart,
   Truck,
-  PackageCheck,
+  Users,
   TrendingUp,
   AlertTriangle,
 } from "lucide-react";
@@ -82,7 +82,7 @@ export default async function DashboardPage() {
     productsCount,
     confirmedSales,
     purchasesCount,
-    pendingDeliveriesCount,
+    activeCustomersCount,
     recentPayments,
     allProducts,
   ] = await Promise.all([
@@ -92,7 +92,7 @@ export default async function DashboardPage() {
       select: { totalAmount: true, paidAmount: true },
     }),
     prisma.purchase.count(),
-    prisma.delivery.count({ where: { status: { in: ["pending", "in_transit"] } } }),
+    prisma.customer.count({ where: { isActive: true } }),
     prisma.payment.findMany({
       where: { status: "completed" },
       take: 5,
@@ -108,12 +108,12 @@ export default async function DashboardPage() {
     }),
     prisma.product.findMany({
       where: { isActive: true },
-      select: { id: true, name: true, sku: true, stock: true, minStock: true },
+      select: { id: true, name: true, sku: true, stock: true },
     }),
   ]);
 
   const totalRevenue = confirmedSales.reduce((acc, s) => acc + s.totalAmount, 0);
-  const lowStockProducts = allProducts.filter((p) => p.stock <= p.minStock);
+  const outOfStockProducts = allProducts.filter((p) => p.stock === 0);
 
   return (
     <div className="space-y-6">
@@ -160,10 +160,10 @@ export default async function DashboardPage() {
             accent="green"
           />
           <SummaryCard
-            title="Livraisons en Cours"
-            value={String(pendingDeliveriesCount)}
-            subtitle={`${pendingDeliveriesCount} colis à livrer`}
-            icon={PackageCheck}
+            title="Clients Actifs"
+            value={String(activeCustomersCount)}
+            subtitle={`${activeCustomersCount} client(s) actif(s)`}
+            icon={Users}
             accent="rose"
           />
         </div>
@@ -227,16 +227,21 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {/* Low stock alert section */}
+      {/* Articles en rupture de stock */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">
-            Alertes Stock Faible ({lowStockProducts.length})
+            Articles en Rupture de Stock ({outOfStockProducts.length})
           </h3>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
-          {lowStockProducts.length === 0 ? (
-            <EmptyState message="Tous les meubles ont un stock supérieur à leur seuil minimum." />
+          {outOfStockProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+              <Package className="mb-2 h-7 w-7 text-emerald-500/50" />
+              <p className="text-sm font-medium text-slate-600">
+                Aucun meuble en rupture — l&apos;ensemble du catalogue actif dispose d&apos;unités disponibles.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
@@ -244,25 +249,21 @@ export default async function DashboardPage() {
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold">
                     <th className="py-3 px-4">Référence</th>
                     <th className="py-3 px-4">Meuble</th>
-                    <th className="py-3 px-4 text-center">Stock Actuel</th>
-                    <th className="py-3 px-4 text-center">Seuil Minimum</th>
-                    <th className="py-3 px-4 text-right">État</th>
+                    <th className="py-3 px-4 text-center">Stock Global</th>
+                    <th className="py-3 px-4 text-right">Statut</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {lowStockProducts.map((p) => (
+                  {outOfStockProducts.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50">
                       <td className="py-2.5 px-4 font-mono font-bold text-slate-900">{p.sku}</td>
                       <td className="py-2.5 px-4 font-semibold text-slate-800">{p.name}</td>
-                      <td className="py-2.5 px-4 text-center font-mono font-bold text-rose-700">
-                        {p.stock}
+                      <td className="py-2.5 px-4 text-center font-mono font-bold text-slate-500">
+                        0
                       </td>
-                      <td className="py-2.5 px-4 text-center font-mono text-slate-500">
-                        {p.minStock}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <span className="inline-block bg-rose-100 text-rose-800 text-xs font-bold px-2.5 py-1 rounded-md">
-                          {p.stock === 0 ? "Rupture" : "Stock Faible"}
+                      <td className="py-2.5 px-4 text-right">
+                        <span className="inline-block bg-slate-100 text-slate-700 text-xs font-semibold px-2.5 py-1 rounded-md">
+                          Rupture
                         </span>
                       </td>
                     </tr>

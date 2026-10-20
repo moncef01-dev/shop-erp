@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useTransition } from "react";
+import React, { useState, useMemo, useTransition, useRef, useEffect } from "react";
 import {
   Receipt,
   Search,
@@ -15,26 +15,33 @@ import {
   DollarSign,
   Trash2,
   Ban,
+  PiggyBank,
+  History,
+  ArrowRight,
+  RotateCcw,
+  ShoppingCart,
 } from "lucide-react";
 import {
   createSaleAction,
   confirmDraftSaleAction,
   cancelSaleAction,
   recordSalePaymentAction,
-  updateDeliveryStatusAction,
 } from "./actions";
+import {
+  createCustomerAdvanceAction,
+  allocateCustomerAdvanceAction,
+  refundCustomerAdvanceAction,
+} from "./advances-actions";
+import { roundMoney } from "@/lib/formatters";
 import {
   PrintableInvoice,
   PrintablePaymentReceipt,
   type PrintableSale,
   type PrintablePayment,
 } from "@/components/sales/PrintableInvoice";
-import {
-  PrintableDeliveryNote,
-  type PrintableDeliveryNoteData,
-} from "@/components/documents/PrintableNewDocuments";
 import type { ShopSettingsData } from "@/app/settings/actions";
 import { NewCustomerModal, type CreatedCustomerData } from "@/components/customers/NewCustomerModal";
+import { ArticleSearchSelector } from "@/components/sales/ArticleSearchSelector";
 
 export interface ProductStockInfo {
   id: number;
@@ -46,6 +53,8 @@ export interface ProductItem {
   id: number;
   sku: string;
   name: string;
+  category?: string | null;
+  categoryRef?: { id: number; name: string } | null;
   model?: string | null;
   color?: string | null;
   sellingPrice?: number | null;
@@ -57,6 +66,7 @@ export interface CustomerOption {
   code?: string | null;
   name: string;
   phone?: string | null;
+  phone2?: string | null;
   address?: string | null;
   isActive: boolean;
 }
@@ -73,7 +83,31 @@ export interface SalesMetrics {
   totalCollected: number;
   totalOutstandingCredit: number;
   totalSalesCount: number;
-  pendingDeliveriesCount: number;
+}
+
+export interface CustomerAdvanceItem {
+  id: number;
+  reference: string;
+  customerId: number;
+  customer?: { id: number; code?: string | null; name: string; phone?: string | null; phone2?: string | null };
+  amount: number;
+  allocatedAmount: number;
+  refundedAmount: number;
+  remainingAmount: number;
+  method: string;
+  paymentDate: string | Date;
+  productInterest?: string | null;
+  notes?: string | null;
+  status: string;
+  sessionId?: number | null;
+  allocations?: {
+    id: number;
+    saleId: number;
+    amount: number;
+    allocatedAt: string | Date;
+    notes?: string | null;
+    sale?: { id: number; reference: string; totalAmount: number; paidAmount: number; status: string };
+  }[];
 }
 
 interface SalesClientProps {
@@ -83,13 +117,16 @@ interface SalesClientProps {
     products: ProductItem[];
     locations: LocationOption[];
     settings?: ShopSettingsData | null;
+    activeCashSession?: { id: number; reference: string } | null;
     metrics: SalesMetrics;
+    advances?: CustomerAdvanceItem[];
   };
 }
 
 export function SalesClient({ initialData }: SalesClientProps) {
   const sales = initialData.sales;
   const metrics = initialData.metrics;
+  const activeCashSession = initialData.activeCashSession;
   const [createdCustomers, setCreatedCustomers] = useState<CustomerOption[]>([]);
   const customers = useMemo(() => {
     const list = [...createdCustomers];
@@ -103,11 +140,35 @@ export function SalesClient({ initialData }: SalesClientProps) {
   const products = initialData.products;
   const locations = initialData.locations;
 
-  // New Client Modal state
+  // New Client Modal state & target
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
+  const [customerModalTarget, setCustomerModalTarget] = useState<"sale" | "advance">("sale");
 
   // Active Main Tab
-  const [activeTab, setActiveTab] = useState<"list" | "create" | "credits" | "deliveries">("list");
+  const [activeTab, setActiveTab] = useState<"list" | "create" | "credits" | "advances">("list");
+
+  // Advances state (Feature C)
+  const [advances, setAdvances] = useState<CustomerAdvanceItem[]>(initialData.advances || []);
+  const [advanceCustomerId, setAdvanceCustomerId] = useState<string>("");
+  const [advanceAmount, setAdvanceAmount] = useState<string>("");
+  const [advanceMethod, setAdvanceMethod] = useState<string>("cash");
+  const [advanceDate, setAdvanceDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [advanceProductInterest, setAdvanceProductInterest] = useState<string>("");
+  const [advanceNotes, setAdvanceNotes] = useState<string>("");
+  const [advanceSearchQuery, setAdvanceSearchQuery] = useState("");
+  const [advanceStatusFilter, setAdvanceStatusFilter] = useState<string>("all");
+
+  const [allocatingAdvance, setAllocatingAdvance] = useState<CustomerAdvanceItem | null>(null);
+  const [allocationSaleId, setAllocationSaleId] = useState<string>("");
+  const [allocationAmount, setAllocationAmount] = useState<string>("");
+  const [allocationNotes, setAllocationNotes] = useState<string>("");
+
+  const [refundingAdvance, setRefundingAdvance] = useState<CustomerAdvanceItem | null>(null);
+  const [refundAmount, setRefundAmount] = useState<string>("");
+  const [refundReason, setRefundReason] = useState<string>("");
+
+  // Payment History modal (Feature H)
+  const [viewingPaymentHistorySale, setViewingPaymentHistorySale] = useState<PrintableSale | null>(null);
 
   // Search & Filters on list
   const [searchQuery, setSearchQuery] = useState("");
@@ -120,13 +181,39 @@ export function SalesClient({ initialData }: SalesClientProps) {
 
   // Modals
   const [printingSale, setPrintingSale] = useState<PrintableSale | null>(null);
-  const [printingDeliveryNote, setPrintingDeliveryNote] = useState<PrintableDeliveryNoteData | null>(null);
   const [paymentModalSale, setPaymentModalSale] = useState<PrintableSale | null>(null);
   const [paymentAmountInput, setPaymentAmountInput] = useState<string>("");
   const [paymentInputError, setPaymentInputError] = useState<string | null>(null);
   const [printingReceipt, setPrintingReceipt] = useState<{ payment: PrintablePayment; sale: PrintableSale } | null>(null);
   const [cancelModalSale, setCancelModalSale] = useState<PrintableSale | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+
+  // Standardized Escape key close (Feature F)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (viewingPaymentHistorySale) setViewingPaymentHistorySale(null);
+        else if (allocatingAdvance) setAllocatingAdvance(null);
+        else if (refundingAdvance) setRefundingAdvance(null);
+        else if (paymentModalSale) closePaymentModal();
+        else if (cancelModalSale) setCancelModalSale(null);
+        else if (printingSale) setPrintingSale(null);
+        else if (printingReceipt) setPrintingReceipt(null);
+        else if (isNewCustomerModalOpen) setIsNewCustomerModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    viewingPaymentHistorySale,
+    allocatingAdvance,
+    refundingAdvance,
+    paymentModalSale,
+    cancelModalSale,
+    printingSale,
+    printingReceipt,
+    isNewCustomerModalOpen,
+  ]);
 
   const openPaymentModal = (sale: PrintableSale) => {
     setPaymentModalSale(sale);
@@ -147,43 +234,43 @@ export function SalesClient({ initialData }: SalesClientProps) {
 
   // ─── FORMULAIRE DE CRÉATION DE VENTE ──────────────────────────────────────
   interface FormLine {
+    id: string;
     productId: number;
     locationId: number;
-    quantity: number;
-    unitPrice: number;
-    discount: number;
+    quantity: string;
+    unitPrice: string;
+    discount: string;
   }
 
   const defaultLocation = locations.find((l) => l.isDefault)?.id || locations[0]?.id || 0;
+  const nextLineIdRef = useRef(2);
 
   const [formCustomerId, setFormCustomerId] = useState<string>("walkin");
   const [formSaleDate, setFormSaleDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [formStatus, setFormStatus] = useState<"confirmed" | "draft">("confirmed");
   const [formNotes, setFormNotes] = useState<string>("");
-  const [formDeliveryFee, setFormDeliveryFee] = useState<number>(0);
-  const [formGlobalDiscount, setFormGlobalDiscount] = useState<number>(0);
+  const [formDeliveryFee, setFormDeliveryFee] = useState<string>("0");
+  const [formGlobalDiscount, setFormGlobalDiscount] = useState<string>("0");
   const [formLines, setFormLines] = useState<FormLine[]>([
     {
+      id: "line-1",
       productId: products[0]?.id || 0,
       locationId: defaultLocation,
-      quantity: 1,
-      unitPrice: products[0]?.sellingPrice || 0,
-      discount: 0,
+      quantity: "1",
+      unitPrice: String(products[0]?.sellingPrice ?? 0),
+      discount: "0",
     },
   ]);
 
   // Payment form state
   const [formPaymentType, setFormPaymentType] = useState<"full" | "partial" | "credit">("full");
-  const [formPaidAmount, setFormPaidAmount] = useState<number>(0);
+  const [formPaidAmount, setFormPaidAmount] = useState<string>("");
+  const [isPaidAmountCustom, setIsPaidAmountCustom] = useState<boolean>(false);
   const [formPaymentMethod, setFormPaymentMethod] = useState<"cash" | "cib" | "check" | "transfer">("cash");
   const [formPaymentNotes, setFormPaymentNotes] = useState<string>("");
 
-  // Delivery form state
-  const [formHasDelivery, setFormHasDelivery] = useState<boolean>(false);
-  const [formDeliveryMethod, setFormDeliveryMethod] = useState<"home_delivery" | "store_pickup">("home_delivery");
-  const [formDeliveryAddress, setFormDeliveryAddress] = useState<string>("");
-  const [formDeliveryPlannedDate, setFormDeliveryPlannedDate] = useState<string>("");
-  const [formDeliveryNotes, setFormDeliveryNotes] = useState<string>("");
+  // Delivery fee & checkbox state
+  const [formIncludeDeliveryFee, setFormIncludeDeliveryFee] = useState<boolean>(false);
 
   const handleNewCustomerCreated = (newCust: CreatedCustomerData) => {
     const newOption: CustomerOption = {
@@ -191,6 +278,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
       code: newCust.code || `CLI-${newCust.id}`,
       name: newCust.name,
       phone: newCust.phone || null,
+      phone2: newCust.phone2 || null,
       address: newCust.address || null,
       isActive: newCust.isActive ?? true,
     };
@@ -198,20 +286,59 @@ export function SalesClient({ initialData }: SalesClientProps) {
       if (prev.some((c) => c.id === newCust.id)) return prev;
       return [newOption, ...prev];
     });
-    setFormCustomerId(String(newCust.id));
-    if (newCust.address && !formDeliveryAddress) {
-      setFormDeliveryAddress(newCust.address);
+    if (customerModalTarget === "advance") {
+      setAdvanceCustomerId(String(newCust.id));
+      showNotification("success", `Client "${newCust.name}" créé et sélectionné pour l'avance.`);
+    } else {
+      setFormCustomerId(String(newCust.id));
+      showNotification("success", `Client "${newCust.name}" créé et sélectionné pour cette vente.`);
     }
-    showNotification("success", "Client créé et sélectionné pour cette vente.");
   };
 
-  // Calculate live totals
-  const subtotal = formLines.reduce((sum, line) => {
-    const lineTotal = Math.max(0, line.quantity * line.unitPrice - (line.discount || 0));
-    return sum + lineTotal;
-  }, 0);
-  const grandTotal = Math.max(0, subtotal + (formDeliveryFee || 0) - (formGlobalDiscount || 0));
-  const remainingDue = Math.max(0, grandTotal - formPaidAmount);
+  // Calculate live totals cleanly without premature snapping
+  const subtotal = useMemo(() => {
+    return roundMoney(
+      formLines.reduce((sum, line) => {
+        const q = Math.max(0, parseInt(line.quantity, 10) || 0);
+        const p = Math.max(0, parseFloat(line.unitPrice) || 0);
+        const d = Math.max(0, parseFloat(line.discount) || 0);
+        const lineTotal = Math.max(0, q * p - d);
+        return sum + lineTotal;
+      }, 0)
+    );
+  }, [formLines]);
+
+  const parsedDeliveryFee = useMemo(() => {
+    const val = parseFloat(formDeliveryFee);
+    return isNaN(val) || val < 0 ? 0 : roundMoney(val);
+  }, [formDeliveryFee]);
+
+  const effectiveDeliveryFee = useMemo(() => {
+    return formIncludeDeliveryFee ? parsedDeliveryFee : 0;
+  }, [formIncludeDeliveryFee, parsedDeliveryFee]);
+
+  const effectiveGlobalDiscount = useMemo(() => {
+    return roundMoney(Math.max(0, parseFloat(formGlobalDiscount) || 0));
+  }, [formGlobalDiscount]);
+
+  const grandTotal = useMemo(() => {
+    return roundMoney(Math.max(0, subtotal + effectiveDeliveryFee - effectiveGlobalDiscount));
+  }, [subtotal, effectiveDeliveryFee, effectiveGlobalDiscount]);
+
+  const effectivePaidAmount = useMemo(() => {
+    if (formPaymentType === "credit") {
+      return 0;
+    }
+    if (formPaymentType === "full" && !isPaidAmountCustom) {
+      return grandTotal;
+    }
+    const typed = parseFloat(formPaidAmount);
+    return isNaN(typed) ? 0 : roundMoney(Math.max(0, typed));
+  }, [formPaymentType, isPaidAmountCustom, grandTotal, formPaidAmount]);
+
+  const remainingDue = useMemo(() => {
+    return roundMoney(Math.max(0, grandTotal - effectivePaidAmount));
+  }, [grandTotal, effectivePaidAmount]);
 
   // Helper to get available stock for a product at a location
   const getAvailableStock = (prodId: number, locId: number): number => {
@@ -221,44 +348,87 @@ export function SalesClient({ initialData }: SalesClientProps) {
     return stockRow?.quantity ?? 0;
   };
 
-  const handleProductChange = (index: number, newProductId: number) => {
-    const prod = products.find((p) => p.id === newProductId);
-    const newUnitPrice = prod?.sellingPrice ?? 0;
+  const handleUpdateLine = (
+    lineId: string,
+    field: "productId" | "locationId" | "quantity" | "unitPrice" | "discount",
+    value: string | number
+  ) => {
     setFormLines((prev) =>
-      prev.map((l, i) => (i === index ? { ...l, productId: newProductId, unitPrice: newUnitPrice } : l))
+      prev.map((line) => {
+        if (line.id !== lineId) return line;
+        if (field === "productId") {
+          const prod = products.find((p) => p.id === Number(value));
+          return {
+            ...line,
+            productId: Number(value),
+            unitPrice: String(prod?.sellingPrice ?? 0),
+          };
+        }
+        if (field === "locationId") {
+          return { ...line, locationId: Number(value) };
+        }
+        return { ...line, [field]: String(value) };
+      })
+    );
+  };
+
+  const handleBlurLine = (
+    lineId: string,
+    field: "quantity" | "unitPrice" | "discount"
+  ) => {
+    setFormLines((prev) =>
+      prev.map((line) => {
+        if (line.id !== lineId) return line;
+        if (field === "quantity") {
+          const parsed = parseInt(line.quantity, 10);
+          return { ...line, quantity: isNaN(parsed) || parsed <= 0 ? "1" : String(parsed) };
+        }
+        if (field === "unitPrice") {
+          const parsed = parseFloat(line.unitPrice);
+          return { ...line, unitPrice: isNaN(parsed) || parsed < 0 ? "0" : String(parsed) };
+        }
+        if (field === "discount") {
+          const parsed = parseFloat(line.discount);
+          return { ...line, discount: isNaN(parsed) || parsed < 0 ? "0" : String(parsed) };
+        }
+        return line;
+      })
     );
   };
 
   const handleAddLine = () => {
-    const firstProd = products[0];
-    setFormLines((prev) => [
-      ...prev,
-      {
-        productId: firstProd?.id || 0,
-        locationId: defaultLocation,
-        quantity: 1,
-        unitPrice: firstProd?.sellingPrice || 0,
-        discount: 0,
-      },
-    ]);
+    const pId = products[0]?.id || 0;
+    const prod = products.find((p) => p.id === pId);
+    const newLine: FormLine = {
+      id: `line-${nextLineIdRef.current++}`,
+      productId: pId,
+      locationId: defaultLocation,
+      quantity: "1",
+      unitPrice: String(prod?.sellingPrice ?? 0),
+      discount: "0",
+    };
+    setFormLines((prev) => [...prev, newLine]);
   };
 
-  const handleRemoveLine = (index: number) => {
+  const handleRemoveLine = (lineId: string) => {
     if (formLines.length === 1) {
       showNotification("error", "Une vente doit comporter au moins un meuble.");
       return;
     }
-    setFormLines((prev) => prev.filter((_, i) => i !== index));
+    setFormLines((prev) => prev.filter((l) => l.id !== lineId));
   };
 
   const handlePaymentTypeChange = (type: "full" | "partial" | "credit") => {
     setFormPaymentType(type);
     if (type === "full") {
-      setFormPaidAmount(grandTotal);
+      setIsPaidAmountCustom(false);
+      setFormPaidAmount(String(grandTotal));
     } else if (type === "credit") {
-      setFormPaidAmount(0);
+      setIsPaidAmountCustom(true);
+      setFormPaidAmount("0");
     } else {
-      setFormPaidAmount(Math.round(grandTotal / 2));
+      setIsPaidAmountCustom(true);
+      setFormPaidAmount(String(roundMoney(grandTotal / 2)));
     }
   };
 
@@ -271,10 +441,33 @@ export function SalesClient({ initialData }: SalesClientProps) {
       return;
     }
 
-    for (let i = 0; i < formLines.length; i++) {
-      const line = formLines[i];
+    const parsedLines = formLines.map((l, i) => {
+      const q = parseInt(l.quantity, 10);
+      const p = parseFloat(l.unitPrice);
+      const d = parseFloat(l.discount);
+      return {
+        id: l.id,
+        index: i,
+        productId: l.productId,
+        locationId: l.locationId,
+        quantity: isNaN(q) ? 0 : q,
+        unitPrice: isNaN(p) ? 0 : p,
+        discount: isNaN(d) ? 0 : d,
+      };
+    });
+
+    for (let i = 0; i < parsedLines.length; i++) {
+      const line = parsedLines[i];
       if (line.quantity <= 0 || !Number.isInteger(line.quantity)) {
         showNotification("error", `Ligne ${i + 1} : La quantité doit être un nombre entier positif.`);
+        return;
+      }
+      if (line.unitPrice < 0) {
+        showNotification("error", `Ligne ${i + 1} : Le prix unitaire ne peut pas être négatif.`);
+        return;
+      }
+      if (line.discount < 0) {
+        showNotification("error", `Ligne ${i + 1} : La remise ne peut pas être négative.`);
         return;
       }
       if (formStatus === "confirmed") {
@@ -291,14 +484,23 @@ export function SalesClient({ initialData }: SalesClientProps) {
       }
     }
 
+    if (effectivePaidAmount > grandTotal) {
+      showNotification(
+        "error",
+        `Le montant versé (${effectivePaidAmount.toLocaleString("fr-DZ")} DA) ne peut pas excéder le total de la facture (${grandTotal.toLocaleString("fr-DZ")} DA).`
+      );
+      return;
+    }
+
     const payload = {
       customerId: formCustomerId === "walkin" ? null : parseInt(formCustomerId, 10),
       saleDate: formSaleDate,
       status: formStatus,
       notes: formNotes?.trim() || null,
-      deliveryFee: formDeliveryFee,
-      discount: formGlobalDiscount,
-      items: formLines.map((l) => ({
+      deliveryFee: parsedDeliveryFee,
+      includeDeliveryFee: formIncludeDeliveryFee,
+      discount: effectiveGlobalDiscount,
+      items: parsedLines.map((l) => ({
         productId: l.productId,
         locationId: l.locationId,
         quantity: l.quantity,
@@ -306,23 +508,13 @@ export function SalesClient({ initialData }: SalesClientProps) {
         discount: l.discount,
       })),
       initialPayment:
-        formStatus === "confirmed" && formPaidAmount > 0
+        effectivePaidAmount > 0
           ? {
-              amount: formPaidAmount,
+              amount: effectivePaidAmount,
               method: formPaymentMethod,
               notes: formPaymentNotes,
             }
           : undefined,
-      delivery: formHasDelivery
-        ? {
-            hasDelivery: true,
-            method: formDeliveryMethod,
-            fee: formDeliveryMethod === "store_pickup" ? 0 : formDeliveryFee,
-            address: formDeliveryMethod === "store_pickup" ? "Retrait au magasin" : formDeliveryAddress,
-            plannedDate: formDeliveryPlannedDate || undefined,
-            notes: formDeliveryNotes,
-          }
-        : undefined,
     };
 
     startTransition(async () => {
@@ -422,15 +614,85 @@ export function SalesClient({ initialData }: SalesClientProps) {
     });
   };
 
-  // ─── MISE À JOUR LIVRAISON ────────────────────────────────────────────────
-  const handleUpdateDeliveryStatus = (deliveryId: number, newStatus: string) => {
+  // ─── GESTION DES AVANCES CLIENTS (FEATURE C) ──────────────────────────────
+  const handleCreateAdvanceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(advanceAmount);
+    if (!advanceCustomerId || isNaN(amt) || amt <= 0) {
+      showNotification("error", "Veuillez sélectionner un client et saisir un montant supérieur à 0 DA.");
+      return;
+    }
     startTransition(async () => {
-      const res = await updateDeliveryStatusAction(deliveryId, newStatus);
+      const res = await createCustomerAdvanceAction({
+        customerId: parseInt(advanceCustomerId, 10),
+        amount: amt,
+        method: advanceMethod,
+        paymentDate: advanceDate,
+        productInterest: advanceProductInterest || undefined,
+        notes: advanceNotes || undefined,
+      });
       if (res.success) {
-        showNotification("success", res.message || "Statut livraison mis à jour.");
+        showNotification("success", res.message || "Avance client enregistrée.");
+        setAdvanceAmount("");
+        setAdvanceProductInterest("");
+        setAdvanceNotes("");
         window.location.reload();
       } else {
-        showNotification("error", res.error || "Erreur.");
+        showNotification("error", res.error || "Erreur lors de l'enregistrement de l'avance.");
+      }
+    });
+  };
+
+  const handleAllocateAdvanceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!allocatingAdvance || !allocationSaleId) return;
+    const amt = parseFloat(allocationAmount);
+    if (isNaN(amt) || amt <= 0) {
+      showNotification("error", "Veuillez saisir un montant valide à affecter.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await allocateCustomerAdvanceAction({
+        advanceId: allocatingAdvance.id,
+        saleId: parseInt(allocationSaleId, 10),
+        amount: amt,
+        notes: allocationNotes || undefined,
+      });
+      if (res.success) {
+        showNotification("success", res.message || "Avance affectée à la facture avec succès.");
+        setAllocatingAdvance(null);
+        setAllocationSaleId("");
+        setAllocationAmount("");
+        setAllocationNotes("");
+        window.location.reload();
+      } else {
+        showNotification("error", res.error || "Erreur lors de l'affectation de l'avance.");
+      }
+    });
+  };
+
+  const handleRefundAdvanceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refundingAdvance) return;
+    const amt = parseFloat(refundAmount);
+    if (isNaN(amt) || amt <= 0) {
+      showNotification("error", "Veuillez saisir un montant de remboursement valide.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await refundCustomerAdvanceAction({
+        advanceId: refundingAdvance.id,
+        amount: amt,
+        reason: refundReason.trim(),
+      });
+      if (res.success) {
+        showNotification("success", res.message || "Remboursement de l'avance effectué.");
+        setRefundingAdvance(null);
+        setRefundAmount("");
+        setRefundReason("");
+        window.location.reload();
+      } else {
+        showNotification("error", res.error || "Erreur lors du remboursement de l'avance.");
       }
     });
   };
@@ -442,7 +704,8 @@ export function SalesClient({ initialData }: SalesClientProps) {
       !q ||
       s.reference.toLowerCase().includes(q) ||
       (s.customer?.name && s.customer.name.toLowerCase().includes(q)) ||
-      (s.customer?.phone && s.customer.phone.includes(q));
+      (s.customer?.phone && s.customer.phone.includes(q)) ||
+      (s.customer?.phone2 && s.customer.phone2.includes(q));
 
     if (!matchesSearch) return false;
 
@@ -452,23 +715,23 @@ export function SalesClient({ initialData }: SalesClientProps) {
     return true;
   });
 
-  const creditSales = sales.filter((s) => s.status === "confirmed" && s.totalAmount > s.paidAmount);
+  const filteredAdvances = advances.filter((adv) => {
+    const q = advanceSearchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      adv.reference.toLowerCase().includes(q) ||
+      (adv.customer?.name && adv.customer.name.toLowerCase().includes(q)) ||
+      (adv.customer?.phone && adv.customer.phone.includes(q)) ||
+      (adv.customer?.phone2 && adv.customer.phone2.includes(q)) ||
+      (adv.notes && adv.notes.toLowerCase().includes(q)) ||
+      (adv.productInterest && adv.productInterest.toLowerCase().includes(q));
 
-  const allDeliveries = sales
-    .flatMap((s) =>
-      (s.deliveries || []).map((d) => ({
-        ...d,
-        saleRef: s.reference,
-        saleDate: s.saleDate,
-        customerName: s.customer?.name || "Client Passager",
-        customerPhone: s.customer?.phone || null,
-        customerAddress: s.customer?.address || null,
-        totalAmount: s.totalAmount,
-        items: s.items || [],
-        isPickup: d.method === "store_pickup",
-      }))
-    )
-    .sort((a, b) => new Date(b.deliveryDate || 0).getTime() - new Date(a.deliveryDate || 0).getTime());
+    if (!matchesSearch) return false;
+    if (advanceStatusFilter !== "all" && adv.status !== advanceStatusFilter) return false;
+    return true;
+  });
+
+  const creditSales = sales.filter((s) => s.status !== "cancelled" && s.totalAmount > s.paidAmount);
 
   return (
     <div className="space-y-6">
@@ -567,14 +830,14 @@ export function SalesClient({ initialData }: SalesClientProps) {
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Livraisons en Cours
+              Ventes Facturées
             </span>
-            <Truck className="h-5 w-5 text-indigo-500" />
+            <ShoppingCart className="h-5 w-5 text-indigo-500" />
           </div>
           <p className="mt-3 text-2xl font-black text-slate-900">
-            {metrics.pendingDeliveriesCount}
+            {metrics.totalSalesCount}
           </p>
-          <p className="text-xs text-slate-500 mt-1">Colis en préparation / acheminement</p>
+          <p className="text-xs text-slate-500 mt-1">Factures de vente enregistrées</p>
         </div>
       </div>
 
@@ -612,14 +875,15 @@ export function SalesClient({ initialData }: SalesClientProps) {
             Suivi des Crédits ({creditSales.length})
           </button>
           <button
-            onClick={() => setActiveTab("deliveries")}
-            className={`py-3 px-1 border-b-2 font-semibold text-sm transition-colors cursor-pointer ${
-              activeTab === "deliveries"
+            onClick={() => setActiveTab("advances")}
+            className={`py-3 px-1 border-b-2 font-semibold text-sm transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "advances"
                 ? "border-amber-500 text-amber-600"
                 : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
             }`}
           >
-            Suivi des Livraisons ({allDeliveries.length})
+            <PiggyBank className="w-4 h-4" />
+            Avances clients ({advances.length})
           </button>
         </nav>
       </div>
@@ -679,7 +943,6 @@ export function SalesClient({ initialData }: SalesClientProps) {
                     <th className="py-3 px-4 text-right">Versé</th>
                     <th className="py-3 px-4 text-right">Reste Dû</th>
                     <th className="py-3 px-4 text-center">Paiement</th>
-                    <th className="py-3 px-4 text-center">Livraison</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -757,29 +1020,6 @@ export function SalesClient({ initialData }: SalesClientProps) {
                                 : "À Crédit"}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 text-center text-xs">
-                            <span
-                              className={`inline-block px-2.5 py-1 rounded text-xs font-bold ${
-                                sale.deliveryStatus === "delivered"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : sale.deliveryStatus === "in_transit"
-                                  ? "bg-indigo-100 text-indigo-800"
-                                  : sale.deliveryStatus === "ready"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : sale.deliveryStatus === "pending" || sale.deliveryStatus === "to_prepare"
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "text-slate-400"
-                              }`}
-                            >
-                              {sale.deliveryStatus === "delivered"
-                                ? "Livrée"
-                                : sale.deliveryStatus === "in_transit"
-                                ? "En route"
-                                : sale.deliveryStatus === "pending"
-                                ? "En attente"
-                                : "Magasin"}
-                            </span>
-                          </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <button
@@ -800,15 +1040,24 @@ export function SalesClient({ initialData }: SalesClientProps) {
                                 </button>
                               )}
 
-                              {sale.status === "confirmed" && balance > 0 && (
+                              {sale.status !== "cancelled" && balance > 0 && (
                                 <button
                                   onClick={() => openPaymentModal(sale)}
-                                  title="Enregistrer un versement"
-                                  className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-lg cursor-pointer transition-colors"
+                                  title="Enregistrer un paiement / Encaisser le solde"
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer transition-colors"
                                 >
-                                  <CreditCard className="h-4 w-4" />
+                                  <CreditCard className="h-3.5 w-3.5" />
+                                  <span className="hidden xl:inline">Encaisser</span>
                                 </button>
                               )}
+
+                              <button
+                                onClick={() => setViewingPaymentHistorySale(sale)}
+                                title="Historique des règlements"
+                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer transition-colors"
+                              >
+                                <History className="h-4 w-4" />
+                              </button>
 
                               <button
                                 onClick={() => setPrintingSale(sale)}
@@ -869,7 +1118,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    Vente Confirmée (Sortie de stock)
+                    Vente Confirmée (Sortie de stock immédiate)
                   </button>
                   <button
                     type="button"
@@ -880,7 +1129,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    Brouillon / Devis (Sans déduction)
+                    Commande / Devis (En attente d&apos;enlèvement — Stock préservé)
                   </button>
                 </div>
               </div>
@@ -951,10 +1200,23 @@ export function SalesClient({ initialData }: SalesClientProps) {
                   min="0"
                   step="100"
                   value={formDeliveryFee}
-                  onChange={(e) => setFormDeliveryFee(Math.max(0, parseFloat(e.target.value) || 0))}
-                  placeholder="0 DA"
+                  onChange={(e) => setFormDeliveryFee(e.target.value)}
+                  onBlur={() => {
+                    const parsed = parseFloat(formDeliveryFee);
+                    setFormDeliveryFee(isNaN(parsed) || parsed < 0 ? "0" : String(parsed));
+                  }}
+                  placeholder="0"
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500 font-mono"
                 />
+                <label className="mt-2 flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={formIncludeDeliveryFee}
+                    onChange={(e) => setFormIncludeDeliveryFee(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <span className="font-medium">Inclure les frais de livraison dans la facture</span>
+                </label>
               </div>
             </div>
 
@@ -969,7 +1231,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
                 </span>
               </div>
 
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <div className="border border-slate-200 rounded-lg overflow-visible">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
@@ -983,38 +1245,30 @@ export function SalesClient({ initialData }: SalesClientProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
-                    {formLines.map((line, idx) => {
+                    {formLines.map((line) => {
+                      const qNum = parseInt(line.quantity, 10) || 0;
+                      const pNum = parseFloat(line.unitPrice) || 0;
+                      const dNum = parseFloat(line.discount) || 0;
                       const available = getAvailableStock(line.productId, line.locationId);
-                      const isStockExceeded = formStatus === "confirmed" && line.quantity > available;
-                      const lineTotal = Math.max(0, line.quantity * line.unitPrice - (line.discount || 0));
+                      const isStockExceeded = formStatus === "confirmed" && qNum > available;
+                      const lineTotal = roundMoney(Math.max(0, qNum * pNum - dNum));
 
                       return (
-                        <tr key={idx} className={isStockExceeded ? "bg-rose-50/60" : ""}>
+                        <tr key={line.id} className={isStockExceeded ? "bg-rose-50/60" : ""}>
                           <td className="py-2.5 px-3">
-                            <select
-                              value={line.productId}
-                              onChange={(e) => handleProductChange(idx, parseInt(e.target.value, 10))}
-                              className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded focus:outline-hidden focus:ring-1 focus:ring-amber-500 font-medium"
-                            >
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name} [{p.sku}] — {p.sellingPrice !== null && p.sellingPrice !== undefined ? `${p.sellingPrice.toLocaleString("fr-DZ")} DA` : "Prix non fixé"}
-                                </option>
-                              ))}
-                            </select>
+                            <ArticleSearchSelector
+                              products={products}
+                              selectedProductId={line.productId}
+                              selectedLocationId={line.locationId}
+                              onSelectProduct={(p) => handleUpdateLine(line.id, "productId", p.id)}
+                            />
                           </td>
 
                           <td className="py-2.5 px-3">
                             <div className="flex flex-col gap-1">
                               <select
                                 value={line.locationId}
-                                onChange={(e) =>
-                                  setFormLines((prev) =>
-                                    prev.map((l, i) =>
-                                      i === idx ? { ...l, locationId: parseInt(e.target.value, 10) } : l
-                                    )
-                                  )
-                                }
+                                onChange={(e) => handleUpdateLine(line.id, "locationId", parseInt(e.target.value, 10))}
                                 className="w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded focus:outline-hidden focus:ring-1 focus:ring-amber-500 font-medium"
                               >
                                 {locations.map((loc) => (
@@ -1043,15 +1297,8 @@ export function SalesClient({ initialData }: SalesClientProps) {
                               min="1"
                               step="1"
                               value={line.quantity}
-                              onChange={(e) =>
-                                setFormLines((prev) =>
-                                  prev.map((l, i) =>
-                                    i === idx
-                                      ? { ...l, quantity: Math.max(1, parseInt(e.target.value, 10) || 1) }
-                                      : l
-                                  )
-                                )
-                              }
+                              onChange={(e) => handleUpdateLine(line.id, "quantity", e.target.value)}
+                              onBlur={() => handleBlurLine(line.id, "quantity")}
                               className={`w-full px-2 py-1.5 text-xs text-center border rounded font-bold font-mono ${
                                 isStockExceeded
                                   ? "border-rose-400 bg-rose-50 text-rose-700"
@@ -1071,15 +1318,8 @@ export function SalesClient({ initialData }: SalesClientProps) {
                               min="0"
                               step="500"
                               value={line.unitPrice}
-                              onChange={(e) =>
-                                setFormLines((prev) =>
-                                  prev.map((l, i) =>
-                                    i === idx
-                                      ? { ...l, unitPrice: Math.max(0, parseFloat(e.target.value) || 0) }
-                                      : l
-                                  )
-                                )
-                              }
+                              onChange={(e) => handleUpdateLine(line.id, "unitPrice", e.target.value)}
+                              onBlur={() => handleBlurLine(line.id, "unitPrice")}
                               className="w-full px-2 py-1.5 text-xs text-right border border-slate-300 rounded bg-white font-mono"
                             />
                           </td>
@@ -1090,15 +1330,8 @@ export function SalesClient({ initialData }: SalesClientProps) {
                               min="0"
                               step="100"
                               value={line.discount}
-                              onChange={(e) =>
-                                setFormLines((prev) =>
-                                  prev.map((l, i) =>
-                                    i === idx
-                                      ? { ...l, discount: Math.max(0, parseFloat(e.target.value) || 0) }
-                                      : l
-                                  )
-                                )
-                              }
+                              onChange={(e) => handleUpdateLine(line.id, "discount", e.target.value)}
+                              onBlur={() => handleBlurLine(line.id, "discount")}
                               className="w-full px-2 py-1.5 text-xs text-right border border-slate-300 rounded bg-white font-mono text-slate-500"
                             />
                           </td>
@@ -1110,7 +1343,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
                           <td className="py-2.5 px-2 text-center">
                             <button
                               type="button"
-                              onClick={() => handleRemoveLine(idx)}
+                              onClick={() => handleRemoveLine(line.id)}
                               className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1186,12 +1419,18 @@ export function SalesClient({ initialData }: SalesClientProps) {
                     <input
                       type="number"
                       min="0"
-                      max={grandTotal}
                       step="1"
-                      value={formPaidAmount}
+                      value={formPaymentType === "full" && !isPaidAmountCustom ? grandTotal : formPaidAmount}
                       onChange={(e) => {
-                        const val = Math.max(0, parseFloat(e.target.value) || 0);
-                        setFormPaidAmount(Math.min(val, grandTotal));
+                        setFormPaidAmount(e.target.value);
+                        setIsPaidAmountCustom(true);
+                        setFormPaymentType("partial");
+                      }}
+                      onBlur={() => {
+                        const parsed = parseFloat(formPaidAmount);
+                        if (!isNaN(parsed) && parsed < 0) {
+                          setFormPaidAmount("0");
+                        }
                       }}
                       className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white font-mono font-bold text-emerald-700"
                     />
@@ -1226,91 +1465,6 @@ export function SalesClient({ initialData }: SalesClientProps) {
                     className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
                   />
                 </div>
-
-                {/* Delivery options */}
-                <div className="pt-3 border-t border-slate-200">
-                  <label className="flex items-center gap-2 cursor-pointer mb-2">
-                    <input
-                      type="checkbox"
-                      checked={formHasDelivery}
-                      onChange={(e) => setFormHasDelivery(e.target.checked)}
-                      className="rounded text-amber-500 focus:ring-amber-500 h-4 w-4"
-                    />
-                    <span className="text-xs font-bold text-slate-800">
-                      Expédition ou Retrait programmé
-                    </span>
-                  </label>
-
-                  {formHasDelivery && (
-                    <div className="space-y-3 mt-2 text-xs">
-                      {/* Mode selection */}
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="deliveryMethod"
-                            checked={formDeliveryMethod === "home_delivery"}
-                            onChange={() => setFormDeliveryMethod("home_delivery")}
-                            className="text-amber-500 focus:ring-amber-500 h-3.5 w-3.5"
-                          />
-                          <span className="font-semibold text-slate-700">Livraison à domicile</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="deliveryMethod"
-                            checked={formDeliveryMethod === "store_pickup"}
-                            onChange={() => {
-                              setFormDeliveryMethod("store_pickup");
-                              setFormDeliveryFee(0);
-                            }}
-                            className="text-amber-500 focus:ring-amber-500 h-3.5 w-3.5"
-                          />
-                          <span className="font-semibold text-slate-700">Retrait au magasin</span>
-                        </label>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block font-medium text-slate-600 mb-0.5">
-                            {formDeliveryMethod === "store_pickup" ? "Lieu de mise à disposition" : "Adresse exacte"}
-                          </label>
-                          <input
-                            type="text"
-                            value={formDeliveryMethod === "store_pickup" ? "Retrait au comptoir magasin" : formDeliveryAddress}
-                            disabled={formDeliveryMethod === "store_pickup"}
-                            onChange={(e) => setFormDeliveryAddress(e.target.value)}
-                            placeholder="Adresse et quartier de livraison"
-                            className="w-full px-2 py-1.5 border border-slate-300 rounded bg-white disabled:bg-slate-100"
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-medium text-slate-600 mb-0.5">
-                            Date prévue
-                          </label>
-                          <input
-                            type="date"
-                            value={formDeliveryPlannedDate}
-                            onChange={(e) => setFormDeliveryPlannedDate(e.target.value)}
-                            className="w-full px-2 py-1.5 border border-slate-300 rounded bg-white"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block font-medium text-slate-600 mb-0.5">
-                          Instructions / Remarques
-                        </label>
-                        <input
-                          type="text"
-                          value={formDeliveryNotes}
-                          onChange={(e) => setFormDeliveryNotes(e.target.value)}
-                          placeholder="Ex: Étage 3, contacter le client avant le départ..."
-                          className="w-full px-2 py-1.5 border border-slate-300 rounded bg-white text-xs"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Right: Synthesis Totals Box */}
@@ -1321,10 +1475,12 @@ export function SalesClient({ initialData }: SalesClientProps) {
                     <span className="font-mono">{subtotal.toLocaleString("fr-DZ")} DA</span>
                   </div>
 
-                  {formDeliveryFee > 0 && (
+                  {parsedDeliveryFee > 0 && (
                     <div className="flex justify-between text-xs text-slate-300">
-                      <span>Frais de livraison :</span>
-                      <span className="font-mono">+{formDeliveryFee.toLocaleString("fr-DZ")} DA</span>
+                      <span>Frais de livraison {formIncludeDeliveryFee ? "(inclus)" : "(exclus)"} :</span>
+                      <span className={`font-mono ${formIncludeDeliveryFee ? "text-amber-300 font-semibold" : "text-slate-400"}`}>
+                        {formIncludeDeliveryFee ? `+${parsedDeliveryFee.toLocaleString("fr-DZ")} DA` : `${parsedDeliveryFee.toLocaleString("fr-DZ")} DA (non inclus)`}
+                      </span>
                     </div>
                   )}
 
@@ -1335,7 +1491,11 @@ export function SalesClient({ initialData }: SalesClientProps) {
                       min="0"
                       step="500"
                       value={formGlobalDiscount}
-                      onChange={(e) => setFormGlobalDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      onChange={(e) => setFormGlobalDiscount(e.target.value)}
+                      onBlur={() => {
+                        const parsed = parseFloat(formGlobalDiscount);
+                        setFormGlobalDiscount(isNaN(parsed) || parsed < 0 ? "0" : String(parsed));
+                      }}
                       className="w-24 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-right text-emerald-400 font-mono text-xs"
                     />
                   </div>
@@ -1363,7 +1523,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
                   <div className="flex justify-between text-xs text-emerald-400 pt-1">
                     <span>Montant réglé immédiatement :</span>
                     <span className="font-mono font-bold">
-                      {formPaidAmount.toLocaleString("fr-DZ")} DA
+                      {effectivePaidAmount.toLocaleString("fr-DZ")} DA
                     </span>
                   </div>
 
@@ -1390,8 +1550,8 @@ export function SalesClient({ initialData }: SalesClientProps) {
                     {isPending
                       ? "Validation de la vente en cours..."
                       : formStatus === "confirmed"
-                      ? "Valider la Vente et Générer la Facture"
-                      : "Enregistrer le Brouillon / Devis"}
+                      ? "Valider la Vente et Déduire le Stock"
+                      : "Enregistrer la Commande / Devis (Stock Préservé)"}
                   </button>
                 </div>
               </div>
@@ -1465,12 +1625,21 @@ export function SalesClient({ initialData }: SalesClientProps) {
                           {balance.toLocaleString("fr-DZ")} DA
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => openPaymentModal(sale)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-xs"
-                          >
-                            Encaisser un versement
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setViewingPaymentHistorySale(sale)}
+                              title="Historique des versements"
+                              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer transition-colors"
+                            >
+                              <History className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => openPaymentModal(sale)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+                            >
+                              Encaisser
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1482,160 +1651,722 @@ export function SalesClient({ initialData }: SalesClientProps) {
         </div>
       )}
 
-      {/* ── TAB 4: SUIVI DES LIVRAISONS ─────────────────────────────────────── */}
-      {activeTab === "deliveries" && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">
-                Tableau de Bord des Livraisons de Mobilier
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Suivi logistique des expéditions et livraison aux domiciles des clients.
-              </p>
+
+
+      {/* ── TAB 5: AVANCES CLIENTS (FEATURE C) ──────────────────────────────── */}
+      {activeTab === "advances" && (
+        <div className="space-y-6">
+          {/* Form: Nouvelle Avance Client */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-5">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <PiggyBank className="w-5 h-5 text-amber-500" />
+                  Enregistrer une Nouvelle Avance Client
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Réception d&apos;acompte ou fonds avant commande / émission de facture. L&apos;argent entre en caisse sans déduire de stock ni créer de vente fictive.
+                </p>
+              </div>
             </div>
+
+            <form onSubmit={handleCreateAdvanceSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12">
+                {/* Client Selection with + Nouveau client button */}
+                <div className="sm:col-span-2 lg:col-span-5">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                      Client <span className="text-rose-500">*</span>
+                    </label>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <select
+                      value={advanceCustomerId}
+                      onChange={(e) => setAdvanceCustomerId(e.target.value)}
+                      required
+                      className="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="">-- Choisir un client --</option>
+                      {customers
+                        .filter((c) => c.isActive)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} {c.phone ? `(${c.phone})` : ""} [{c.code || `CLI-${c.id}`}]
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomerModalTarget("advance");
+                        setIsNewCustomerModalOpen(true);
+                      }}
+                      title="Créer un nouveau client dans le système"
+                      className="px-3.5 py-2 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition-colors cursor-pointer shrink-0 inline-flex items-center justify-center gap-1.5 whitespace-nowrap shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                      <span>+ Nouveau client</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Montant de l'avance */}
+                <div className="sm:col-span-1 lg:col-span-3">
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Montant de l&apos;avance (DA) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="100"
+                    value={advanceAmount}
+                    onChange={(e) => setAdvanceAmount(e.target.value)}
+                    required
+                    placeholder="Ex: 20 000 DA"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white font-mono font-bold text-emerald-700 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                {/* Mode d'encaissement */}
+                <div className="sm:col-span-1 lg:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Mode d&apos;encaissement
+                  </label>
+                  <select
+                    value={advanceMethod}
+                    onChange={(e) => setAdvanceMethod(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                  >
+                    <option value="cash">Espèces (Caisse principale)</option>
+                    <option value="ccp">Compte CCP / Poste</option>
+                    <option value="bank_transfer">Virement Bancaire</option>
+                    <option value="cheque">Chèque</option>
+                  </select>
+                </div>
+
+                {/* Date de Réception */}
+                <div className="sm:col-span-2 lg:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Date de Réception
+                  </label>
+                  <input
+                    type="date"
+                    value={advanceDate}
+                    onChange={(e) => setAdvanceDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Modèle / Meuble d&apos;intérêt (Optionnel)
+                  </label>
+                  <input
+                    type="text"
+                    value={advanceProductInterest}
+                    onChange={(e) => setAdvanceProductInterest(e.target.value)}
+                    placeholder="Ex: Salon Capila en velours beige ou Chambre Royal..."
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Motif / Observations
+                  </label>
+                  <input
+                    type="text"
+                    value={advanceNotes}
+                    onChange={(e) => setAdvanceNotes(e.target.value)}
+                    placeholder="Ex: Réservation à l'avance, livraison prévue fin du mois..."
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="px-5 py-2.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-900 rounded-lg shadow-sm transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  <PiggyBank className="w-4 h-4" />
+                  {isPending ? "Enregistrement..." : "Encaisser l'avance"}
+                </button>
+              </div>
+            </form>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                  <th className="py-2.5 px-4">Réf Livraison</th>
-                  <th className="py-2.5 px-4">Facture Liée</th>
-                  <th className="py-2.5 px-4">Mode</th>
-                  <th className="py-2.5 px-4">Destinataire</th>
-                  <th className="py-2.5 px-4">Adresse &amp; Téléphone</th>
-                  <th className="py-2.5 px-4">Date Prévue</th>
-                  <th className="py-2.5 px-4 text-right">Frais (DA)</th>
-                  <th className="py-2.5 px-4 text-center">Statut Actuel</th>
-                  <th className="py-2.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {allDeliveries.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="py-8 text-center text-slate-400">
-                      Aucune livraison enregistrée.
-                    </td>
+          {/* Table: Liste des Avances Clients */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Registre des Avances Clients ({advances.length})
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Suivi des acomptes reçus, affectations aux factures et remboursements éventuels.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Réf, client, tél, notes..."
+                    value={advanceSearchQuery}
+                    onChange={(e) => setAdvanceSearchQuery(e.target.value)}
+                    className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
+
+                <select
+                  value={advanceStatusFilter}
+                  onChange={(e) => setAdvanceStatusFilter(e.target.value)}
+                  className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium"
+                >
+                  <option value="all">Tous les statuts</option>
+                  <option value="available">Disponible</option>
+                  <option value="partially_used">Partiellement affectée</option>
+                  <option value="used">Entièrement soldée</option>
+                  <option value="refunded">Remboursée</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                    <th className="py-2.5 px-4">Réf Avance</th>
+                    <th className="py-2.5 px-4">Date</th>
+                    <th className="py-2.5 px-4">Client</th>
+                    <th className="py-2.5 px-4">Contact</th>
+                    <th className="py-2.5 px-4 text-right">Montant (DA)</th>
+                    <th className="py-2.5 px-4 text-right">Affecté (DA)</th>
+                    <th className="py-2.5 px-4 text-right">Remboursé (DA)</th>
+                    <th className="py-2.5 px-4 text-right text-emerald-700">Disponible (DA)</th>
+                    <th className="py-2.5 px-4 text-center">Statut</th>
+                    <th className="py-2.5 px-4 text-right">Actions</th>
                   </tr>
-                ) : (
-                  allDeliveries.map((del) => (
-                    <tr key={del.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                        {del.reference}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-slate-600">
-                        {del.saleRef}
-                      </td>
-                      <td className="py-3 px-4">
-                        {del.isPickup ? (
-                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
-                            Retrait Magasin
-                          </span>
-                        ) : (
-                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                            À Domicile
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-slate-800">
-                        {del.customerName}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600">
-                        <p>{del.isPickup ? "Retrait au comptoir magasin" : (del.address || "Adresse client")}</p>
-                        {del.customerPhone && (
-                          <p className="text-[11px] font-mono text-slate-400">{del.customerPhone}</p>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600">
-                        {del.deliveryDate
-                          ? new Date(del.deliveryDate).toLocaleDateString("fr-DZ")
-                          : "Non planifiée"}
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-medium">
-                        {(del.fee || 0).toLocaleString("fr-DZ")} DA
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            del.status === "delivered"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : del.status === "in_transit"
-                              ? "bg-indigo-100 text-indigo-800"
-                              : del.status === "ready"
-                              ? "bg-blue-100 text-blue-800"
-                              : del.status === "postponed"
-                              ? "bg-orange-100 text-orange-800"
-                              : del.status === "cancelled"
-                              ? "bg-rose-100 text-rose-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
-                          {del.status === "delivered"
-                            ? "Livrée"
-                            : del.status === "in_transit"
-                            ? "En cours"
-                            : del.status === "ready"
-                            ? "Prête à livrer"
-                            : del.status === "postponed"
-                            ? "Reportée"
-                            : del.status === "cancelled"
-                            ? "Annulée"
-                            : "À préparer"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap space-x-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPrintingDeliveryNote({
-                              ...del,
-                              sale: {
-                                reference: del.saleRef,
-                                saleDate: del.saleDate || new Date(),
-                                customer: {
-                                  name: del.customerName,
-                                  phone: del.customerPhone,
-                                  address: del.customerAddress,
-                                },
-                                items: del.items || [],
-                              },
-                            })
-                          }
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer"
-                        >
-                          <Printer className="h-3 w-3" />
-                          <span>BL</span>
-                        </button>
-                        <select
-                          value={del.status === "pending" ? "to_prepare" : del.status}
-                          onChange={(e) => handleUpdateDeliveryStatus(del.id, e.target.value)}
-                          className="text-xs bg-white border border-slate-300 rounded px-2 py-1 font-medium"
-                        >
-                          <option value="to_prepare">À préparer</option>
-                          <option value="ready">Prête à livrer</option>
-                          <option value="in_transit">En cours</option>
-                          <option value="delivered">Livrée</option>
-                          <option value="postponed">Reportée</option>
-                          <option value="cancelled">Annulée</option>
-                        </select>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredAdvances.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-8 text-center text-slate-400">
+                        Aucune avance enregistrée ou correspondant aux critères.
                       </td>
                     </tr>
-                  ))
+                  ) : (
+                    filteredAdvances.map((adv) => (
+                      <tr key={adv.id} className="hover:bg-slate-50">
+                        <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                          {adv.reference}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {new Date(adv.paymentDate).toLocaleDateString("fr-DZ")}
+                        </td>
+                        <td className="py-3 px-4">
+                          <p className="font-semibold text-slate-800">{adv.customer?.name || "Client"}</p>
+                          {adv.productInterest && (
+                            <p className="text-[11px] text-amber-700 mt-0.5">
+                              Intérêt : {adv.productInterest}
+                            </p>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-600">
+                          {adv.customer?.phone || "—"}
+                          {adv.customer?.phone2 && (
+                            <span className="block text-[10px] text-slate-400">
+                              {adv.customer.phone2}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-medium">
+                          {adv.amount.toLocaleString("fr-DZ")}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-indigo-600">
+                          {adv.allocatedAmount.toLocaleString("fr-DZ")}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-rose-600">
+                          {(adv.refundedAmount || 0).toLocaleString("fr-DZ")}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
+                          {adv.remainingAmount.toLocaleString("fr-DZ")} DA
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              adv.status === "available"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : adv.status === "partially_used"
+                                ? "bg-indigo-100 text-indigo-800"
+                                : adv.status === "used"
+                                ? "bg-slate-100 text-slate-700"
+                                : "bg-rose-100 text-rose-800"
+                            }`}
+                          >
+                            {adv.status === "available"
+                              ? "Disponible"
+                              : adv.status === "partially_used"
+                              ? "Partielle"
+                              : adv.status === "used"
+                              ? "Soldée"
+                              : "Remboursée"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {adv.remainingAmount > 0 && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAllocatingAdvance(adv);
+                                    setAllocationSaleId("");
+                                    setAllocationAmount(String(adv.remainingAmount));
+                                    setAllocationNotes("");
+                                  }}
+                                  title="Affecter à une facture du client"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer transition-colors"
+                                >
+                                  <ArrowRight className="w-3.5 h-3.5" />
+                                  <span>Affecter</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRefundingAdvance(adv);
+                                    setRefundAmount(String(adv.remainingAmount));
+                                    setRefundReason("");
+                                  }}
+                                  title="Rembourser au client"
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: AFFECTER UNE AVANCE À UNE FACTURE (FEATURE C) ──────────────── */}
+      {allocatingAdvance && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) setAllocatingAdvance(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
+          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-xl p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ArrowRight className="w-5 h-5 text-emerald-600" />
+                Affecter l&apos;Avance {allocatingAdvance.reference}
+              </h2>
+              <button
+                onClick={() => setAllocatingAdvance(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAllocateAdvanceSubmit} className="mt-4 space-y-4">
+              <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-emerald-800">Client bénéficiaire :</span>
+                  <span className="font-semibold text-emerald-950">
+                    {allocatingAdvance.customer?.name}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-emerald-800">Solde disponible sur l&apos;avance :</span>
+                  <span className="font-mono font-bold text-emerald-900">
+                    {allocatingAdvance.remainingAmount.toLocaleString("fr-DZ")} DA
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Sélectionner la Facture à régler <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={allocationSaleId}
+                  onChange={(e) => {
+                    const sId = e.target.value;
+                    setAllocationSaleId(sId);
+                    if (sId) {
+                      const selSale = sales.find((s) => s.id === parseInt(sId, 10));
+                      if (selSale) {
+                        const due = Math.max(0, selSale.totalAmount - selSale.paidAmount);
+                        const maxAmt = Math.min(allocatingAdvance.remainingAmount, due);
+                        setAllocationAmount(String(maxAmt));
+                      }
+                    }
+                  }}
+                  required
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                >
+                  <option value="">-- Choisir une facture de ce client --</option>
+                  {sales
+                    .filter(
+                      (s) =>
+                        s.customer?.id === allocatingAdvance.customerId &&
+                        s.status !== "cancelled" &&
+                        s.totalAmount > s.paidAmount
+                    )
+                    .map((s) => {
+                      const due = Math.max(0, s.totalAmount - s.paidAmount);
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {s.reference} du {new Date(s.saleDate).toLocaleDateString("fr-DZ")} — Total : {s.totalAmount.toLocaleString("fr-DZ")} DA (Reste dû : {due.toLocaleString("fr-DZ")} DA)
+                        </option>
+                      );
+                    })}
+                </select>
+                {sales.filter(
+                  (s) =>
+                    s.customer?.id === allocatingAdvance.customerId &&
+                    s.status !== "cancelled" &&
+                    s.totalAmount > s.paidAmount
+                ).length === 0 && (
+                  <p className="text-[11px] text-amber-700 mt-1">
+                    Ce client n&apos;a aucune facture avec solde restant dû. Créez d&apos;abord la vente dans l&apos;onglet &quot;Nouvelle Vente&quot;.
+                  </p>
                 )}
-              </tbody>
-            </table>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Montant à affecter (DA) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={allocatingAdvance.remainingAmount}
+                  step="1"
+                  value={allocationAmount}
+                  onChange={(e) => setAllocationAmount(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white font-mono font-bold text-emerald-700"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Ce montant sera déduit du solde de la facture sans générer de nouveau flux de trésorerie (l&apos;argent a déjà été comptabilisé).
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Observations (Optionnel)
+                </label>
+                <input
+                  type="text"
+                  value={allocationNotes}
+                  onChange={(e) => setAllocationNotes(e.target.value)}
+                  placeholder="Ex: Affectation acompte suite à livraison..."
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setAllocatingAdvance(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending || !allocationSaleId}
+                  className="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {isPending ? "Affectation..." : "Confirmer l'affectation"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: REMBOURSEMENT AVANCE CLIENT (FEATURE C) ────────────────────── */}
+      {refundingAdvance && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) setRefundingAdvance(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
+          <div className="relative w-full max-w-md bg-white rounded-xl shadow-xl p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <RotateCcw className="w-5 h-5 text-rose-600" />
+                Rembourser l&apos;Avance {refundingAdvance.reference}
+              </h2>
+              <button
+                onClick={() => setRefundingAdvance(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRefundAdvanceSubmit} className="mt-4 space-y-4">
+              <div className="bg-rose-50 p-3 rounded-lg border border-rose-200 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-rose-800">Client :</span>
+                  <span className="font-semibold text-rose-950">
+                    {refundingAdvance.customer?.name}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-rose-800">Solde remboursable :</span>
+                  <span className="font-mono font-bold text-rose-900">
+                    {refundingAdvance.remainingAmount.toLocaleString("fr-DZ")} DA
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Montant à rembourser (DA) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={refundingAdvance.remainingAmount}
+                  step="1"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg font-mono font-bold text-rose-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Motif du Remboursement <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  required
+                  placeholder="Ex: Désistement client, rupture de modèle..."
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg"
+                ></textarea>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setRefundingAdvance(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="px-4 py-2 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {isPending ? "Remboursement..." : "Confirmer le Remboursement"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: HISTORIQUE DES RÈGLEMENTS DE LA FACTURE (FEATURE H) ────────── */}
+      {viewingPaymentHistorySale && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setViewingPaymentHistorySale(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
+          <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-xl p-6 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
+              <div className="flex items-center gap-2">
+                <History className="h-5 w-5 text-indigo-600" />
+                <h2 className="text-base font-bold text-slate-900">
+                  Historique des Règlements — {viewingPaymentHistorySale.status === "draft" ? "Devis / Commande" : "Facture"} {viewingPaymentHistorySale.reference}
+                </h2>
+              </div>
+              <button
+                onClick={() => setViewingPaymentHistorySale(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto py-4 space-y-4">
+              {/* Synthèse financière de la vente */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                <div>
+                  <span className="text-slate-500 block">Client</span>
+                  <span className="font-bold text-slate-900 block truncate">
+                    {viewingPaymentHistorySale.customer?.name || "Client Passager"}
+                  </span>
+                  {viewingPaymentHistorySale.customer?.phone && (
+                    <span className="font-mono text-[11px] text-slate-500">
+                      {viewingPaymentHistorySale.customer.phone}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <span className="text-slate-500 block">Total Facture</span>
+                  <span className="font-mono font-bold text-slate-900 text-sm">
+                    {viewingPaymentHistorySale.totalAmount.toLocaleString("fr-DZ")} DA
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-slate-500 block">Total Encaissé</span>
+                  <span className="font-mono font-bold text-emerald-700 text-sm">
+                    {viewingPaymentHistorySale.paidAmount.toLocaleString("fr-DZ")} DA
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-slate-500 block">Reste à Payer</span>
+                  <span className={`font-mono font-black text-sm ${
+                    viewingPaymentHistorySale.totalAmount - viewingPaymentHistorySale.paidAmount > 0
+                      ? "text-rose-700"
+                      : "text-emerald-700"
+                  }`}>
+                    {Math.max(0, viewingPaymentHistorySale.totalAmount - viewingPaymentHistorySale.paidAmount).toLocaleString("fr-DZ")} DA
+                  </span>
+                </div>
+              </div>
+
+              {/* Tableau chronologique des versements */}
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                      <th className="py-2.5 px-3">Réf Versement</th>
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Mode</th>
+                      <th className="py-2.5 px-3 text-right">Montant (DA)</th>
+                      <th className="py-2.5 px-3">Observations / Réf</th>
+                      <th className="py-2.5 px-3 text-right">Reçu</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {!viewingPaymentHistorySale.payments || viewingPaymentHistorySale.payments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-slate-400">
+                          Aucun versement n&apos;a encore été enregistré pour cette facture.
+                        </td>
+                      </tr>
+                    ) : (
+                      viewingPaymentHistorySale.payments.map((p) => (
+                        <tr key={p.id} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
+                            {p.reference}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                            {new Date(p.paymentDate).toLocaleDateString("fr-DZ")}
+                          </td>
+                          <td className="py-2.5 px-3 capitalize text-slate-700">
+                            {p.method === "cash"
+                              ? "Espèces"
+                              : p.method === "ccp"
+                              ? "Compte CCP"
+                              : p.method === "bank_transfer"
+                              ? "Virement bancaire"
+                              : p.method === "cheque"
+                              ? "Chèque"
+                              : p.method}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
+                            {p.amount.toLocaleString("fr-DZ")} DA
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 max-w-[150px] truncate">
+                            {p.notes || "—"}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const saleForReceipt = viewingPaymentHistorySale;
+                                setViewingPaymentHistorySale(null);
+                                setPrintingReceipt({ payment: p, sale: saleForReceipt });
+                              }}
+                              title="Imprimer le reçu de ce versement"
+                              className="p-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded cursor-pointer transition-colors"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewingPaymentHistorySale(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+              >
+                Fermer
+              </button>
+
+              {viewingPaymentHistorySale.status !== "cancelled" &&
+                viewingPaymentHistorySale.paidAmount < viewingPaymentHistorySale.totalAmount && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const s = viewingPaymentHistorySale;
+                      setViewingPaymentHistorySale(null);
+                      openPaymentModal(s);
+                    }}
+                    className="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>Encaisser un nouveau versement</span>
+                  </button>
+                )}
+            </div>
           </div>
         </div>
       )}
 
       {/* ── MODAL: ENREGISTREMENT PAIEMENT / RÈGLEMENT ───────────────────────── */}
       {paymentModalSale && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) closePaymentModal();
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
           <div className="relative w-full max-w-md bg-white rounded-xl shadow-xl p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <h2 className="text-base font-bold text-slate-900">
-                Enregistrer un Versement : Facture {paymentModalSale.reference}
+                Enregistrer un Versement : {paymentModalSale.status === "draft" ? "Commande / Devis" : "Facture"} {paymentModalSale.reference}
               </h2>
               <button
                 onClick={closePaymentModal}
@@ -1654,7 +2385,9 @@ export function SalesClient({ initialData }: SalesClientProps) {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Total Facture :</span>
+                  <span className="text-slate-500">
+                    Total {paymentModalSale.status === "draft" ? "Commande" : "Facture"} :
+                  </span>
                   <span className="font-mono font-bold text-slate-900">
                     {paymentModalSale.totalAmount.toLocaleString("fr-DZ")} DA
                   </span>
@@ -1755,6 +2488,20 @@ export function SalesClient({ initialData }: SalesClientProps) {
                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white"
                   />
                 </div>
+
+                <div className="col-span-2">
+                  {activeCashSession ? (
+                    <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2.5 py-1 font-medium flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0 inline-block"></span>
+                      Caisse ouverte ({activeCashSession.reference}) : les versements en espèces sont rattachés au tiroir.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2.5 py-1 font-medium flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-600 shrink-0 inline-block"></span>
+                      Caisse fermée : les versements en espèces sont enregistrés hors session en attente de réconciliation.
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -1792,7 +2539,12 @@ export function SalesClient({ initialData }: SalesClientProps) {
 
       {/* ── MODAL: ANNULATION VENTE ─────────────────────────────────────────── */}
       {cancelModalSale && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) setCancelModalSale(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
           <div className="relative w-full max-w-md bg-white rounded-xl shadow-xl p-6">
             <div className="flex items-center gap-3 text-rose-600 pb-3 border-b border-slate-200">
               <AlertCircle className="h-6 w-6 shrink-0" />
@@ -1865,14 +2617,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
         />
       )}
 
-      {/* ── MODAL: IMPRESSION BON DE LIVRAISON (BL A4) ───────────────────────── */}
-      {printingDeliveryNote && (
-        <PrintableDeliveryNote
-          delivery={printingDeliveryNote}
-          settings={initialData.settings}
-          onClose={() => setPrintingDeliveryNote(null)}
-        />
-      )}
+
 
       {/* ── MODAL: NOUVEAU CLIENT DEPUIS LA VENTE ────────────────────────────── */}
       <NewCustomerModal

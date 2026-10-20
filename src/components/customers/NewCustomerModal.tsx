@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, AlertCircle, Loader2 } from "lucide-react";
 import { createCustomerAction } from "@/app/customers/actions";
 
@@ -9,6 +9,7 @@ export interface CreatedCustomerData {
   code: string | null;
   name: string;
   phone: string | null;
+  phone2?: string | null;
   email: string | null;
   address: string | null;
   notes: string | null;
@@ -34,6 +35,17 @@ export function NewCustomerModal({
 }: NewCustomerModalProps) {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isPending) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isPending, onClose]);
 
   if (!isOpen) return null;
 
@@ -76,7 +88,14 @@ export function NewCustomerModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isPending) {
+          handleClose();
+        }
+      }}
+    >
       <div className="relative w-full max-w-lg bg-white rounded-xl shadow-xl p-6 text-slate-900 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between pb-4 border-b border-slate-200">
           <div>
@@ -88,7 +107,7 @@ export function NewCustomerModal({
             onClick={handleClose}
             disabled={isPending}
             className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
-            title="Fermer"
+            title="Fermer (Échap)"
           >
             <X className="h-5 w-5" />
           </button>
@@ -120,7 +139,7 @@ export function NewCustomerModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Numéro de Téléphone
+                Téléphone Principal
               </label>
               <input
                 type="tel"
@@ -132,16 +151,29 @@ export function NewCustomerModal({
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Adresse Email (Optionnelle)
+                Téléphone Secondaire (Optionnel)
               </label>
               <input
-                type="email"
-                name="email"
+                type="tel"
+                name="phone2"
                 disabled={isPending}
-                placeholder="client@mail.com"
+                placeholder="Ex : 0661 98 76 54"
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500 disabled:bg-slate-50 disabled:text-slate-400"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Adresse Email (Optionnelle)
+            </label>
+            <input
+              type="email"
+              name="email"
+              disabled={isPending}
+              placeholder="client@mail.com"
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500 disabled:bg-slate-50 disabled:text-slate-400"
+            />
           </div>
 
           <div>

@@ -187,13 +187,7 @@ async function runTests() {
         method: "cash" as const,
         notes: "Acompte espèces à la commande",
       },
-      delivery: {
-        hasDelivery: true,
-        method: "home_delivery" as const,
-        fee: 3000,
-        address: "Zone Industrielle Rouiba, Alger",
-        notes: "Livraison VIP",
-      },
+      includeDeliveryFee: true,
     };
 
     const res = await createSaleAction(salePayload);
@@ -202,7 +196,7 @@ async function runTests() {
     // Vérification en base
     const sale = await prisma.sales.findFirst({
       where: { customerId: createdCustomerId },
-      include: { customer: true, items: true, deliveries: true, payments: true },
+      include: { customer: true, items: true, payments: true },
     });
 
     assert(!!sale, "La vente doit être enregistrée pour ce client");

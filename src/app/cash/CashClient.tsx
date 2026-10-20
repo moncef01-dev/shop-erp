@@ -24,6 +24,7 @@ import {
   closeCashSessionAction,
   createExpenseAction,
   deleteExpenseAction,
+  reconcileOutOfSessionCashAction,
   type CashDashboardData,
   type CashLedgerItem,
 } from "./actions";
@@ -58,6 +59,7 @@ export function CashClient({ initialData }: CashClientProps) {
   const [isOpeningModalOpen, setIsOpeningModalOpen] = useState(false);
   const [openingAmountInput, setOpeningAmountInput] = useState("");
   const [openingNotesInput, setOpeningNotesInput] = useState("");
+  const [includePendingCash, setIncludePendingCash] = useState(true);
 
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
   const [closingAmountInput, setClosingAmountInput] = useState("");
@@ -114,7 +116,30 @@ export function CashClient({ initialData }: CashClientProps) {
     setTimeout(() => setNotification(null), 6000);
   };
 
-  const { activeSession, sessions, ledger, metrics } = initialData;
+  // Standardized Escape key handling (Feature F)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (isOpeningModalOpen) setIsOpeningModalOpen(false);
+        else if (isClosingModalOpen) setIsClosingModalOpen(false);
+        else if (isExpenseModalOpen) setIsExpenseModalOpen(false);
+        else if (printingDailyJournal) setPrintingDailyJournal(null);
+        else if (printingClosingSession) setPrintingClosingSession(null);
+        else if (printingExpense) setPrintingExpense(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    isOpeningModalOpen,
+    isClosingModalOpen,
+    isExpenseModalOpen,
+    printingDailyJournal,
+    printingClosingSession,
+    printingExpense,
+  ]);
+
+  const { activeSession, sessions, ledger, metrics, outOfSessionCash } = initialData;
 
   // ─── ACTIONS OUVERTURE ET CLÔTURE ──────────────────────────────────────────
 
@@ -130,6 +155,7 @@ export function CashClient({ initialData }: CashClientProps) {
       const res = await openCashSessionAction({
         openingAmount: amount,
         openingNotes: openingNotesInput,
+        includePendingCash: outOfSessionCash && outOfSessionCash.pendingNet > 0 ? includePendingCash : false,
       });
 
       if (res.success) {
@@ -140,6 +166,19 @@ export function CashClient({ initialData }: CashClientProps) {
         router.refresh();
       } else {
         showNotification("error", res.error || "Erreur lors de l'ouverture.");
+      }
+    });
+  };
+
+  const handleReconcilePendingCash = () => {
+    if (!activeSession) return;
+    startTransition(async () => {
+      const res = await reconcileOutOfSessionCashAction(activeSession.id);
+      if (res.success) {
+        showNotification("success", res.message || "Opérations en espèces rattachées.");
+        router.refresh();
+      } else {
+        showNotification("error", res.error || "Erreur de réconciliation.");
       }
     });
   };
@@ -353,12 +392,25 @@ export function CashClient({ initialData }: CashClientProps) {
           <button
             onClick={() => {
               setExpenseType("expense");
+              setExpenseCategory("transport");
               setIsExpenseModalOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg shadow-sm transition"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg shadow-sm transition cursor-pointer"
           >
             <Plus className="h-4 w-4 text-rose-600" />
             Enregistrer une Dépense
+          </button>
+
+          <button
+            onClick={() => {
+              setExpenseType("income");
+              setExpenseCategory("capital");
+              setIsExpenseModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg shadow-sm transition cursor-pointer"
+          >
+            <ArrowDownRight className="h-4 w-4 text-emerald-600" />
+            Entrée de fonds hors vente
           </button>
 
           <button
@@ -467,6 +519,44 @@ export function CashClient({ initialData }: CashClientProps) {
           >
             Ouvrir une Session
           </button>
+        </div>
+      )}
+
+      {/* ─── BANNIÈRE ENCAISSEMENTS HORS SESSION EN ATTENTE ──────────────────── */}
+      {outOfSessionCash && outOfSessionCash.itemsCount > 0 && (
+        <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-amber-200 text-amber-900 flex items-center justify-center shrink-0">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-bold text-amber-950 text-xs flex flex-wrap items-center gap-2">
+                  <span>Espèces Encaissées Hors Session en Attente de Réconciliation :</span>
+                  <span className="font-mono text-sm font-black text-amber-800">
+                    +{formatDA(outOfSessionCash.pendingNet)}
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                    {outOfSessionCash.itemsCount} opération{outOfSessionCash.itemsCount > 1 ? "s" : ""}
+                  </span>
+                </p>
+                <p className="text-amber-800 text-[11px] mt-0.5">
+                  {activeSession
+                    ? "Des règlements en espèces ont été perçus en dehors d'une session de caisse. Vous pouvez les intégrer immédiatement au tiroir-caisse de la session en cours."
+                    : "Des règlements en espèces ont été perçus sans session ouverte. Ils sont comptabilisés dans la trésorerie globale et seront rattachés lors de l'ouverture de la prochaine session."}
+                </p>
+              </div>
+            </div>
+            {activeSession && (
+              <button
+                onClick={handleReconcilePendingCash}
+                disabled={isPending}
+                className="px-3.5 py-1.5 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 rounded-lg shadow-xs transition shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {isPending ? "Rattachement..." : `Rattacher à la session ${activeSession.reference}`}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -850,8 +940,12 @@ export function CashClient({ initialData }: CashClientProps) {
                               {formatMethodLabel(item.method)}
                             </span>
                             {item.affectsCash && (
-                              <span className="block text-[9px] text-amber-700 uppercase font-bold">
-                                Tiroir physique
+                              <span
+                                className={`block text-[9px] uppercase font-bold ${
+                                  item.sessionRef ? "text-amber-700" : "text-rose-600 font-black"
+                                }`}
+                              >
+                                {item.sessionRef ? `Session ${item.sessionRef}` : "Hors session"}
                               </span>
                             )}
                           </td>
@@ -1184,7 +1278,12 @@ export function CashClient({ initialData }: CashClientProps) {
 
       {/* ─── MODAL OUVERTURE DE SESSION ─────────────────────────────────────── */}
       {isOpeningModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) setIsOpeningModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+        >
           <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -1193,7 +1292,7 @@ export function CashClient({ initialData }: CashClientProps) {
               </h3>
               <button
                 onClick={() => setIsOpeningModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1232,18 +1331,38 @@ export function CashClient({ initialData }: CashClientProps) {
                 />
               </div>
 
+              {outOfSessionCash && outOfSessionCash.pendingNet > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs space-y-1.5">
+                  <div className="flex justify-between items-center text-amber-950 font-bold">
+                    <span>Espèces hors session en attente :</span>
+                    <span className="font-mono text-amber-800">+{formatDA(outOfSessionCash.pendingNet)}</span>
+                  </div>
+                  <label className="flex items-start gap-2 cursor-pointer text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={includePendingCash}
+                      onChange={(e) => setIncludePendingCash(e.target.checked)}
+                      className="mt-0.5 rounded text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="text-[11px] font-medium leading-tight text-slate-700">
+                      Rattacher ces encaissements ({formatDA(outOfSessionCash.pendingNet)}) à cette nouvelle session de caisse
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsOpeningModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm disabled:opacity-50"
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   {isPending ? "Ouverture en cours..." : "Confirmer l'Ouverture"}
                 </button>
@@ -1255,7 +1374,12 @@ export function CashClient({ initialData }: CashClientProps) {
 
       {/* ─── MODAL CLÔTURE DE SESSION ───────────────────────────────────────── */}
       {isClosingModalOpen && activeSession && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) setIsClosingModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+        >
           <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -1372,16 +1496,21 @@ export function CashClient({ initialData }: CashClientProps) {
 
       {/* ─── MODAL NOUVELLE DÉPENSE / ENCAISSEMENT ───────────────────────────── */}
       {isExpenseModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) setIsExpenseModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+        >
           <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Receipt className="h-5 w-5 text-amber-600" />
-                {expenseType === "expense" ? "Enregistrer une Dépense" : "Enregistrer un Encaissement Exceptionnel"}
+                {expenseType === "expense" ? "Enregistrer une Dépense" : "Entrée de fonds hors vente"}
               </h3>
               <button
                 onClick={() => setIsExpenseModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1395,7 +1524,7 @@ export function CashClient({ initialData }: CashClientProps) {
                     setExpenseType("expense");
                     setExpenseCategory("transport");
                   }}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition ${
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition cursor-pointer ${
                     expenseType === "expense"
                       ? "bg-rose-100 text-rose-800 border-rose-300 shadow-xs"
                       : "bg-slate-50 text-slate-600 border-slate-200"
@@ -1409,13 +1538,13 @@ export function CashClient({ initialData }: CashClientProps) {
                     setExpenseType("income");
                     setExpenseCategory("capital");
                   }}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition ${
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition cursor-pointer ${
                     expenseType === "income"
                       ? "bg-emerald-100 text-emerald-800 border-emerald-300 shadow-xs"
                       : "bg-slate-50 text-slate-600 border-slate-200"
                   }`}
                 >
-                  Recette Diverse (Encaissement)
+                  Entrée de fonds hors vente
                 </button>
               </div>
 
@@ -1427,7 +1556,7 @@ export function CashClient({ initialData }: CashClientProps) {
                   <select
                     value={expenseCategory}
                     onChange={(e) => setExpenseCategory(e.target.value)}
-                    className="w-full py-2 px-3 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full py-2 px-3 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
                   >
                     {expenseType === "expense" ? (
                       <>
@@ -1441,9 +1570,10 @@ export function CashClient({ initialData }: CashClientProps) {
                       </>
                     ) : (
                       <>
-                        <option value="capital">Apport personnel exploitant</option>
+                        <option value="capital">Apport personnel</option>
+                        <option value="cash_topup">Complément de caisse</option>
                         <option value="refund">Remboursement reçu</option>
-                        <option value="misc_income">Recette diverse</option>
+                        <option value="misc_income">Autre entrée de fonds</option>
                       </>
                     )}
                   </select>

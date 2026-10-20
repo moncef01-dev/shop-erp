@@ -78,6 +78,7 @@ export async function openCashSessionAction(payload: {
   openingAmount: number;
   openingNotes?: string;
   openedAt?: string;
+  includePendingCash?: boolean;
 }): Promise<CashActionResponse> {
   try {
     const openingAmount = Number(payload.openingAmount);
@@ -105,23 +106,39 @@ export async function openCashSessionAction(payload: {
     const reference = await generateNextCashSessionReference();
     const openedAt = payload.openedAt ? new Date(payload.openedAt) : new Date();
 
-    const session = await prisma.cashSession.create({
-      data: {
-        reference,
-        status: "open",
-        openingAmount,
-        openedAt,
-        openingNotes: payload.openingNotes?.trim() || null,
-      },
+    const session = await prisma.$transaction(async (tx) => {
+      const created = await tx.cashSession.create({
+        data: {
+          reference,
+          status: "open",
+          openingAmount,
+          openedAt,
+          openingNotes: payload.openingNotes?.trim() || null,
+        },
+      });
+
+      if (payload.includePendingCash) {
+        await tx.payment.updateMany({
+          where: { sessionId: null, method: "cash", status: { not: "cancelled" } },
+          data: { sessionId: created.id },
+        });
+        await tx.expense.updateMany({
+          where: { sessionId: null, method: "cash" },
+          data: { sessionId: created.id },
+        });
+      }
+
+      return created;
     });
 
     safeRevalidate("/cash");
+    safeRevalidate("/sales");
 
     return {
       success: true,
       message: `Session de caisse ${reference} ouverte avec succès (Fond de caisse : ${openingAmount.toLocaleString(
         "fr-DZ"
-      )} DA).`,
+      )} DA)${payload.includePendingCash ? " avec rattachement des espèces hors session." : "."}`,
       data: session,
     };
   } catch (err: unknown) {
@@ -130,6 +147,69 @@ export async function openCashSessionAction(payload: {
       success: false,
       error: "Erreur lors de l'ouverture de la session de caisse.",
     };
+  }
+}
+
+export async function reconcileOutOfSessionCashAction(sessionId: number): Promise<CashActionResponse> {
+  try {
+    const session = await prisma.cashSession.findUnique({
+      where: { id: sessionId },
+    });
+    if (!session) return { success: false, error: "Session de caisse introuvable." };
+    if (session.status !== "open") {
+      return { success: false, error: "Les encaissements ne peuvent être rattachés qu'à une session de caisse ouverte." };
+    }
+
+    const unlinkedPayments = await prisma.payment.findMany({
+      where: {
+        sessionId: null,
+        method: "cash",
+        status: { not: "cancelled" },
+      },
+      select: { id: true, amount: true },
+    });
+
+    const unlinkedExpenses = await prisma.expense.findMany({
+      where: {
+        sessionId: null,
+        method: "cash",
+      },
+      select: { id: true, amount: true, type: true },
+    });
+
+    if (unlinkedPayments.length === 0 && unlinkedExpenses.length === 0) {
+      return { success: false, error: "Aucun mouvement en espèces hors session en attente de réconciliation." };
+    }
+
+    const paymentIds = unlinkedPayments.map((p) => p.id);
+    const expenseIds = unlinkedExpenses.map((e) => e.id);
+
+    await prisma.$transaction(async (tx) => {
+      if (paymentIds.length > 0) {
+        await tx.payment.updateMany({
+          where: { id: { in: paymentIds } },
+          data: { sessionId: session.id },
+        });
+      }
+      if (expenseIds.length > 0) {
+        await tx.expense.updateMany({
+          where: { id: { in: expenseIds } },
+          data: { sessionId: session.id },
+        });
+      }
+    });
+
+    safeRevalidate("/cash");
+    safeRevalidate("/sales");
+
+    const totalReconciled = unlinkedPayments.reduce((acc, p) => acc + p.amount, 0);
+    return {
+      success: true,
+      message: `${paymentIds.length + expenseIds.length} opération(s) en espèces (${totalReconciled.toLocaleString("fr-DZ")} DA) rattachée(s) avec succès à la session de caisse ${session.reference}.`,
+    };
+  } catch (err: unknown) {
+    console.error("Erreur réconciliation caisse hors session:", err);
+    return { success: false, error: "Erreur lors du rattachement des opérations à la session de caisse." };
   }
 }
 
@@ -166,14 +246,17 @@ export async function closeCashSessionAction(payload: {
 
     const now = new Date();
 
-    // Calcul autoritaire côté serveur sur la fenêtre [openedAt, now]
+    // Calcul autoritaire côté serveur sur la fenêtre [openedAt, now] et les opérations rattachées
     // 1. Encaissements physiques (Ventes en espèces)
     const salesPayments = await prisma.payment.findMany({
       where: {
         status: { not: "cancelled" },
         method: "cash",
         saleId: { not: null },
-        paymentDate: { gte: session.openedAt, lte: now },
+        OR: [
+          { sessionId: sessionId },
+          { sessionId: null, paymentDate: { gte: session.openedAt, lte: now } },
+        ],
       },
       select: { id: true, amount: true },
     });
@@ -185,7 +268,10 @@ export async function closeCashSessionAction(payload: {
         status: { not: "cancelled" },
         method: "cash",
         purchaseId: { not: null },
-        paymentDate: { gte: session.openedAt, lte: now },
+        OR: [
+          { sessionId: sessionId },
+          { sessionId: null, paymentDate: { gte: session.openedAt, lte: now } },
+        ],
       },
       select: { id: true, amount: true },
     });
@@ -195,7 +281,10 @@ export async function closeCashSessionAction(payload: {
     const expenses = await prisma.expense.findMany({
       where: {
         method: "cash",
-        date: { gte: session.openedAt, lte: now },
+        OR: [
+          { sessionId: sessionId },
+          { sessionId: null, date: { gte: session.openedAt, lte: now } },
+        ],
       },
       select: { id: true, amount: true, type: true },
     });
@@ -430,6 +519,14 @@ export interface TreasuryChannelSummary {
   net: number;
 }
 
+export interface OutOfSessionCashSummary {
+  pendingCashIn: number;
+  pendingCashOut: number;
+  pendingNet: number;
+  itemsCount: number;
+  items: CashLedgerItem[];
+}
+
 export interface CashDashboardData {
   activeSession: {
     id: number;
@@ -443,6 +540,7 @@ export interface CashDashboardData {
     currentTheoreticalCash: number;
     eligibleTransactionsCount: number;
   } | null;
+  outOfSessionCash: OutOfSessionCashSummary;
   sessions: {
     id: number;
     reference: string;
@@ -635,8 +733,9 @@ export async function getCashDashboardData(filters?: {
     const sessionStart = new Date(activeRaw.openedAt).getTime();
     const sessionCashItems = ledgerItems.filter((item) => {
       if (!item.affectsCash) return false;
+      if (item.sessionId === activeRaw.id) return true;
       const t = new Date(item.date).getTime();
-      return t >= sessionStart;
+      return t >= sessionStart && item.sessionId === null;
     });
 
     const currentCashIn = sessionCashItems
@@ -662,6 +761,32 @@ export async function getCashDashboardData(filters?: {
       eligibleTransactionsCount: sessionCashItems.length,
     };
   }
+
+  // 5.2 Calcul des opérations en espèces hors session en attente de réconciliation
+  const pendingCashItems = ledgerItems.filter((item) => {
+    if (!item.affectsCash) return false;
+    if (item.sessionId !== null) return false;
+    if (activeRaw && new Date(item.date).getTime() >= new Date(activeRaw.openedAt).getTime()) return false;
+    return true;
+  });
+
+  const pendingCashIn = pendingCashItems
+    .filter((i) => i.type === "encaissement")
+    .reduce((acc, i) => acc + i.amount, 0);
+
+  const pendingCashOut = pendingCashItems
+    .filter((i) => i.type === "decaissement")
+    .reduce((acc, i) => acc + i.amount, 0);
+
+  const pendingNet = pendingCashIn - pendingCashOut;
+
+  const outOfSessionCash: OutOfSessionCashSummary = {
+    pendingCashIn,
+    pendingCashOut,
+    pendingNet,
+    itemsCount: pendingCashItems.length,
+    items: pendingCashItems,
+  };
 
   // 6. Application des filtres sur le ledger affiché
   let filteredLedger = ledgerItems;
@@ -700,7 +825,14 @@ export async function getCashDashboardData(filters?: {
   };
 
   for (const item of ledgerItems) {
-    const m = channels[item.method] || channels.cash;
+    const rawMethod = (item.method || "cash").toLowerCase();
+    const normMethod =
+      rawMethod === "bank_transfer" || rawMethod === "virement"
+        ? "transfer"
+        : rawMethod === "cheque"
+        ? "check"
+        : rawMethod;
+    const m = channels[normMethod] || channels.cash;
     if (item.type === "encaissement") {
       m.inflows += item.amount;
     } else {
@@ -725,6 +857,7 @@ export async function getCashDashboardData(filters?: {
 
   return {
     activeSession: activeSessionData,
+    outOfSessionCash,
     sessions: sessions.map((s) => ({
       id: s.id,
       reference: s.reference,

@@ -78,7 +78,10 @@ export async function ensureDefaultLocations(): Promise<void> {
 export async function getProductsModuleData() {
   await ensureDefaultLocations();
 
-  const [products, categories, locations, movements] = await Promise.all([
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const [products, categories, locations, movements, todayMovementsCount] = await Promise.all([
     prisma.product.findMany({
       include: {
         categoryRef: true,
@@ -126,6 +129,13 @@ export async function getProductsModuleData() {
         toLocation: { select: { id: true, name: true, code: true, isActive: true } },
       },
     }),
+    prisma.stockMovement.count({
+      where: {
+        date: {
+          gte: todayStart,
+        },
+      },
+    }),
   ]);
 
   return {
@@ -133,6 +143,7 @@ export async function getProductsModuleData() {
     categories,
     locations,
     movements,
+    todayMovementsCount,
   };
 }
 

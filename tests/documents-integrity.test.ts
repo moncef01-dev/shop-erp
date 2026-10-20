@@ -145,14 +145,6 @@ async function runTests() {
           status: "completed",
         },
       },
-      deliveries: {
-        create: {
-          reference: "BL-202610-0001",
-          status: "pending",
-          fee: 2000,
-          address: "Hydra, Alger",
-        },
-      },
     },
   });
 
@@ -216,10 +208,9 @@ async function runTests() {
   // ─── TEST 1: Récupération consolidée de tous les documents ────────────────
   await executeTest(1, "Agrégation unifiée de toutes les pièces dans le hub Documents", async () => {
     const data = await getDocumentsData();
-    assert(data.documents.length >= 5, "Le hub doit retourner les factures, livraisons, achats, paiements, caisse, transferts.");
+    assert(data.documents.length >= 4, "Le hub doit retourner les factures, achats, paiements, caisse, transferts.");
     assert(data.stats.totalDocuments === data.documents.length, "Le compteur total de stats doit correspondre au tableau.");
     assert(data.stats.invoicesCount >= 1, "Au moins 1 facture répertoriée.");
-    assert(data.stats.deliveriesCount >= 1, "Au moins 1 bon de livraison répertorié.");
     assert(data.stats.purchasesCount >= 1, "Au moins 1 commande d'achat répertoriée.");
     assert(data.stats.paymentsCount >= 2, "Au moins 2 règlements (client + fournisseur) répertoriés.");
     assert(data.stats.transfersCount >= 1, "Au moins 1 transfert répertorié.");
@@ -238,15 +229,14 @@ async function runTests() {
     assert(p?.stock === 5, "La consultation de document ne doit pas altérer le stock.");
   });
 
-  // ─── TEST 3: Bon de Livraison rattaché à la vente ─────────────────────────
-  await executeTest(3, "Génération et payload du Bon de Livraison (BL) avec articles et adresse", async () => {
+  // ─── TEST 3: Payload facture et intégrité des pièces ───────────────────────
+  await executeTest(3, "Présence du payload facture complet avec articles et tiers pour impression", async () => {
     const data = await getDocumentsData();
-    const bl = data.documents.find((d) => d.reference === "BL-202610-0001");
-    assert(bl !== undefined, "Le bon de livraison doit être répertorié.");
-    assert(bl?.deliveryPayload !== undefined, "Le payload de livraison doit être présent pour impression.");
-    assert(bl?.deliveryPayload?.address === "Hydra, Alger", "L'adresse de livraison doit être correcte.");
-    assert(bl?.deliveryPayload?.sale?.reference === "FAC-202610-0001", "La facture liée doit être FAC-202610-0001.");
-    assert(bl?.deliveryPayload?.sale?.items?.length === 1, "La ligne d'article à livrer doit être incluse.");
+    const fac = data.documents.find((d) => d.reference === "FAC-202610-0001");
+    assert(fac !== undefined, "La facture liée doit être présente.");
+    assert(fac?.salePayload !== undefined, "Le payload de vente doit être présent pour impression.");
+    assert(fac?.salePayload?.reference === "FAC-202610-0001", "La référence liée doit être FAC-202610-0001.");
+    assert(fac?.salePayload?.items?.length === 1, "La ligne d'article doit être incluse.");
   });
 
   // ─── TEST 4: Générateur de Fiche d'Inventaire Physique ────────────────────

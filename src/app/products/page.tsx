@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function ProductsPage() {
-  const { products, categories, locations, movements } = await getProductsModuleData();
+  const { products, categories, locations, movements, todayMovementsCount } = await getProductsModuleData();
 
   return (
     <ProductsModuleClient
@@ -18,6 +18,7 @@ export default async function ProductsPage() {
       initialCategories={categories}
       initialLocations={locations}
       initialMovements={movements}
+      initialTodayMovementsCount={todayMovementsCount}
     />
   );
 }

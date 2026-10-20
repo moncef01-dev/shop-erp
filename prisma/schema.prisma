@@ -130,6 +130,7 @@ model Customer {
   code      String?  @unique
   name      String
   phone     String?
+  phone2    String?
   email     String?
   address   String?
   notes     String?
@@ -137,7 +138,8 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sales Sales[]
+  sales    Sales[]
+  advances CustomerAdvance[]
 
   @@map("customers")
 }
@@ -173,6 +175,7 @@ model Sales {
   subtotal       Float      @default(0)
   discount       Float      @default(0)
   deliveryFee    Float      @default(0)
+  includeDeliveryFee Boolean @default(true)
   totalAmount    Float      @default(0)
   paidAmount     Float      @default(0)
   paymentStatus  String     @default("unpaid") // "unpaid", "partial", "paid"
@@ -182,10 +185,10 @@ model Sales {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  items      SaleItem[]
-  deliveries Delivery[]
-  payments   Payment[]
-  movements  StockMovement[]
+  items              SaleItem[]
+  payments           Payment[]
+  movements          StockMovement[]
+  advanceAllocations CustomerAdvanceAllocation[]
 
   @@index([customerId])
   @@index([status])
@@ -237,6 +240,49 @@ model Payment {
   @@index([sessionId])
   @@map("payments")
 }
+
+model CustomerAdvance {
+  id              Int                         @id @default(autoincrement())
+  reference       String                      @unique
+  customerId      Int
+  customer        Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount          Float
+  allocatedAmount Float                       @default(0)
+  refundedAmount  Float                       @default(0)
+  method          String                      @default("cash") // "cash", "transfer", "check", "cib"
+  paymentDate     DateTime                    @default(now())
+  productInterest String?
+  notes           String?
+  status          String                      @default("available") // "available", "partially_used", "fully_used", "refunded"
+  sessionId       Int?
+  session         CashSession?                @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+
+  allocations     CustomerAdvanceAllocation[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([paymentDate])
+  @@index([sessionId])
+  @@map("customer_advances")
+}
+
+model CustomerAdvanceAllocation {
+  id          Int             @id @default(autoincrement())
+  advanceId   Int
+  advance     CustomerAdvance @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+  saleId      Int
+  sale        Sales           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  amount      Float
+  allocatedAt DateTime        @default(now())
+  notes       String?
+
+  @@index([advanceId])
+  @@index([saleId])
+  @@map("customer_advance_allocations")
+}
+
 
 // ─── PURCHASES ───────────────────────────────────────────────────────────────
 
@@ -331,28 +377,6 @@ model PurchaseReceiptItem {
   @@map("purchase_receipt_items")
 }
 
-// ─── DELIVERIES ──────────────────────────────────────────────────────────────
-
-model Delivery {
-  id            Int       @id @default(autoincrement())
-  reference     String    @unique
-  saleId        Int?
-  sale          Sales?    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  method        String    @default("home_delivery") // "home_delivery", "store_pickup"
-  status        String    @default("pending")
-  fee           Float     @default(0)
-  deliveryDate  DateTime?
-  address       String?
-  recipientName String?
-  carrierName   String?
-  deliveredAt   DateTime?
-  notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  @@index([saleId])
-  @@map("deliveries")
-}
 
 // ─── CASH & TREASURY ──────────────────────────────────────────────────────────
 
@@ -375,6 +399,7 @@ model CashSession {
 
   expenses          Expense[]
   payments          Payment[]
+  customerAdvances  CustomerAdvance[]
 
   @@index([status])
   @@index([openedAt])

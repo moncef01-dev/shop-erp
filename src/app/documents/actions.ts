@@ -12,7 +12,6 @@ import type {
   PrintableSupplierPayment,
 } from "@/components/purchases/PrintablePurchaseDocuments";
 import type {
-  PrintableDeliveryNoteData,
   PrintableTransferData,
   PrintableInventoryItem,
   PrintableAccountStatementData,
@@ -23,7 +22,6 @@ export type DocumentTypeFilter =
   | "all"
   | "invoice"
   | "quote"
-  | "delivery"
   | "purchase"
   | "receipt"
   | "payment_client"
@@ -51,7 +49,6 @@ export interface UnifiedDocumentItem {
   purchasePayload?: PrintablePurchase;
   receiptPayload?: PrintablePurchaseReceipt;
   supplierPaymentPayload?: PrintableSupplierPayment;
-  deliveryPayload?: PrintableDeliveryNoteData;
   transferPayload?: PrintableTransferData;
   cashSessionPayload?: {
     reference: string;
@@ -88,7 +85,6 @@ export interface DocumentsDashboardData {
   stats: {
     totalDocuments: number;
     invoicesCount: number;
-    deliveriesCount: number;
     purchasesCount: number;
     receiptsCount: number;
     paymentsCount: number;
@@ -100,7 +96,6 @@ export interface DocumentsDashboardData {
 export async function getDocumentsData(): Promise<DocumentsDashboardData> {
   const [
     sales,
-    deliveries,
     purchases,
     receipts,
     payments,
@@ -122,28 +117,10 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
           },
         },
         payments: true,
-        deliveries: true,
       },
     }),
 
-    // 2. Bons de Livraison
-    prisma.delivery.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        sale: {
-          include: {
-            customer: true,
-            items: {
-              include: {
-                product: { select: { sku: true, name: true, model: true, color: true } },
-              },
-            },
-          },
-        },
-      },
-    }),
-
-    // 3. Commandes Fournisseurs
+    // 2. Commandes Fournisseurs
     prisma.purchase.findMany({
       orderBy: { purchaseDate: "desc" },
       include: {
@@ -307,68 +284,12 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
           paymentDate: p.paymentDate.toISOString(),
           notes: p.notes,
         })),
-        deliveries: s.deliveries.map((d) => ({
-          id: d.id,
-          reference: d.reference,
-          status: d.status,
-          fee: d.fee,
-          deliveryDate: d.deliveryDate ? d.deliveryDate.toISOString() : null,
-          address: d.address,
-          notes: d.notes,
-        })),
+        deliveries: [],
       },
     });
   }
 
-  // 2. Mapper Livraisons
-  for (const d of deliveries) {
-    docs.push({
-      id: `delivery-${d.id}`,
-      rawId: d.id,
-      type: "delivery",
-      typeLabel: "Bon de Livraison",
-      reference: d.reference,
-      date: d.deliveryDate ? d.deliveryDate.toISOString() : d.createdAt.toISOString(),
-      partyName: d.sale?.customer?.name || "Client Passager",
-      partyType: "customer",
-      amount: d.fee,
-      status: d.status,
-      statusLabel:
-        d.status === "delivered"
-          ? "Livré"
-          : d.status === "in_transit"
-          ? "En transit"
-          : d.status === "cancelled"
-          ? "Annulé"
-          : "En attente",
-      notes: d.notes,
-      deliveryPayload: {
-        id: d.id,
-        reference: d.reference,
-        status: d.status,
-        fee: d.fee,
-        deliveryDate: d.deliveryDate ? d.deliveryDate.toISOString() : d.createdAt.toISOString(),
-        address: d.address,
-        notes: d.notes,
-        sale: d.sale
-          ? {
-              reference: d.sale.reference,
-              saleDate: d.sale.saleDate.toISOString(),
-              totalAmount: d.sale.totalAmount,
-              paidAmount: d.sale.paidAmount,
-              customer: d.sale.customer,
-              items: d.sale.items.map((it) => ({
-                product: it.product,
-                quantity: it.quantity,
-                unitPrice: it.unitPrice,
-              })),
-            }
-          : null,
-      },
-    });
-  }
-
-  // 3. Mapper Achats Fournisseurs
+  // 2. Mapper Achats Fournisseurs
   for (const p of purchases) {
     docs.push({
       id: `purchase-${p.id}`,
@@ -664,7 +585,6 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
   const stats = {
     totalDocuments: docs.length,
     invoicesCount: docs.filter((d) => d.type === "invoice" || d.type === "quote").length,
-    deliveriesCount: docs.filter((d) => d.type === "delivery").length,
     purchasesCount: docs.filter((d) => d.type === "purchase").length,
     receiptsCount: docs.filter((d) => d.type === "receipt").length,
     paymentsCount: docs.filter((d) => d.type === "payment_client" || d.type === "payment_supplier").length,

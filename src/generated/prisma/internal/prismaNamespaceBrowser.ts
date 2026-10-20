@@ -61,11 +61,12 @@ export const ModelName = {
   Sales: 'Sales',
   SaleItem: 'SaleItem',
   Payment: 'Payment',
+  CustomerAdvance: 'CustomerAdvance',
+  CustomerAdvanceAllocation: 'CustomerAdvanceAllocation',
   Purchase: 'Purchase',
   PurchaseItem: 'PurchaseItem',
   PurchaseReceipt: 'PurchaseReceipt',
   PurchaseReceiptItem: 'PurchaseReceiptItem',
-  Delivery: 'Delivery',
   CashSession: 'CashSession',
   Expense: 'Expense',
   Transaction: 'Transaction',
@@ -172,6 +173,7 @@ export const CustomerScalarFieldEnum = {
   code: 'code',
   name: 'name',
   phone: 'phone',
+  phone2: 'phone2',
   email: 'email',
   address: 'address',
   notes: 'notes',
@@ -207,6 +209,7 @@ export const SalesScalarFieldEnum = {
   subtotal: 'subtotal',
   discount: 'discount',
   deliveryFee: 'deliveryFee',
+  includeDeliveryFee: 'includeDeliveryFee',
   totalAmount: 'totalAmount',
   paidAmount: 'paidAmount',
   paymentStatus: 'paymentStatus',
@@ -250,6 +253,38 @@ export const PaymentScalarFieldEnum = {
 } as const
 
 export type PaymentScalarFieldEnum = (typeof PaymentScalarFieldEnum)[keyof typeof PaymentScalarFieldEnum]
+
+
+export const CustomerAdvanceScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  customerId: 'customerId',
+  amount: 'amount',
+  allocatedAmount: 'allocatedAmount',
+  refundedAmount: 'refundedAmount',
+  method: 'method',
+  paymentDate: 'paymentDate',
+  productInterest: 'productInterest',
+  notes: 'notes',
+  status: 'status',
+  sessionId: 'sessionId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CustomerAdvanceScalarFieldEnum = (typeof CustomerAdvanceScalarFieldEnum)[keyof typeof CustomerAdvanceScalarFieldEnum]
+
+
+export const CustomerAdvanceAllocationScalarFieldEnum = {
+  id: 'id',
+  advanceId: 'advanceId',
+  saleId: 'saleId',
+  amount: 'amount',
+  allocatedAt: 'allocatedAt',
+  notes: 'notes'
+} as const
+
+export type CustomerAdvanceAllocationScalarFieldEnum = (typeof CustomerAdvanceAllocationScalarFieldEnum)[keyof typeof CustomerAdvanceAllocationScalarFieldEnum]
 
 
 export const PurchaseScalarFieldEnum = {
@@ -311,26 +346,6 @@ export const PurchaseReceiptItemScalarFieldEnum = {
 } as const
 
 export type PurchaseReceiptItemScalarFieldEnum = (typeof PurchaseReceiptItemScalarFieldEnum)[keyof typeof PurchaseReceiptItemScalarFieldEnum]
-
-
-export const DeliveryScalarFieldEnum = {
-  id: 'id',
-  reference: 'reference',
-  saleId: 'saleId',
-  method: 'method',
-  status: 'status',
-  fee: 'fee',
-  deliveryDate: 'deliveryDate',
-  address: 'address',
-  recipientName: 'recipientName',
-  carrierName: 'carrierName',
-  deliveredAt: 'deliveredAt',
-  notes: 'notes',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
-} as const
-
-export type DeliveryScalarFieldEnum = (typeof DeliveryScalarFieldEnum)[keyof typeof DeliveryScalarFieldEnum]
 
 
 export const CashSessionScalarFieldEnum = {

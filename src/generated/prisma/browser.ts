@@ -68,6 +68,16 @@ export type SaleItem = Prisma.SaleItemModel
  */
 export type Payment = Prisma.PaymentModel
 /**
+ * Model CustomerAdvance
+ * 
+ */
+export type CustomerAdvance = Prisma.CustomerAdvanceModel
+/**
+ * Model CustomerAdvanceAllocation
+ * 
+ */
+export type CustomerAdvanceAllocation = Prisma.CustomerAdvanceAllocationModel
+/**
  * Model Purchase
  * 
  */
@@ -87,11 +97,6 @@ export type PurchaseReceipt = Prisma.PurchaseReceiptModel
  * 
  */
 export type PurchaseReceiptItem = Prisma.PurchaseReceiptItemModel
-/**
- * Model Delivery
- * 
- */
-export type Delivery = Prisma.DeliveryModel
 /**
  * Model CashSession
  * 
