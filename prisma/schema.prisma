@@ -407,6 +407,11 @@ model CashSession {
   difference        Float?
   openingNotes      String?
   closingNotes      String?
+  originalClosingAmount Float?
+  originalTheoreticalAmount Float?
+  originalDifference Float?
+  retainedAmount    Float?
+  closingEditAudit  String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -482,11 +487,13 @@ model TreasuryTransfer {
   toAccountId   Int
   toAccount     TreasuryAccount @relation("DestinationAccount", fields: [toAccountId], references: [id])
   amount        Float
+  paymentMethod String          @default("cash")
   motif         String
   notes         String?
   date          DateTime        @default(now())
   sessionId     Int?
   session       CashSession?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  editHistory   String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 

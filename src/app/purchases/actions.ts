@@ -7,6 +7,7 @@ import {
   reverseStockForCancelledPurchase,
   PrismaTransactionClient,
 } from "@/lib/inventory-transaction";
+import { calculateSupplierDebt } from "@/app/suppliers/actions";
 
 export type PurchaseActionResponse<T = unknown> = {
   success: boolean;
@@ -154,21 +155,33 @@ export async function getSuppliersData(searchQuery?: string) {
     orderBy: { createdAt: "desc" },
   });
 
-  return suppliers.map((s) => {
-    const totalPurchases = s.purchases.reduce((sum, p) => sum + p.totalAmount, 0);
-    const totalPaid = s.purchases.reduce((sum, p) => sum + p.paidAmount, 0);
-    const outstandingBalance = Math.max(0, totalPurchases - totalPaid);
-    const lastPurchase = s.purchases[0];
+  const suppliersWithData = await Promise.all(
+    suppliers.map(async (s) => {
+      const debtInfo = await calculateSupplierDebt(s.id);
+      const lastPurchase = s.purchases[0];
+      const lastPayment = await prisma.payment.findFirst({
+        where: {
+          status: { not: "cancelled" },
+          OR: [{ supplierId: s.id }, { purchase: { supplierId: s.id } }],
+        },
+        orderBy: { paymentDate: "desc" },
+        select: { paymentDate: true },
+      });
 
-    return {
-      ...s,
-      totalPurchases,
-      totalPaid,
-      outstandingBalance,
-      lastPurchaseDate: lastPurchase ? lastPurchase.purchaseDate : null,
-      confirmedPurchasesCount: s.purchases.length,
-    };
-  });
+      return {
+        ...s,
+        initialDebt: debtInfo.initialDebt,
+        totalPurchases: debtInfo.totalPurchases,
+        totalPaid: debtInfo.totalPaid,
+        outstandingBalance: debtInfo.outstandingDebt,
+        lastPurchaseDate: lastPurchase ? lastPurchase.purchaseDate : null,
+        lastPaymentDate: lastPayment ? lastPayment.paymentDate.toISOString() : null,
+        confirmedPurchasesCount: s.purchases.length,
+      };
+    })
+  );
+
+  return suppliersWithData;
 }
 
 export async function createSupplierAction(formData: FormData): Promise<PurchaseActionResponse> {
@@ -365,23 +378,16 @@ export async function getSupplierDetailsAction(supplierId: number): Promise<Purc
 
     if (!supplier) return { success: false, error: "Fournisseur introuvable." };
 
-    const totalPurchases = supplier.purchases.reduce(
-      (sum, p) => (p.status !== "cancelled" ? sum + p.totalAmount : sum),
-      0
-    );
-    const totalPaid = supplier.purchases.reduce(
-      (sum, p) => (p.status !== "cancelled" ? sum + p.paidAmount : sum),
-      0
-    );
-    const outstandingBalance = Math.max(0, totalPurchases - totalPaid);
+    const debtInfo = await calculateSupplierDebt(supplier.id);
 
     return {
       success: true,
       data: {
         ...supplier,
-        totalPurchases,
-        totalPaid,
-        outstandingBalance,
+        initialDebt: debtInfo.initialDebt,
+        totalPurchases: debtInfo.totalPurchases,
+        totalPaid: debtInfo.totalPaid,
+        outstandingBalance: debtInfo.outstandingDebt,
       },
     };
   } catch (err: unknown) {

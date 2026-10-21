@@ -20,7 +20,9 @@ import {
   Eye,
   Edit2,
   Power,
+  Package,
 } from "lucide-react";
+import { PurchaseArticleSearchSelector } from "@/components/purchases/PurchaseArticleSearchSelector";
 import {
   createSupplierAction,
   updateSupplierAction,
@@ -125,6 +127,7 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<SupplierItem | null>(null);
   const [viewingSupplier, setViewingSupplier] = useState<SupplierItem | null>(null);
+  const [viewingReceipt, setViewingReceipt] = useState<(PrintablePurchaseReceipt & { purchase?: PrintablePurchase }) | null>(null);
 
   // Receiving Modal
   const [receivingPurchase, setReceivingPurchase] = useState<PrintablePurchase | null>(null);
@@ -1113,6 +1116,13 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
                 className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
+            <a
+              href="/suppliers"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition shrink-0"
+            >
+              <Building2 className="h-4 w-4" />
+              Grand livre & Dettes antérieures
+            </a>
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1240,34 +1250,47 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
                       </td>
                     </tr>
                   ) : (
-                    allReceipts.map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3 px-4 font-mono font-bold text-slate-900">{r.reference}</td>
-                        <td className="py-3 px-4 text-slate-600">{formatDate(r.receiptDate)}</td>
-                        <td className="py-3 px-4 font-mono font-medium text-indigo-600">{r.purchase?.reference}</td>
-                        <td className="py-3 px-4 text-slate-800 font-medium">{r.purchase?.supplier?.name || "Comptoir libre"}</td>
-                        <td className="py-3 px-4">
-                          <div className="space-y-1">
-                            {(r.items || []).map((it) => (
-                              <div key={it.id} className="text-xs text-slate-700">
-                                • <span className="font-semibold">{it.quantity}x</span> {it.product?.name || (it.productId ? `Produit #${it.productId}` : "Article")}{" "}
-                                <span className="text-slate-400">({it.location?.name || "Entrepôt"})</span>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-xs text-slate-500 italic">{r.notes || "-"}</td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => handleOpenPrintReceipt(r)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm"
-                          >
-                            <Printer className="h-3.5 w-3.5 text-slate-500" />
-                            Imprimer BR
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    allReceipts.map((r) => {
+                      const totalQty = (r.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0);
+                      const itemsCount = (r.items || []).length;
+                      return (
+                        <tr key={r.id} className="hover:bg-slate-50/80 transition">
+                          <td className="py-3 px-4 font-mono font-bold text-slate-900">{r.reference}</td>
+                          <td className="py-3 px-4 text-slate-600">{formatDate(r.receiptDate)}</td>
+                          <td className="py-3 px-4 font-mono font-medium text-indigo-600">{r.purchase?.reference}</td>
+                          <td className="py-3 px-4 text-slate-800 font-medium">{r.purchase?.supplier?.name || "Comptoir libre"}</td>
+                          <td className="py-3 px-4">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              <Package className="h-3.5 w-3.5 text-indigo-500" />
+                              {itemsCount} article{itemsCount > 1 ? "s" : ""} • {totalQty} pièce{totalQty > 1 ? "s" : ""}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-xs text-slate-500 max-w-xs truncate" title={r.notes || undefined}>
+                            {r.notes || <span className="text-slate-300">-</span>}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="inline-flex items-center gap-2">
+                              <button
+                                onClick={() => setViewingReceipt(r)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 shadow-sm transition"
+                                title="Voir les articles réceptionnés"
+                              >
+                                <Eye className="h-3.5 w-3.5 text-indigo-600" />
+                                Détails
+                              </button>
+                              <button
+                                onClick={() => handleOpenPrintReceipt(r)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition"
+                                title="Imprimer le bon de réception"
+                              >
+                                <Printer className="h-3.5 w-3.5 text-slate-500" />
+                                Imprimer BR
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1438,19 +1461,12 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
                     <tbody className="divide-y divide-slate-200">
                       {orderItems.map((line, idx) => (
                         <tr key={idx} className="hover:bg-slate-50">
-                          <td className="p-2">
-                            <select
-                              value={line.productId}
-                              onChange={(e) => handleProductChange(idx, Number(e.target.value))}
-                              className="w-full text-xs bg-white border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              required
-                            >
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name} ({p.sku}) — Stock act. {p.stock}
-                                </option>
-                              ))}
-                            </select>
+                          <td className="p-2 min-w-[280px]">
+                            <PurchaseArticleSearchSelector
+                              products={products}
+                              selectedProductId={line.productId}
+                              onSelectProduct={(p) => handleProductChange(idx, p.id)}
+                            />
                           </td>
                           <td className="p-2">
                             <select
@@ -2062,6 +2078,23 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
                 </div>
               </div>
 
+              {/* Accès direct Relevé / Grand Livre Fournisseur */}
+              <div className="flex items-center justify-between p-3.5 bg-indigo-50 border border-indigo-100 rounded-xl">
+                <div>
+                  <h4 className="text-xs font-bold text-indigo-950">Compte Auxiliaire & Relevé Chronologique</h4>
+                  <p className="text-[11px] text-indigo-700 mt-0.5">
+                    Consultez l&apos;intégralité des mouvements (dettes antérieures, achats, décaissements), enregistrez un règlement ou une dette.
+                  </p>
+                </div>
+                <a
+                  href={`/suppliers?supplierId=${viewingSupplier.id}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm transition shrink-0 ml-3"
+                >
+                  <Building2 className="h-3.5 w-3.5" />
+                  Ouvrir le compte
+                </a>
+              </div>
+
               {/* Commandes rattachées à ce fournisseur */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Historique des Commandes</h4>
@@ -2107,6 +2140,140 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
                   Fermer
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL DÉTAILS BON DE RÉCEPTION ─────────────────────────────────── */}
+      {viewingReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 border border-slate-100 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <PackageCheck className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Bon de Réception <span className="font-mono text-indigo-600">{viewingReceipt.reference}</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Reçu le {formatDate(viewingReceipt.receiptDate)} • Commande source :{" "}
+                    <span className="font-semibold text-slate-700">{viewingReceipt.purchase?.reference || "N/A"}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingReceipt(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4 overflow-y-auto flex-1 text-xs">
+              {/* Infos Réception */}
+              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <span className="text-[11px] text-slate-400 block">Fournisseur</span>
+                  <span className="font-semibold text-slate-800 text-sm">
+                    {viewingReceipt.purchase?.supplier?.name || "Comptoir libre"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-slate-400 block">Statut réception</span>
+                  <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    <CheckCircle2 className="h-3 w-3" /> Réceptionné & Intégré au stock
+                  </span>
+                </div>
+              </div>
+
+              {/* Tableau Articles */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center justify-between">
+                  <span>Articles réceptionnés</span>
+                  <span className="text-[11px] font-normal text-slate-500">
+                    {(viewingReceipt.items || []).length} référence(s)
+                  </span>
+                </h4>
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-700">
+                      <tr>
+                        <th className="py-2.5 px-3">Article</th>
+                        <th className="py-2.5 px-3">Emplacement Stock</th>
+                        <th className="py-2.5 px-3 text-right">Quantité Reçue</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {(viewingReceipt.items || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="py-6 text-center text-slate-400">
+                            Aucun détail d&apos;article disponible pour ce bon.
+                          </td>
+                        </tr>
+                      ) : (
+                        (viewingReceipt.items || []).map((it) => (
+                          <tr key={it.id} className="hover:bg-slate-50">
+                            <td className="py-2.5 px-3">
+                              <span className="font-semibold text-slate-900 block">
+                                {it.product?.name || (it.productId ? `Produit #${it.productId}` : "Article")}
+                              </span>
+                              {it.product?.sku && (
+                                <span className="font-mono text-[10px] text-indigo-600 bg-indigo-50 px-1 py-0.2 rounded">
+                                  {it.product.sku}
+                                </span>
+                              )}
+                              {it.product?.model && (
+                                <span className="text-[10px] text-slate-400 ml-1.5">
+                                  {it.product.model}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600">
+                              {it.location?.name || "Entrepôt principal"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-bold text-slate-900">
+                              {it.quantity} pcs
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Observations */}
+              {viewingReceipt.notes && (
+                <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200">
+                  <span className="text-[11px] font-semibold text-amber-800 block mb-1">
+                    Notes / Observations
+                  </span>
+                  <p className="text-xs text-amber-900 whitespace-pre-wrap">{viewingReceipt.notes}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+              <button
+                onClick={() => {
+                  const targetR = viewingReceipt;
+                  setViewingReceipt(null);
+                  handleOpenPrintReceipt(targetR as PrintablePurchaseReceipt & { purchase: PrintablePurchase });
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition"
+              >
+                <Printer className="h-4 w-4 text-slate-500" />
+                Imprimer Bon de Réception
+              </button>
+              <button
+                onClick={() => setViewingReceipt(null)}
+                className="px-4 py-2 text-xs font-semibold text-white bg-slate-800 rounded-lg hover:bg-slate-700 transition"
+              >
+                Fermer
+              </button>
             </div>
           </div>
         </div>

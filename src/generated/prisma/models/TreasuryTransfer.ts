@@ -48,10 +48,12 @@ export type TreasuryTransferMinAggregateOutputType = {
   fromAccountId: number | null
   toAccountId: number | null
   amount: number | null
+  paymentMethod: string | null
   motif: string | null
   notes: string | null
   date: Date | null
   sessionId: number | null
+  editHistory: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -62,10 +64,12 @@ export type TreasuryTransferMaxAggregateOutputType = {
   fromAccountId: number | null
   toAccountId: number | null
   amount: number | null
+  paymentMethod: string | null
   motif: string | null
   notes: string | null
   date: Date | null
   sessionId: number | null
+  editHistory: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -76,10 +80,12 @@ export type TreasuryTransferCountAggregateOutputType = {
   fromAccountId: number
   toAccountId: number
   amount: number
+  paymentMethod: number
   motif: number
   notes: number
   date: number
   sessionId: number
+  editHistory: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -108,10 +114,12 @@ export type TreasuryTransferMinAggregateInputType = {
   fromAccountId?: true
   toAccountId?: true
   amount?: true
+  paymentMethod?: true
   motif?: true
   notes?: true
   date?: true
   sessionId?: true
+  editHistory?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -122,10 +130,12 @@ export type TreasuryTransferMaxAggregateInputType = {
   fromAccountId?: true
   toAccountId?: true
   amount?: true
+  paymentMethod?: true
   motif?: true
   notes?: true
   date?: true
   sessionId?: true
+  editHistory?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -136,10 +146,12 @@ export type TreasuryTransferCountAggregateInputType = {
   fromAccountId?: true
   toAccountId?: true
   amount?: true
+  paymentMethod?: true
   motif?: true
   notes?: true
   date?: true
   sessionId?: true
+  editHistory?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -237,10 +249,12 @@ export type TreasuryTransferGroupByOutputType = {
   fromAccountId: number
   toAccountId: number
   amount: number
+  paymentMethod: string
   motif: string
   notes: string | null
   date: Date
   sessionId: number | null
+  editHistory: string | null
   createdAt: Date
   updatedAt: Date
   _count: TreasuryTransferCountAggregateOutputType | null
@@ -274,10 +288,12 @@ export type TreasuryTransferWhereInput = {
   fromAccountId?: Prisma.IntFilter<"TreasuryTransfer"> | number
   toAccountId?: Prisma.IntFilter<"TreasuryTransfer"> | number
   amount?: Prisma.FloatFilter<"TreasuryTransfer"> | number
+  paymentMethod?: Prisma.StringFilter<"TreasuryTransfer"> | string
   motif?: Prisma.StringFilter<"TreasuryTransfer"> | string
   notes?: Prisma.StringNullableFilter<"TreasuryTransfer"> | string | null
   date?: Prisma.DateTimeFilter<"TreasuryTransfer"> | Date | string
   sessionId?: Prisma.IntNullableFilter<"TreasuryTransfer"> | number | null
+  editHistory?: Prisma.StringNullableFilter<"TreasuryTransfer"> | string | null
   createdAt?: Prisma.DateTimeFilter<"TreasuryTransfer"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"TreasuryTransfer"> | Date | string
   fromAccount?: Prisma.XOR<Prisma.TreasuryAccountScalarRelationFilter, Prisma.TreasuryAccountWhereInput>
@@ -291,10 +307,12 @@ export type TreasuryTransferOrderByWithRelationInput = {
   fromAccountId?: Prisma.SortOrder
   toAccountId?: Prisma.SortOrder
   amount?: Prisma.SortOrder
+  paymentMethod?: Prisma.SortOrder
   motif?: Prisma.SortOrder
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   date?: Prisma.SortOrder
   sessionId?: Prisma.SortOrderInput | Prisma.SortOrder
+  editHistory?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   fromAccount?: Prisma.TreasuryAccountOrderByWithRelationInput
@@ -311,10 +329,12 @@ export type TreasuryTransferWhereUniqueInput = Prisma.AtLeast<{
   fromAccountId?: Prisma.IntFilter<"TreasuryTransfer"> | number
   toAccountId?: Prisma.IntFilter<"TreasuryTransfer"> | number
   amount?: Prisma.FloatFilter<"TreasuryTransfer"> | number
+  paymentMethod?: Prisma.StringFilter<"TreasuryTransfer"> | string
   motif?: Prisma.StringFilter<"TreasuryTransfer"> | string
   notes?: Prisma.StringNullableFilter<"TreasuryTransfer"> | string | null
   date?: Prisma.DateTimeFilter<"TreasuryTransfer"> | Date | string
   sessionId?: Prisma.IntNullableFilter<"TreasuryTransfer"> | number | null
+  editHistory?: Prisma.StringNullableFilter<"TreasuryTransfer"> | string | null
   createdAt?: Prisma.DateTimeFilter<"TreasuryTransfer"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"TreasuryTransfer"> | Date | string
   fromAccount?: Prisma.XOR<Prisma.TreasuryAccountScalarRelationFilter, Prisma.TreasuryAccountWhereInput>
@@ -328,10 +348,12 @@ export type TreasuryTransferOrderByWithAggregationInput = {
   fromAccountId?: Prisma.SortOrder
   toAccountId?: Prisma.SortOrder
   amount?: Prisma.SortOrder
+  paymentMethod?: Prisma.SortOrder
   motif?: Prisma.SortOrder
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   date?: Prisma.SortOrder
   sessionId?: Prisma.SortOrderInput | Prisma.SortOrder
+  editHistory?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.TreasuryTransferCountOrderByAggregateInput
@@ -350,10 +372,12 @@ export type TreasuryTransferScalarWhereWithAggregatesInput = {
   fromAccountId?: Prisma.IntWithAggregatesFilter<"TreasuryTransfer"> | number
   toAccountId?: Prisma.IntWithAggregatesFilter<"TreasuryTransfer"> | number
   amount?: Prisma.FloatWithAggregatesFilter<"TreasuryTransfer"> | number
+  paymentMethod?: Prisma.StringWithAggregatesFilter<"TreasuryTransfer"> | string
   motif?: Prisma.StringWithAggregatesFilter<"TreasuryTransfer"> | string
   notes?: Prisma.StringNullableWithAggregatesFilter<"TreasuryTransfer"> | string | null
   date?: Prisma.DateTimeWithAggregatesFilter<"TreasuryTransfer"> | Date | string
   sessionId?: Prisma.IntNullableWithAggregatesFilter<"TreasuryTransfer"> | number | null
+  editHistory?: Prisma.StringNullableWithAggregatesFilter<"TreasuryTransfer"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"TreasuryTransfer"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"TreasuryTransfer"> | Date | string
 }
@@ -361,9 +385,11 @@ export type TreasuryTransferScalarWhereWithAggregatesInput = {
 export type TreasuryTransferCreateInput = {
   reference: string
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   fromAccount: Prisma.TreasuryAccountCreateNestedOneWithoutTransfersFromInput
@@ -377,10 +403,12 @@ export type TreasuryTransferUncheckedCreateInput = {
   fromAccountId: number
   toAccountId: number
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
   sessionId?: number | null
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -388,9 +416,11 @@ export type TreasuryTransferUncheckedCreateInput = {
 export type TreasuryTransferUpdateInput = {
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   fromAccount?: Prisma.TreasuryAccountUpdateOneRequiredWithoutTransfersFromNestedInput
@@ -404,10 +434,12 @@ export type TreasuryTransferUncheckedUpdateInput = {
   fromAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   toAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -418,10 +450,12 @@ export type TreasuryTransferCreateManyInput = {
   fromAccountId: number
   toAccountId: number
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
   sessionId?: number | null
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -429,9 +463,11 @@ export type TreasuryTransferCreateManyInput = {
 export type TreasuryTransferUpdateManyMutationInput = {
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -442,10 +478,12 @@ export type TreasuryTransferUncheckedUpdateManyInput = {
   fromAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   toAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -466,10 +504,12 @@ export type TreasuryTransferCountOrderByAggregateInput = {
   fromAccountId?: Prisma.SortOrder
   toAccountId?: Prisma.SortOrder
   amount?: Prisma.SortOrder
+  paymentMethod?: Prisma.SortOrder
   motif?: Prisma.SortOrder
   notes?: Prisma.SortOrder
   date?: Prisma.SortOrder
   sessionId?: Prisma.SortOrder
+  editHistory?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -488,10 +528,12 @@ export type TreasuryTransferMaxOrderByAggregateInput = {
   fromAccountId?: Prisma.SortOrder
   toAccountId?: Prisma.SortOrder
   amount?: Prisma.SortOrder
+  paymentMethod?: Prisma.SortOrder
   motif?: Prisma.SortOrder
   notes?: Prisma.SortOrder
   date?: Prisma.SortOrder
   sessionId?: Prisma.SortOrder
+  editHistory?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -502,10 +544,12 @@ export type TreasuryTransferMinOrderByAggregateInput = {
   fromAccountId?: Prisma.SortOrder
   toAccountId?: Prisma.SortOrder
   amount?: Prisma.SortOrder
+  paymentMethod?: Prisma.SortOrder
   motif?: Prisma.SortOrder
   notes?: Prisma.SortOrder
   date?: Prisma.SortOrder
   sessionId?: Prisma.SortOrder
+  editHistory?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -647,9 +691,11 @@ export type TreasuryTransferUncheckedUpdateManyWithoutToAccountNestedInput = {
 export type TreasuryTransferCreateWithoutSessionInput = {
   reference: string
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   fromAccount: Prisma.TreasuryAccountCreateNestedOneWithoutTransfersFromInput
@@ -662,9 +708,11 @@ export type TreasuryTransferUncheckedCreateWithoutSessionInput = {
   fromAccountId: number
   toAccountId: number
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -703,10 +751,12 @@ export type TreasuryTransferScalarWhereInput = {
   fromAccountId?: Prisma.IntFilter<"TreasuryTransfer"> | number
   toAccountId?: Prisma.IntFilter<"TreasuryTransfer"> | number
   amount?: Prisma.FloatFilter<"TreasuryTransfer"> | number
+  paymentMethod?: Prisma.StringFilter<"TreasuryTransfer"> | string
   motif?: Prisma.StringFilter<"TreasuryTransfer"> | string
   notes?: Prisma.StringNullableFilter<"TreasuryTransfer"> | string | null
   date?: Prisma.DateTimeFilter<"TreasuryTransfer"> | Date | string
   sessionId?: Prisma.IntNullableFilter<"TreasuryTransfer"> | number | null
+  editHistory?: Prisma.StringNullableFilter<"TreasuryTransfer"> | string | null
   createdAt?: Prisma.DateTimeFilter<"TreasuryTransfer"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"TreasuryTransfer"> | Date | string
 }
@@ -714,9 +764,11 @@ export type TreasuryTransferScalarWhereInput = {
 export type TreasuryTransferCreateWithoutFromAccountInput = {
   reference: string
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   toAccount: Prisma.TreasuryAccountCreateNestedOneWithoutTransfersToInput
@@ -728,10 +780,12 @@ export type TreasuryTransferUncheckedCreateWithoutFromAccountInput = {
   reference: string
   toAccountId: number
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
   sessionId?: number | null
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -748,9 +802,11 @@ export type TreasuryTransferCreateManyFromAccountInputEnvelope = {
 export type TreasuryTransferCreateWithoutToAccountInput = {
   reference: string
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   fromAccount: Prisma.TreasuryAccountCreateNestedOneWithoutTransfersFromInput
@@ -762,10 +818,12 @@ export type TreasuryTransferUncheckedCreateWithoutToAccountInput = {
   reference: string
   fromAccountId: number
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
   sessionId?: number | null
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -817,9 +875,11 @@ export type TreasuryTransferCreateManySessionInput = {
   fromAccountId: number
   toAccountId: number
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -827,9 +887,11 @@ export type TreasuryTransferCreateManySessionInput = {
 export type TreasuryTransferUpdateWithoutSessionInput = {
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   fromAccount?: Prisma.TreasuryAccountUpdateOneRequiredWithoutTransfersFromNestedInput
@@ -842,9 +904,11 @@ export type TreasuryTransferUncheckedUpdateWithoutSessionInput = {
   fromAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   toAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -855,9 +919,11 @@ export type TreasuryTransferUncheckedUpdateManyWithoutSessionInput = {
   fromAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   toAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -867,10 +933,12 @@ export type TreasuryTransferCreateManyFromAccountInput = {
   reference: string
   toAccountId: number
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
   sessionId?: number | null
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -880,10 +948,12 @@ export type TreasuryTransferCreateManyToAccountInput = {
   reference: string
   fromAccountId: number
   amount: number
+  paymentMethod?: string
   motif: string
   notes?: string | null
   date?: Date | string
   sessionId?: number | null
+  editHistory?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -891,9 +961,11 @@ export type TreasuryTransferCreateManyToAccountInput = {
 export type TreasuryTransferUpdateWithoutFromAccountInput = {
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   toAccount?: Prisma.TreasuryAccountUpdateOneRequiredWithoutTransfersToNestedInput
@@ -905,10 +977,12 @@ export type TreasuryTransferUncheckedUpdateWithoutFromAccountInput = {
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   toAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -918,10 +992,12 @@ export type TreasuryTransferUncheckedUpdateManyWithoutFromAccountInput = {
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   toAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -929,9 +1005,11 @@ export type TreasuryTransferUncheckedUpdateManyWithoutFromAccountInput = {
 export type TreasuryTransferUpdateWithoutToAccountInput = {
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   fromAccount?: Prisma.TreasuryAccountUpdateOneRequiredWithoutTransfersFromNestedInput
@@ -943,10 +1021,12 @@ export type TreasuryTransferUncheckedUpdateWithoutToAccountInput = {
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   fromAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -956,10 +1036,12 @@ export type TreasuryTransferUncheckedUpdateManyWithoutToAccountInput = {
   reference?: Prisma.StringFieldUpdateOperationsInput | string
   fromAccountId?: Prisma.IntFieldUpdateOperationsInput | number
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
   motif?: Prisma.StringFieldUpdateOperationsInput | string
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  editHistory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -972,10 +1054,12 @@ export type TreasuryTransferSelect<ExtArgs extends runtime.Types.Extensions.Inte
   fromAccountId?: boolean
   toAccountId?: boolean
   amount?: boolean
+  paymentMethod?: boolean
   motif?: boolean
   notes?: boolean
   date?: boolean
   sessionId?: boolean
+  editHistory?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   fromAccount?: boolean | Prisma.TreasuryAccountDefaultArgs<ExtArgs>
@@ -989,10 +1073,12 @@ export type TreasuryTransferSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
   fromAccountId?: boolean
   toAccountId?: boolean
   amount?: boolean
+  paymentMethod?: boolean
   motif?: boolean
   notes?: boolean
   date?: boolean
   sessionId?: boolean
+  editHistory?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   fromAccount?: boolean | Prisma.TreasuryAccountDefaultArgs<ExtArgs>
@@ -1006,10 +1092,12 @@ export type TreasuryTransferSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
   fromAccountId?: boolean
   toAccountId?: boolean
   amount?: boolean
+  paymentMethod?: boolean
   motif?: boolean
   notes?: boolean
   date?: boolean
   sessionId?: boolean
+  editHistory?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   fromAccount?: boolean | Prisma.TreasuryAccountDefaultArgs<ExtArgs>
@@ -1023,15 +1111,17 @@ export type TreasuryTransferSelectScalar = {
   fromAccountId?: boolean
   toAccountId?: boolean
   amount?: boolean
+  paymentMethod?: boolean
   motif?: boolean
   notes?: boolean
   date?: boolean
   sessionId?: boolean
+  editHistory?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type TreasuryTransferOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "fromAccountId" | "toAccountId" | "amount" | "motif" | "notes" | "date" | "sessionId" | "createdAt" | "updatedAt", ExtArgs["result"]["treasuryTransfer"]>
+export type TreasuryTransferOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "fromAccountId" | "toAccountId" | "amount" | "paymentMethod" | "motif" | "notes" | "date" | "sessionId" | "editHistory" | "createdAt" | "updatedAt", ExtArgs["result"]["treasuryTransfer"]>
 export type TreasuryTransferInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   fromAccount?: boolean | Prisma.TreasuryAccountDefaultArgs<ExtArgs>
   toAccount?: boolean | Prisma.TreasuryAccountDefaultArgs<ExtArgs>
@@ -1061,10 +1151,12 @@ export type $TreasuryTransferPayload<ExtArgs extends runtime.Types.Extensions.In
     fromAccountId: number
     toAccountId: number
     amount: number
+    paymentMethod: string
     motif: string
     notes: string | null
     date: Date
     sessionId: number | null
+    editHistory: string | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["treasuryTransfer"]>
@@ -1498,10 +1590,12 @@ export interface TreasuryTransferFieldRefs {
   readonly fromAccountId: Prisma.FieldRef<"TreasuryTransfer", 'Int'>
   readonly toAccountId: Prisma.FieldRef<"TreasuryTransfer", 'Int'>
   readonly amount: Prisma.FieldRef<"TreasuryTransfer", 'Float'>
+  readonly paymentMethod: Prisma.FieldRef<"TreasuryTransfer", 'String'>
   readonly motif: Prisma.FieldRef<"TreasuryTransfer", 'String'>
   readonly notes: Prisma.FieldRef<"TreasuryTransfer", 'String'>
   readonly date: Prisma.FieldRef<"TreasuryTransfer", 'DateTime'>
   readonly sessionId: Prisma.FieldRef<"TreasuryTransfer", 'Int'>
+  readonly editHistory: Prisma.FieldRef<"TreasuryTransfer", 'String'>
   readonly createdAt: Prisma.FieldRef<"TreasuryTransfer", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"TreasuryTransfer", 'DateTime'>
 }

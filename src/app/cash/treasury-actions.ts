@@ -31,11 +31,13 @@ export interface TreasuryTransferData {
   toAccountName: string;
   toAccountCode: string;
   amount: number;
+  paymentMethod: string;
   motif: string;
   notes: string | null;
   date: string;
   sessionId: number | null;
   sessionRef?: string | null;
+  editHistory?: string | null;
   createdAt: string;
 }
 
@@ -138,7 +140,150 @@ export async function calculateAccountBalance(
   });
   if (!account) return 0;
 
-  // 1. Solde initial
+  // Pour le compte de caisse journalière physique (type "cash" ou isDefault),
+  // le solde réel dépend de la session active ou de la dernière clôture enregistrée.
+  if (account.isDefault || account.type === "cash") {
+    const activeSession = await db.cashSession.findFirst({
+      where: { status: "open" },
+      orderBy: { openedAt: "desc" },
+    });
+    const latestClosedSession = await db.cashSession.findFirst({
+      where: { status: "closed" },
+      orderBy: { closedAt: "desc" },
+    });
+
+    if (activeSession) {
+      const sessionStart = activeSession.openedAt;
+      let bal = activeSession.openingAmount;
+
+      const [trIn, trOut, payIn, advIn, incIn, suppOut, expOut] = await Promise.all([
+        db.treasuryTransfer.aggregate({
+          where: { toAccountId: accountId, date: { gte: sessionStart } },
+          _sum: { amount: true },
+        }),
+        db.treasuryTransfer.aggregate({
+          where: { fromAccountId: accountId, date: { gte: sessionStart } },
+          _sum: { amount: true },
+        }),
+        db.payment.aggregate({
+          where: {
+            status: { not: "cancelled" },
+            purchaseId: null,
+            supplierId: null,
+            paymentDate: { gte: sessionStart },
+            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+          },
+          _sum: { amount: true },
+        }),
+        db.customerAdvance.aggregate({
+          where: {
+            status: { not: "cancelled" },
+            paymentDate: { gte: sessionStart },
+            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+          },
+          _sum: { amount: true },
+        }),
+        db.expense.aggregate({
+          where: {
+            type: "income",
+            date: { gte: sessionStart },
+            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+          },
+          _sum: { amount: true },
+        }),
+        db.payment.aggregate({
+          where: {
+            status: { not: "cancelled" },
+            paymentDate: { gte: sessionStart },
+            AND: [
+              { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
+              { OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] },
+            ],
+          },
+          _sum: { amount: true },
+        }),
+        db.expense.aggregate({
+          where: {
+            type: "expense",
+            date: { gte: sessionStart },
+            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+          },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      bal += (trIn._sum.amount ?? 0) - (trOut._sum.amount ?? 0);
+      bal += (payIn._sum.amount ?? 0) + (advIn._sum.amount ?? 0) + (incIn._sum.amount ?? 0);
+      bal -= (suppOut._sum.amount ?? 0) + (expOut._sum.amount ?? 0);
+      return Math.round(bal * 100) / 100;
+    } else if (latestClosedSession && latestClosedSession.closedAt) {
+      let bal = latestClosedSession.retainedAmount ?? latestClosedSession.closingAmount ?? 0;
+      const closedAt = latestClosedSession.closedAt;
+
+      const [trIn, trOut, payIn, advIn, incIn, suppOut, expOut] = await Promise.all([
+        db.treasuryTransfer.aggregate({
+          where: { toAccountId: accountId, date: { gt: closedAt } },
+          _sum: { amount: true },
+        }),
+        db.treasuryTransfer.aggregate({
+          where: { fromAccountId: accountId, date: { gt: closedAt } },
+          _sum: { amount: true },
+        }),
+        db.payment.aggregate({
+          where: {
+            status: { not: "cancelled" },
+            purchaseId: null,
+            supplierId: null,
+            paymentDate: { gt: closedAt },
+            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+          },
+          _sum: { amount: true },
+        }),
+        db.customerAdvance.aggregate({
+          where: {
+            status: { not: "cancelled" },
+            paymentDate: { gt: closedAt },
+            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+          },
+          _sum: { amount: true },
+        }),
+        db.expense.aggregate({
+          where: {
+            type: "income",
+            date: { gt: closedAt },
+            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+          },
+          _sum: { amount: true },
+        }),
+        db.payment.aggregate({
+          where: {
+            status: { not: "cancelled" },
+            paymentDate: { gt: closedAt },
+            AND: [
+              { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
+              { OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] },
+            ],
+          },
+          _sum: { amount: true },
+        }),
+        db.expense.aggregate({
+          where: {
+            type: "expense",
+            date: { gt: closedAt },
+            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+          },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      bal += (trIn._sum.amount ?? 0) - (trOut._sum.amount ?? 0);
+      bal += (payIn._sum.amount ?? 0) + (advIn._sum.amount ?? 0) + (incIn._sum.amount ?? 0);
+      bal -= (suppOut._sum.amount ?? 0) + (expOut._sum.amount ?? 0);
+      return Math.round(bal * 100) / 100;
+    }
+  }
+
+  // 1. Solde initial standard
   let balance = account.openingBalance;
 
   // 2. Transferts reçus (entrées)
@@ -305,11 +450,13 @@ export async function getTreasuryDashboardData(): Promise<TreasuryDashboardSumma
     toAccountName: t.toAccount.name,
     toAccountCode: t.toAccount.code,
     amount: t.amount,
+    paymentMethod: t.paymentMethod || "cash",
     motif: t.motif,
     notes: t.notes,
     date: t.date.toISOString(),
     sessionId: t.sessionId,
     sessionRef: t.session?.reference ?? null,
+    editHistory: t.editHistory ?? null,
     createdAt: t.createdAt.toISOString(),
   }));
 
@@ -458,6 +605,7 @@ export async function createTreasuryTransferAction(payload: {
   sourceAccountId?: number;
   destinationAccountId?: number;
   amount: number;
+  paymentMethod?: string;
   motif: string;
   notes?: string;
   date?: string;
@@ -468,7 +616,8 @@ export async function createTreasuryTransferAction(payload: {
     const fromAccountId = Number(payload.fromAccountId ?? payload.sourceAccountId);
     const toAccountId = Number(payload.toAccountId ?? payload.destinationAccountId);
     const amount = Number(payload.amount);
-    const motif = payload.motif?.trim();
+    const paymentMethod = payload.paymentMethod || "cash";
+    const motif = (payload.motif || (payload as any).observation || payload.notes)?.trim();
     const notes = payload.notes?.trim() || null;
     const date = payload.date ? new Date(payload.date) : new Date();
 
@@ -533,6 +682,7 @@ export async function createTreasuryTransferAction(payload: {
           fromAccountId,
           toAccountId,
           amount,
+          paymentMethod,
           motif,
           notes,
           date,
@@ -560,6 +710,247 @@ export async function createTreasuryTransferAction(payload: {
     console.error("Erreur transfert trésorerie:", err);
     const msg = err instanceof Error ? err.message : "Erreur lors de l'exécution du transfert de trésorerie.";
     return { success: false, error: msg };
+  }
+}
+
+// ─── MODIFICATION SÉCURISÉE D'UN TRANSFERT (INVERSION & AUDIT TRAIL) ─────────
+
+export async function updateTreasuryTransferAction(payload: {
+  transferId: number;
+  amount: number;
+  fromAccountId?: number;
+  toAccountId?: number;
+  paymentMethod?: string;
+  motif?: string;
+  observation?: string;
+  notes?: string;
+  date?: string;
+  editReason: string;
+}) {
+  try {
+    const transferId = Number(payload.transferId);
+    const amount = Number(payload.amount);
+    const editReason = payload.editReason?.trim();
+
+    if (!editReason || editReason.length < 3) {
+      return {
+        success: false,
+        error: "Le motif / justification de la modification est obligatoire pour l'audit comptable.",
+      };
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+      return {
+        success: false,
+        error: "Le montant du transfert doit être un nombre strictement positif en DA.",
+      };
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const existing = await tx.treasuryTransfer.findUnique({
+        where: { id: transferId },
+        include: { fromAccount: true, toAccount: true },
+      });
+      if (!existing) {
+        throw new Error("Transfert de trésorerie introuvable.");
+      }
+
+      const fromAccountId = payload.fromAccountId ? Number(payload.fromAccountId) : existing.fromAccountId;
+      const toAccountId = payload.toAccountId ? Number(payload.toAccountId) : existing.toAccountId;
+      const paymentMethod = payload.paymentMethod || existing.paymentMethod || "cash";
+      const motif = (payload.motif || payload.observation || existing.motif)?.trim();
+      const notes = payload.notes !== undefined ? (payload.notes?.trim() || null) : existing.notes;
+      const date = payload.date ? new Date(payload.date) : existing.date;
+
+      if (fromAccountId === toAccountId) {
+        throw new Error("Le compte source et le compte destination doivent être distincts.");
+      }
+
+      if (!motif || motif.length < 3) {
+        throw new Error("Le motif du transfert est obligatoire (au moins 3 caractères).");
+      }
+
+      // Inversion conceptuelle : si même compte source, on rajoute l'ancien montant pour tester le solde
+      const currentBalance = await calculateAccountBalance(fromAccountId, tx);
+      const effectiveAvailable =
+        fromAccountId === existing.fromAccountId
+          ? currentBalance + existing.amount
+          : currentBalance;
+
+      if (effectiveAvailable < amount) {
+        throw new Error(
+          `Solde insuffisant sur le compte source sélectionné. Solde disponible corrigé : ${effectiveAvailable.toLocaleString(
+            "fr-DZ"
+          )} DA, montant demandé : ${amount.toLocaleString("fr-DZ")} DA.`
+        );
+      }
+
+      // Construction de l'audit trail
+      const auditEntry = {
+        editedAt: new Date().toISOString(),
+        reason: editReason,
+        previous: {
+          fromAccountId: existing.fromAccountId,
+          fromAccountName: existing.fromAccount.name,
+          toAccountId: existing.toAccountId,
+          toAccountName: existing.toAccount.name,
+          amount: existing.amount,
+          motif: existing.motif,
+          paymentMethod: existing.paymentMethod,
+          date: existing.date.toISOString(),
+        },
+        new: {
+          fromAccountId,
+          toAccountId,
+          amount,
+          motif,
+          paymentMethod,
+          date: date.toISOString(),
+        },
+      };
+
+      let historyArray: unknown[] = [];
+      if (existing.editHistory) {
+        try {
+          historyArray = JSON.parse(existing.editHistory);
+        } catch {
+          historyArray = [];
+        }
+      }
+      historyArray.push(auditEntry);
+
+      const res = await tx.treasuryTransfer.update({
+        where: { id: transferId },
+        data: {
+          fromAccountId,
+          toAccountId,
+          amount,
+          paymentMethod,
+          motif,
+          notes,
+          date,
+          editHistory: JSON.stringify(historyArray),
+        },
+        include: {
+          fromAccount: { select: { id: true, name: true, code: true } },
+          toAccount: { select: { id: true, name: true, code: true } },
+        },
+      });
+
+      return res;
+    });
+
+    safeRevalidate();
+
+    return {
+      success: true,
+      message: `Transfert ${updated.reference} mis à jour avec succès (Audit tracé).`,
+      data: updated,
+    };
+  } catch (err: unknown) {
+    console.error("Erreur modification transfert trésorerie:", err);
+    const msg = err instanceof Error ? err.message : "Erreur lors de la modification du transfert.";
+    return { success: false, error: msg };
+  }
+}
+
+// ─── AJUSTEMENT TRACÉ DU SOLDE D'UN COMPTE (AUDITABLE) ───────────────────────
+
+export async function adjustAccountBalanceAction(payload: {
+  accountId: number;
+  adjustmentType: "increase" | "decrease";
+  amount: number;
+  date?: string;
+  reason: string;
+  notes?: string;
+}) {
+  try {
+    const accountId = Number(payload.accountId);
+    const amount = Number(payload.amount);
+    const adjustmentType = payload.adjustmentType;
+    const reason = payload.reason?.trim();
+    const notes = payload.notes?.trim() || null;
+    const date = payload.date ? new Date(payload.date) : new Date();
+
+    if (!reason || reason.length < 3) {
+      return {
+        success: false,
+        error: "Le motif / justification explicite de l'ajustement est obligatoire pour l'audit.",
+      };
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+      return {
+        success: false,
+        error: "Le montant de l'ajustement doit être un nombre strictement supérieur à 0 DA.",
+      };
+    }
+
+    const account = await prisma.treasuryAccount.findUnique({
+      where: { id: accountId },
+    });
+    if (!account) {
+      return { success: false, error: "Compte de trésorerie introuvable." };
+    }
+
+    const currentBalance = await calculateAccountBalance(accountId);
+
+    if (adjustmentType === "decrease" && currentBalance < amount) {
+      return {
+        success: false,
+        error: `Impossible d'ajuster à la baisse : le compte "${account.name}" ne dispose que de ${currentBalance.toLocaleString("fr-DZ")} DA.`,
+      };
+    }
+
+    const now = new Date();
+    const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const prefix = `AJT-${yearMonth}-`;
+
+    const last = await prisma.expense.findFirst({
+      where: { reference: { startsWith: prefix } },
+      orderBy: { reference: "desc" },
+      select: { reference: true },
+    });
+
+    let nextSeq = 1;
+    if (last?.reference) {
+      const parts = last.reference.split("-");
+      const lastSeq = parseInt(parts[2], 10);
+      if (!isNaN(lastSeq)) nextSeq = lastSeq + 1;
+    }
+    const reference = `${prefix}${String(nextSeq).padStart(4, "0")}`;
+
+    await prisma.expense.create({
+      data: {
+        reference,
+        accountId,
+        type: adjustmentType === "increase" ? "income" : "expense",
+        category: "capital",
+        description: `Ajustement de solde (${adjustmentType === "increase" ? "+" : "-"}) : ${reason}`,
+        amount,
+        method: "adjustment",
+        beneficiary: "Audit interne",
+        notes: notes ? `Ajustement tracé. ${notes}` : "Ajustement tracé avec journal d'audit.",
+        date,
+      },
+    });
+
+    safeRevalidate();
+
+    const newBalance = await calculateAccountBalance(accountId);
+
+    return {
+      success: true,
+      message: `Ajustement tracé (${reference}) enregistré. Nouveau solde de "${account.name}" : ${newBalance.toLocaleString(
+        "fr-DZ"
+      )} DA.`,
+    };
+  } catch (err: unknown) {
+    console.error("Erreur ajustement compte trésorerie:", err);
+    return {
+      success: false,
+      error: "Erreur lors de l'enregistrement de l'ajustement de solde.",
+    };
   }
 }
 
@@ -759,7 +1150,50 @@ export async function getAccountMovements(
     });
   }
 
-  // Tri chronologique croissant pour calculer la running balance
+  // Pour le compte de caisse journalière (type "cash" ou isDefault),
+  // si aucune date de début spécifique n'est demandée et qu'une session clôturée existe,
+  // le relevé part du montant arrêté lors de la dernière clôture.
+  if ((account.isDefault || account.type === "cash") && !filters?.startDate) {
+    const latestClosed = await prisma.cashSession.findFirst({
+      where: { status: "closed" },
+      orderBy: { closedAt: "desc" },
+    });
+    if (latestClosed && latestClosed.closedAt) {
+      const closedAtTime = new Date(latestClosed.closedAt).getTime();
+      const recentMovements = movements.filter((m) => new Date(m.date).getTime() > closedAtTime);
+      recentMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      let run = latestClosed.retainedAmount ?? latestClosed.closingAmount ?? 0;
+      for (const m of recentMovements) {
+        run = run + m.inflow - m.outflow;
+        m.runningBalance = Math.round(run * 100) / 100;
+      }
+      recentMovements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const currentBal = await calculateAccountBalance(accountId);
+      return {
+        account: {
+          id: account.id,
+          code: account.code,
+          name: account.name,
+          type: account.type as "cash" | "safe" | "bank" | "other",
+          openingBalance: account.openingBalance,
+          openingDate: account.openingDate.toISOString(),
+          currentBalance: currentBal,
+          isDefault: account.isDefault,
+          isActive: account.isActive,
+          notes: account.notes,
+          transfersInCount: transfersIn.length,
+          transfersOutCount: transfersOut.length,
+          totalTransfersIn: transfersIn.reduce((s, t) => s + t.amount, 0),
+          totalTransfersOut: transfersOut.reduce((s, t) => s + t.amount, 0),
+        },
+        movements: recentMovements,
+        openingBalance: latestClosed.retainedAmount ?? latestClosed.closingAmount ?? 0,
+        finalBalance: currentBal,
+      };
+    }
+  }
+
+  // Tri chronologique croissant pour calculer la running balance standard
   movements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   let running = account.openingBalance;

@@ -9,14 +9,84 @@ import {
   FileText,
   BarChart3,
   Settings,
+  CreditCard,
+  LineChart,
+  ArrowUpRight,
+  Receipt,
+  Landmark,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ArrowLeftRight,
+  Coins,
+  Lock,
 } from "lucide-react";
+
+export interface SubNavItem {
+  label: string;
+  href: string;
+  icon?: React.ComponentType<{ className?: string }>;
+}
 
 export interface NavItem {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   description?: string;
+  subItems?: SubNavItem[];
 }
+
+export const treasurySubItems: SubNavItem[] = [
+  {
+    label: "Paiements Clients",
+    href: "/cash/customer-payments",
+    icon: CreditCard,
+  },
+  {
+    label: "Situation financière globale",
+    href: "/cash",
+    icon: LineChart,
+  },
+  {
+    label: "Paiement Fournisseurs",
+    href: "/cash/supplier-payments",
+    icon: ArrowUpRight,
+  },
+  {
+    label: "Charges",
+    href: "/cash/expenses",
+    icon: Receipt,
+  },
+  {
+    label: "Compte",
+    href: "/cash/accounts",
+    icon: Landmark,
+  },
+  {
+    label: "Apport",
+    href: "/cash/deposits",
+    icon: ArrowDownToLine,
+  },
+  {
+    label: "Retrait",
+    href: "/cash/withdrawals",
+    icon: ArrowUpFromLine,
+  },
+  {
+    label: "Mouvement",
+    href: "/cash/transfers",
+    icon: ArrowLeftRight,
+  },
+  {
+    label: "Acompte",
+    href: "/cash/advances",
+    icon: Coins,
+  },
+  {
+    label: "Clôture Caisse",
+    href: "/cash/closing",
+    icon: Lock,
+  },
+];
 
 export const navItems: NavItem[] = [
   {
@@ -56,10 +126,11 @@ export const navItems: NavItem[] = [
     description: "Comptes fournisseurs, dettes initiales et règlements",
   },
   {
-    label: "Caisse & Trésorerie",
+    label: "Trésorerie",
     href: "/cash",
     icon: Wallet,
-    description: "Multi-comptes, coffre, virements et charges",
+    description: "Comptes, mouvements, règlements, charges et clôture",
+    subItems: treasurySubItems,
   },
   {
     label: "Documents",

@@ -11,6 +11,8 @@ import {
   createTreasuryAccountAction,
   updateTreasuryAccountAction,
   createTreasuryTransferAction,
+  updateTreasuryTransferAction,
+  adjustAccountBalanceAction,
   getAccountMovements,
   type TreasuryAccountData,
   type TreasuryTransferData,
@@ -26,6 +28,8 @@ export {
   createTreasuryAccountAction,
   updateTreasuryAccountAction,
   createTreasuryTransferAction,
+  updateTreasuryTransferAction,
+  adjustAccountBalanceAction,
   getAccountMovements,
   type TreasuryAccountData,
   type TreasuryTransferData,
@@ -271,13 +275,13 @@ export async function closeCashSessionAction(
   try {
     const isObj = typeof payload === "object" && payload !== null;
     const sessionId = isObj ? Number(payload.sessionId) : Number(payload);
-    const closingAmount = isObj ? Number(payload.closingAmount) : Number(closingAmountArg);
-    const closingNotes = isObj ? payload.closingNotes : closingNotesArg;
+    const closingAmount = isObj ? Number(payload.closingAmount ?? (payload as any).countedAmount) : Number(closingAmountArg);
+    const closingNotes = isObj ? (payload.closingNotes ?? (payload as any).notes) : closingNotesArg;
     const transferAmount = isObj
       ? (payload.transferAmount !== undefined ? Number(payload.transferAmount) : 0)
       : (transferAmountArg !== undefined ? Number(transferAmountArg) : 0);
     const transferDestinationAccountId = isObj
-      ? payload.transferDestinationAccountId
+      ? (payload.transferDestinationAccountId ?? (payload as any).destinationAccountId)
       : transferDestinationAccountIdArg;
     const transferNotes = isObj ? payload.transferNotes : transferNotesArg;
 
@@ -400,6 +404,10 @@ export async function closeCashSessionAction(
           theoreticalAmount,
           closingAmount,
           difference,
+          originalClosingAmount: closingAmount,
+          originalTheoreticalAmount: theoreticalAmount,
+          originalDifference: difference,
+          retainedAmount: Math.max(0, closingAmount - transferAmount),
           closingNotes: closingNotes?.trim() || null,
         },
       });
@@ -508,6 +516,182 @@ export async function closeCashSessionAction(
     return {
       success: false,
       error: msg,
+    };
+  }
+}
+
+// ─── CORRECTION TEMPORAIRE D'UNE SESSION CLÔTURÉE (AUDIT TRAIL & RÉCONCILIATION) ─
+
+export async function editClosedCashSessionAction(payload: {
+  sessionId: number;
+  newClosingAmount: number;
+  newTransferAmount?: number;
+  newTransferDestinationAccountId?: number;
+  newClosingNotes?: string;
+  reason: string;
+}): Promise<CashActionResponse> {
+  try {
+    const sessionId = Number(payload.sessionId);
+    const newClosingAmount = Number(payload.newClosingAmount);
+    const newTransferAmount = payload.newTransferAmount !== undefined ? Number(payload.newTransferAmount) : 0;
+    const newTransferDestinationAccountId = payload.newTransferDestinationAccountId;
+    const reason = payload.reason?.trim();
+    const newClosingNotes = payload.newClosingNotes?.trim() || null;
+
+    if (!reason || reason.length < 3) {
+      return {
+        success: false,
+        error: "Le motif / justification explicite de la correction de clôture est obligatoire pour l'audit comptable.",
+      };
+    }
+
+    if (isNaN(newClosingAmount) || newClosingAmount < 0) {
+      return {
+        success: false,
+        error: "Le montant physique compté corrigé doit être un nombre positif ou nul en DA.",
+      };
+    }
+
+    if (newTransferAmount > newClosingAmount) {
+      return {
+        success: false,
+        error: `Le montant à transférer (${newTransferAmount.toLocaleString(
+          "fr-DZ"
+        )} DA) ne peut dépasser le montant physique compté (${newClosingAmount.toLocaleString("fr-DZ")} DA).`,
+      };
+    }
+
+    const session = await prisma.cashSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        transfers: true,
+      },
+    });
+
+    if (!session) {
+      return { success: false, error: "Session de caisse introuvable." };
+    }
+
+    if (session.status !== "closed") {
+      return {
+        success: false,
+        error: "Seule une session clôturée peut faire l'objet d'une correction de clôture.",
+      };
+    }
+
+    const origClosing = session.originalClosingAmount ?? session.closingAmount ?? 0;
+    const origTheoretical = session.originalTheoreticalAmount ?? session.theoreticalAmount ?? 0;
+    const origDiff = session.originalDifference ?? session.difference ?? 0;
+
+    const theoreticalAmount = session.theoreticalAmount ?? 0;
+    const newDifference = newClosingAmount - theoreticalAmount;
+    const newRetainedAmount = Math.max(0, newClosingAmount - newTransferAmount);
+
+    const now = new Date();
+
+    const auditRecord = {
+      editedAt: now.toISOString(),
+      reason,
+      previous: {
+        closingAmount: session.closingAmount,
+        difference: session.difference,
+        retainedAmount: session.retainedAmount,
+        transfers: session.transfers.map((t) => ({
+          id: t.id,
+          reference: t.reference,
+          amount: t.amount,
+          toAccountId: t.toAccountId,
+        })),
+      },
+      next: {
+        closingAmount: newClosingAmount,
+        difference: newDifference,
+        retainedAmount: newRetainedAmount,
+        transferAmount: newTransferAmount,
+        transferDestinationAccountId: newTransferDestinationAccountId,
+      },
+    };
+
+    let existingAudit: unknown[] = [];
+    if (session.closingEditAudit) {
+      try {
+        existingAudit = JSON.parse(session.closingEditAudit);
+      } catch {
+        existingAudit = [];
+      }
+    }
+    existingAudit.push(auditRecord);
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Mise à jour des valeurs corrigées de la session
+      await tx.cashSession.update({
+        where: { id: sessionId },
+        data: {
+          closingAmount: newClosingAmount,
+          difference: newDifference,
+          retainedAmount: newRetainedAmount,
+          originalClosingAmount: origClosing,
+          originalTheoreticalAmount: origTheoretical,
+          originalDifference: origDiff,
+          closingNotes: newClosingNotes || session.closingNotes,
+          closingEditAudit: JSON.stringify(existingAudit),
+        },
+      });
+
+      // 2. Réconciliation sans doublon avec le virement existant
+      const existingTransfer = session.transfers[0];
+      const targetDestAccountId = newTransferDestinationAccountId || existingTransfer?.toAccountId;
+
+      if (newTransferAmount > 0 && targetDestAccountId) {
+        if (existingTransfer) {
+          await tx.treasuryTransfer.update({
+            where: { id: existingTransfer.id },
+            data: {
+              amount: newTransferAmount,
+              toAccountId: targetDestAccountId,
+              motif: `Correction clôture de caisse ${session.reference} (${reason})`,
+            },
+          });
+        } else {
+          const defaultCashAcc =
+            (await tx.treasuryAccount.findFirst({ where: { isDefault: true } })) ||
+            (await tx.treasuryAccount.findFirst({ where: { type: "cash" } }));
+
+          if (defaultCashAcc) {
+            const trfRef = await generateNextTreasuryTransferReference(tx);
+            await tx.treasuryTransfer.create({
+              data: {
+                reference: trfRef,
+                fromAccountId: defaultCashAcc.id,
+                toAccountId: targetDestAccountId,
+                amount: newTransferAmount,
+                motif: `Transfert correction clôture ${session.reference}`,
+                date: now,
+                sessionId: sessionId,
+              },
+            });
+          }
+        }
+      } else if (newTransferAmount === 0 && existingTransfer) {
+        await tx.treasuryTransfer.delete({
+          where: { id: existingTransfer.id },
+        });
+      }
+    });
+
+    safeRevalidate("/cash");
+
+    return {
+      success: true,
+      message: `Clôture de caisse ${session.reference} corrigée avec succès. Montant physique : ${newClosingAmount.toLocaleString(
+        "fr-DZ"
+      )} DA, Écart recalculé : ${newDifference.toLocaleString("fr-DZ")} DA (audit tracé).`,
+    };
+  } catch (err: unknown) {
+    console.error("Erreur modification clôture caisse:", err);
+    return {
+      success: false,
+      error: "Erreur lors de la modification de la clôture de caisse.",
     };
   }
 }
@@ -734,6 +918,18 @@ export interface CashDashboardData {
     theoreticalAmount?: number | null;
     closingAmount?: number | null;
     difference?: number | null;
+    originalClosingAmount?: number | null;
+    originalTheoreticalAmount?: number | null;
+    originalDifference?: number | null;
+    retainedAmount?: number | null;
+    closingEditAudit?: string | null;
+    transfers?: {
+      id: number;
+      reference: string;
+      amount: number;
+      toAccountId: number;
+      toAccountName: string;
+    }[];
     openingNotes?: string | null;
     closingNotes?: string | null;
   }[];
@@ -797,6 +993,14 @@ export async function getCashDashboardData(filters?: {
   // 1. Récupérer toutes les sessions de caisse
   const sessions = await prisma.cashSession.findMany({
     orderBy: { openedAt: "desc" },
+    include: {
+      transfers: {
+        include: {
+          toAccount: { select: { id: true, name: true, code: true } },
+          fromAccount: { select: { id: true, name: true, code: true } },
+        },
+      },
+    },
   });
 
   const activeRaw = sessions.find((s) => s.status === "open") || null;
@@ -1122,6 +1326,18 @@ export async function getCashDashboardData(filters?: {
       theoreticalAmount: s.theoreticalAmount,
       closingAmount: s.closingAmount,
       difference: s.difference,
+      originalClosingAmount: s.originalClosingAmount,
+      originalTheoreticalAmount: s.originalTheoreticalAmount,
+      originalDifference: s.originalDifference,
+      retainedAmount: s.retainedAmount,
+      closingEditAudit: s.closingEditAudit,
+      transfers: (s.transfers || []).map((t) => ({
+        id: t.id,
+        reference: t.reference,
+        amount: t.amount,
+        toAccountId: t.toAccountId,
+        toAccountName: t.toAccount.name,
+      })),
       openingNotes: s.openingNotes,
       closingNotes: s.closingNotes,
     })),

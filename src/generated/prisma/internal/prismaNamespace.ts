@@ -2457,6 +2457,11 @@ export const CashSessionScalarFieldEnum = {
   difference: 'difference',
   openingNotes: 'openingNotes',
   closingNotes: 'closingNotes',
+  originalClosingAmount: 'originalClosingAmount',
+  originalTheoreticalAmount: 'originalTheoreticalAmount',
+  originalDifference: 'originalDifference',
+  retainedAmount: 'retainedAmount',
+  closingEditAudit: 'closingEditAudit',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -2508,10 +2513,12 @@ export const TreasuryTransferScalarFieldEnum = {
   fromAccountId: 'fromAccountId',
   toAccountId: 'toAccountId',
   amount: 'amount',
+  paymentMethod: 'paymentMethod',
   motif: 'motif',
   notes: 'notes',
   date: 'date',
   sessionId: 'sessionId',
+  editHistory: 'editHistory',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

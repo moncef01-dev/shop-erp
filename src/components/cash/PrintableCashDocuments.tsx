@@ -336,6 +336,7 @@ export function PrintableCashClosingReport({
   autoPrint,
 }: {
   session: {
+    id?: number | string;
     reference: string;
     openedAt: string;
     closedAt?: string | null;
@@ -573,6 +574,7 @@ export function PrintableExpenseVoucher({
   autoPrint,
 }: {
   expense: {
+    id?: number | string;
     reference: string;
     type: string;
     category: string;

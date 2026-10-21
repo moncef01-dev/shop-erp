@@ -428,8 +428,7 @@ async function runTests() {
   process.exit(0);
 }
 
-runTests().catch(async (e) => {
+runTests().catch((e) => {
   console.error("Erreur fatale exécution tests:", e);
-  await prisma.$disconnect();
   process.exit(1);
 });

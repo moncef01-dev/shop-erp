@@ -35,6 +35,10 @@ export type CashSessionAvgAggregateOutputType = {
   theoreticalAmount: number | null
   closingAmount: number | null
   difference: number | null
+  originalClosingAmount: number | null
+  originalTheoreticalAmount: number | null
+  originalDifference: number | null
+  retainedAmount: number | null
 }
 
 export type CashSessionSumAggregateOutputType = {
@@ -46,6 +50,10 @@ export type CashSessionSumAggregateOutputType = {
   theoreticalAmount: number | null
   closingAmount: number | null
   difference: number | null
+  originalClosingAmount: number | null
+  originalTheoreticalAmount: number | null
+  originalDifference: number | null
+  retainedAmount: number | null
 }
 
 export type CashSessionMinAggregateOutputType = {
@@ -63,6 +71,11 @@ export type CashSessionMinAggregateOutputType = {
   difference: number | null
   openingNotes: string | null
   closingNotes: string | null
+  originalClosingAmount: number | null
+  originalTheoreticalAmount: number | null
+  originalDifference: number | null
+  retainedAmount: number | null
+  closingEditAudit: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -82,6 +95,11 @@ export type CashSessionMaxAggregateOutputType = {
   difference: number | null
   openingNotes: string | null
   closingNotes: string | null
+  originalClosingAmount: number | null
+  originalTheoreticalAmount: number | null
+  originalDifference: number | null
+  retainedAmount: number | null
+  closingEditAudit: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -101,6 +119,11 @@ export type CashSessionCountAggregateOutputType = {
   difference: number
   openingNotes: number
   closingNotes: number
+  originalClosingAmount: number
+  originalTheoreticalAmount: number
+  originalDifference: number
+  retainedAmount: number
+  closingEditAudit: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -116,6 +139,10 @@ export type CashSessionAvgAggregateInputType = {
   theoreticalAmount?: true
   closingAmount?: true
   difference?: true
+  originalClosingAmount?: true
+  originalTheoreticalAmount?: true
+  originalDifference?: true
+  retainedAmount?: true
 }
 
 export type CashSessionSumAggregateInputType = {
@@ -127,6 +154,10 @@ export type CashSessionSumAggregateInputType = {
   theoreticalAmount?: true
   closingAmount?: true
   difference?: true
+  originalClosingAmount?: true
+  originalTheoreticalAmount?: true
+  originalDifference?: true
+  retainedAmount?: true
 }
 
 export type CashSessionMinAggregateInputType = {
@@ -144,6 +175,11 @@ export type CashSessionMinAggregateInputType = {
   difference?: true
   openingNotes?: true
   closingNotes?: true
+  originalClosingAmount?: true
+  originalTheoreticalAmount?: true
+  originalDifference?: true
+  retainedAmount?: true
+  closingEditAudit?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -163,6 +199,11 @@ export type CashSessionMaxAggregateInputType = {
   difference?: true
   openingNotes?: true
   closingNotes?: true
+  originalClosingAmount?: true
+  originalTheoreticalAmount?: true
+  originalDifference?: true
+  retainedAmount?: true
+  closingEditAudit?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -182,6 +223,11 @@ export type CashSessionCountAggregateInputType = {
   difference?: true
   openingNotes?: true
   closingNotes?: true
+  originalClosingAmount?: true
+  originalTheoreticalAmount?: true
+  originalDifference?: true
+  retainedAmount?: true
+  closingEditAudit?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -288,6 +334,11 @@ export type CashSessionGroupByOutputType = {
   difference: number | null
   openingNotes: string | null
   closingNotes: string | null
+  originalClosingAmount: number | null
+  originalTheoreticalAmount: number | null
+  originalDifference: number | null
+  retainedAmount: number | null
+  closingEditAudit: string | null
   createdAt: Date
   updatedAt: Date
   _count: CashSessionCountAggregateOutputType | null
@@ -330,6 +381,11 @@ export type CashSessionWhereInput = {
   difference?: Prisma.FloatNullableFilter<"CashSession"> | number | null
   openingNotes?: Prisma.StringNullableFilter<"CashSession"> | string | null
   closingNotes?: Prisma.StringNullableFilter<"CashSession"> | string | null
+  originalClosingAmount?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  originalTheoreticalAmount?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  originalDifference?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  retainedAmount?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  closingEditAudit?: Prisma.StringNullableFilter<"CashSession"> | string | null
   createdAt?: Prisma.DateTimeFilter<"CashSession"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"CashSession"> | Date | string
   account?: Prisma.XOR<Prisma.TreasuryAccountNullableScalarRelationFilter, Prisma.TreasuryAccountWhereInput> | null
@@ -354,6 +410,11 @@ export type CashSessionOrderByWithRelationInput = {
   difference?: Prisma.SortOrderInput | Prisma.SortOrder
   openingNotes?: Prisma.SortOrderInput | Prisma.SortOrder
   closingNotes?: Prisma.SortOrderInput | Prisma.SortOrder
+  originalClosingAmount?: Prisma.SortOrderInput | Prisma.SortOrder
+  originalTheoreticalAmount?: Prisma.SortOrderInput | Prisma.SortOrder
+  originalDifference?: Prisma.SortOrderInput | Prisma.SortOrder
+  retainedAmount?: Prisma.SortOrderInput | Prisma.SortOrder
+  closingEditAudit?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   account?: Prisma.TreasuryAccountOrderByWithRelationInput
@@ -381,6 +442,11 @@ export type CashSessionWhereUniqueInput = Prisma.AtLeast<{
   difference?: Prisma.FloatNullableFilter<"CashSession"> | number | null
   openingNotes?: Prisma.StringNullableFilter<"CashSession"> | string | null
   closingNotes?: Prisma.StringNullableFilter<"CashSession"> | string | null
+  originalClosingAmount?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  originalTheoreticalAmount?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  originalDifference?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  retainedAmount?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  closingEditAudit?: Prisma.StringNullableFilter<"CashSession"> | string | null
   createdAt?: Prisma.DateTimeFilter<"CashSession"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"CashSession"> | Date | string
   account?: Prisma.XOR<Prisma.TreasuryAccountNullableScalarRelationFilter, Prisma.TreasuryAccountWhereInput> | null
@@ -405,6 +471,11 @@ export type CashSessionOrderByWithAggregationInput = {
   difference?: Prisma.SortOrderInput | Prisma.SortOrder
   openingNotes?: Prisma.SortOrderInput | Prisma.SortOrder
   closingNotes?: Prisma.SortOrderInput | Prisma.SortOrder
+  originalClosingAmount?: Prisma.SortOrderInput | Prisma.SortOrder
+  originalTheoreticalAmount?: Prisma.SortOrderInput | Prisma.SortOrder
+  originalDifference?: Prisma.SortOrderInput | Prisma.SortOrder
+  retainedAmount?: Prisma.SortOrderInput | Prisma.SortOrder
+  closingEditAudit?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.CashSessionCountOrderByAggregateInput
@@ -432,6 +503,11 @@ export type CashSessionScalarWhereWithAggregatesInput = {
   difference?: Prisma.FloatNullableWithAggregatesFilter<"CashSession"> | number | null
   openingNotes?: Prisma.StringNullableWithAggregatesFilter<"CashSession"> | string | null
   closingNotes?: Prisma.StringNullableWithAggregatesFilter<"CashSession"> | string | null
+  originalClosingAmount?: Prisma.FloatNullableWithAggregatesFilter<"CashSession"> | number | null
+  originalTheoreticalAmount?: Prisma.FloatNullableWithAggregatesFilter<"CashSession"> | number | null
+  originalDifference?: Prisma.FloatNullableWithAggregatesFilter<"CashSession"> | number | null
+  retainedAmount?: Prisma.FloatNullableWithAggregatesFilter<"CashSession"> | number | null
+  closingEditAudit?: Prisma.StringNullableWithAggregatesFilter<"CashSession"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"CashSession"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"CashSession"> | Date | string
 }
@@ -449,6 +525,11 @@ export type CashSessionCreateInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   account?: Prisma.TreasuryAccountCreateNestedOneWithoutCashSessionsInput
@@ -473,6 +554,11 @@ export type CashSessionUncheckedCreateInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   expenses?: Prisma.ExpenseUncheckedCreateNestedManyWithoutSessionInput
@@ -494,6 +580,11 @@ export type CashSessionUpdateInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   account?: Prisma.TreasuryAccountUpdateOneWithoutCashSessionsNestedInput
@@ -518,6 +609,11 @@ export type CashSessionUncheckedUpdateInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expenses?: Prisma.ExpenseUncheckedUpdateManyWithoutSessionNestedInput
@@ -541,6 +637,11 @@ export type CashSessionCreateManyInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -558,6 +659,11 @@ export type CashSessionUpdateManyMutationInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -577,6 +683,11 @@ export type CashSessionUncheckedUpdateManyInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -601,6 +712,11 @@ export type CashSessionCountOrderByAggregateInput = {
   difference?: Prisma.SortOrder
   openingNotes?: Prisma.SortOrder
   closingNotes?: Prisma.SortOrder
+  originalClosingAmount?: Prisma.SortOrder
+  originalTheoreticalAmount?: Prisma.SortOrder
+  originalDifference?: Prisma.SortOrder
+  retainedAmount?: Prisma.SortOrder
+  closingEditAudit?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -614,6 +730,10 @@ export type CashSessionAvgOrderByAggregateInput = {
   theoreticalAmount?: Prisma.SortOrder
   closingAmount?: Prisma.SortOrder
   difference?: Prisma.SortOrder
+  originalClosingAmount?: Prisma.SortOrder
+  originalTheoreticalAmount?: Prisma.SortOrder
+  originalDifference?: Prisma.SortOrder
+  retainedAmount?: Prisma.SortOrder
 }
 
 export type CashSessionMaxOrderByAggregateInput = {
@@ -631,6 +751,11 @@ export type CashSessionMaxOrderByAggregateInput = {
   difference?: Prisma.SortOrder
   openingNotes?: Prisma.SortOrder
   closingNotes?: Prisma.SortOrder
+  originalClosingAmount?: Prisma.SortOrder
+  originalTheoreticalAmount?: Prisma.SortOrder
+  originalDifference?: Prisma.SortOrder
+  retainedAmount?: Prisma.SortOrder
+  closingEditAudit?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -650,6 +775,11 @@ export type CashSessionMinOrderByAggregateInput = {
   difference?: Prisma.SortOrder
   openingNotes?: Prisma.SortOrder
   closingNotes?: Prisma.SortOrder
+  originalClosingAmount?: Prisma.SortOrder
+  originalTheoreticalAmount?: Prisma.SortOrder
+  originalDifference?: Prisma.SortOrder
+  retainedAmount?: Prisma.SortOrder
+  closingEditAudit?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -663,6 +793,10 @@ export type CashSessionSumOrderByAggregateInput = {
   theoreticalAmount?: Prisma.SortOrder
   closingAmount?: Prisma.SortOrder
   difference?: Prisma.SortOrder
+  originalClosingAmount?: Prisma.SortOrder
+  originalTheoreticalAmount?: Prisma.SortOrder
+  originalDifference?: Prisma.SortOrder
+  retainedAmount?: Prisma.SortOrder
 }
 
 export type CashSessionListRelationFilter = {
@@ -794,6 +928,11 @@ export type CashSessionCreateWithoutPaymentsInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   account?: Prisma.TreasuryAccountCreateNestedOneWithoutCashSessionsInput
@@ -817,6 +956,11 @@ export type CashSessionUncheckedCreateWithoutPaymentsInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   expenses?: Prisma.ExpenseUncheckedCreateNestedManyWithoutSessionInput
@@ -853,6 +997,11 @@ export type CashSessionUpdateWithoutPaymentsInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   account?: Prisma.TreasuryAccountUpdateOneWithoutCashSessionsNestedInput
@@ -876,6 +1025,11 @@ export type CashSessionUncheckedUpdateWithoutPaymentsInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expenses?: Prisma.ExpenseUncheckedUpdateManyWithoutSessionNestedInput
@@ -896,6 +1050,11 @@ export type CashSessionCreateWithoutCustomerAdvancesInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   account?: Prisma.TreasuryAccountCreateNestedOneWithoutCashSessionsInput
@@ -919,6 +1078,11 @@ export type CashSessionUncheckedCreateWithoutCustomerAdvancesInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   expenses?: Prisma.ExpenseUncheckedCreateNestedManyWithoutSessionInput
@@ -955,6 +1119,11 @@ export type CashSessionUpdateWithoutCustomerAdvancesInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   account?: Prisma.TreasuryAccountUpdateOneWithoutCashSessionsNestedInput
@@ -978,6 +1147,11 @@ export type CashSessionUncheckedUpdateWithoutCustomerAdvancesInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expenses?: Prisma.ExpenseUncheckedUpdateManyWithoutSessionNestedInput
@@ -998,6 +1172,11 @@ export type CashSessionCreateWithoutExpensesInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   account?: Prisma.TreasuryAccountCreateNestedOneWithoutCashSessionsInput
@@ -1021,6 +1200,11 @@ export type CashSessionUncheckedCreateWithoutExpensesInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSessionInput
@@ -1057,6 +1241,11 @@ export type CashSessionUpdateWithoutExpensesInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   account?: Prisma.TreasuryAccountUpdateOneWithoutCashSessionsNestedInput
@@ -1080,6 +1269,11 @@ export type CashSessionUncheckedUpdateWithoutExpensesInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSessionNestedInput
@@ -1100,6 +1294,11 @@ export type CashSessionCreateWithoutAccountInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   expenses?: Prisma.ExpenseCreateNestedManyWithoutSessionInput
@@ -1122,6 +1321,11 @@ export type CashSessionUncheckedCreateWithoutAccountInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   expenses?: Prisma.ExpenseUncheckedCreateNestedManyWithoutSessionInput
@@ -1173,6 +1377,11 @@ export type CashSessionScalarWhereInput = {
   difference?: Prisma.FloatNullableFilter<"CashSession"> | number | null
   openingNotes?: Prisma.StringNullableFilter<"CashSession"> | string | null
   closingNotes?: Prisma.StringNullableFilter<"CashSession"> | string | null
+  originalClosingAmount?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  originalTheoreticalAmount?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  originalDifference?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  retainedAmount?: Prisma.FloatNullableFilter<"CashSession"> | number | null
+  closingEditAudit?: Prisma.StringNullableFilter<"CashSession"> | string | null
   createdAt?: Prisma.DateTimeFilter<"CashSession"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"CashSession"> | Date | string
 }
@@ -1190,6 +1399,11 @@ export type CashSessionCreateWithoutTransfersInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   account?: Prisma.TreasuryAccountCreateNestedOneWithoutCashSessionsInput
@@ -1213,6 +1427,11 @@ export type CashSessionUncheckedCreateWithoutTransfersInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   expenses?: Prisma.ExpenseUncheckedCreateNestedManyWithoutSessionInput
@@ -1249,6 +1468,11 @@ export type CashSessionUpdateWithoutTransfersInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   account?: Prisma.TreasuryAccountUpdateOneWithoutCashSessionsNestedInput
@@ -1272,6 +1496,11 @@ export type CashSessionUncheckedUpdateWithoutTransfersInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expenses?: Prisma.ExpenseUncheckedUpdateManyWithoutSessionNestedInput
@@ -1293,6 +1522,11 @@ export type CashSessionCreateManyAccountInput = {
   difference?: number | null
   openingNotes?: string | null
   closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -1310,6 +1544,11 @@ export type CashSessionUpdateWithoutAccountInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expenses?: Prisma.ExpenseUpdateManyWithoutSessionNestedInput
@@ -1332,6 +1571,11 @@ export type CashSessionUncheckedUpdateWithoutAccountInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expenses?: Prisma.ExpenseUncheckedUpdateManyWithoutSessionNestedInput
@@ -1354,6 +1598,11 @@ export type CashSessionUncheckedUpdateManyWithoutAccountInput = {
   difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1431,6 +1680,11 @@ export type CashSessionSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   difference?: boolean
   openingNotes?: boolean
   closingNotes?: boolean
+  originalClosingAmount?: boolean
+  originalTheoreticalAmount?: boolean
+  originalDifference?: boolean
+  retainedAmount?: boolean
+  closingEditAudit?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   account?: boolean | Prisma.CashSession$accountArgs<ExtArgs>
@@ -1456,6 +1710,11 @@ export type CashSessionSelectCreateManyAndReturn<ExtArgs extends runtime.Types.E
   difference?: boolean
   openingNotes?: boolean
   closingNotes?: boolean
+  originalClosingAmount?: boolean
+  originalTheoreticalAmount?: boolean
+  originalDifference?: boolean
+  retainedAmount?: boolean
+  closingEditAudit?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   account?: boolean | Prisma.CashSession$accountArgs<ExtArgs>
@@ -1476,6 +1735,11 @@ export type CashSessionSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.E
   difference?: boolean
   openingNotes?: boolean
   closingNotes?: boolean
+  originalClosingAmount?: boolean
+  originalTheoreticalAmount?: boolean
+  originalDifference?: boolean
+  retainedAmount?: boolean
+  closingEditAudit?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   account?: boolean | Prisma.CashSession$accountArgs<ExtArgs>
@@ -1496,11 +1760,16 @@ export type CashSessionSelectScalar = {
   difference?: boolean
   openingNotes?: boolean
   closingNotes?: boolean
+  originalClosingAmount?: boolean
+  originalTheoreticalAmount?: boolean
+  originalDifference?: boolean
+  retainedAmount?: boolean
+  closingEditAudit?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type CashSessionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "accountId" | "openedAt" | "closedAt" | "status" | "openingAmount" | "totalCashIn" | "totalCashOut" | "theoreticalAmount" | "closingAmount" | "difference" | "openingNotes" | "closingNotes" | "createdAt" | "updatedAt", ExtArgs["result"]["cashSession"]>
+export type CashSessionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "accountId" | "openedAt" | "closedAt" | "status" | "openingAmount" | "totalCashIn" | "totalCashOut" | "theoreticalAmount" | "closingAmount" | "difference" | "openingNotes" | "closingNotes" | "originalClosingAmount" | "originalTheoreticalAmount" | "originalDifference" | "retainedAmount" | "closingEditAudit" | "createdAt" | "updatedAt", ExtArgs["result"]["cashSession"]>
 export type CashSessionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   account?: boolean | Prisma.CashSession$accountArgs<ExtArgs>
   expenses?: boolean | Prisma.CashSession$expensesArgs<ExtArgs>
@@ -1540,6 +1809,11 @@ export type $CashSessionPayload<ExtArgs extends runtime.Types.Extensions.Interna
     difference: number | null
     openingNotes: string | null
     closingNotes: string | null
+    originalClosingAmount: number | null
+    originalTheoreticalAmount: number | null
+    originalDifference: number | null
+    retainedAmount: number | null
+    closingEditAudit: string | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["cashSession"]>
@@ -1984,6 +2258,11 @@ export interface CashSessionFieldRefs {
   readonly difference: Prisma.FieldRef<"CashSession", 'Float'>
   readonly openingNotes: Prisma.FieldRef<"CashSession", 'String'>
   readonly closingNotes: Prisma.FieldRef<"CashSession", 'String'>
+  readonly originalClosingAmount: Prisma.FieldRef<"CashSession", 'Float'>
+  readonly originalTheoreticalAmount: Prisma.FieldRef<"CashSession", 'Float'>
+  readonly originalDifference: Prisma.FieldRef<"CashSession", 'Float'>
+  readonly retainedAmount: Prisma.FieldRef<"CashSession", 'Float'>
+  readonly closingEditAudit: Prisma.FieldRef<"CashSession", 'String'>
   readonly createdAt: Prisma.FieldRef<"CashSession", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"CashSession", 'DateTime'>
 }

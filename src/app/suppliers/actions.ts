@@ -12,9 +12,9 @@ export interface SupplierStatementEvent {
   type: "INITIAL_DEBT" | "PURCHASE_INVOICE" | "PAYMENT" | "ADJUSTMENT";
   typeLabel: string;
   description: string;
-  debit: number; // Augmente la dette envers le fournisseur (Achat, dette initiale)
-  credit: number; // Diminue la dette (Paiement)
-  runningBalance: number; // Solde restant dû après l'opération
+  debit: number; // Montant diminuant la dette envers le fournisseur (Paiement / Règlement)
+  credit: number; // Montant augmentant la dette envers le fournisseur (Achat, dette initiale)
+  runningBalance: number; // Solde restant dû après l'opération (précédent + Crédit - Débit)
   accountName?: string | null;
   method?: string | null;
   notes?: string | null;
@@ -168,7 +168,7 @@ export async function calculateSupplierDebt(
 
 // ─── ENREGISTRER UNE DETTE INITIALE ────────────────────────────────────────────
 
-export async function recordSupplierInitialDebtAction(payload: {
+export type RecordSupplierInitialDebtInput = {
   supplierId: number;
   amount: number;
   description?: string;
@@ -176,13 +176,35 @@ export async function recordSupplierInitialDebtAction(payload: {
   reference?: string;
   date?: string;
   debtDate?: string;
-}) {
+};
+
+export async function recordSupplierInitialDebtAction(
+  payload: FormData | RecordSupplierInitialDebtInput
+) {
   try {
-    const supplierId = Number(payload.supplierId);
-    const amount = Number(payload.amount);
-    const description = (payload.description || payload.notes || "Dette initiale antérieure")?.trim();
-    const notes = payload.notes?.trim() || null;
-    const dateStr = payload.debtDate || payload.date;
+    let supplierId: number;
+    let amount: number;
+    let description: string;
+    let notes: string | null = null;
+    let dateStr: string | undefined;
+    let reference: string | undefined;
+
+    if (payload instanceof FormData) {
+      supplierId = parseInt(payload.get("supplierId") as string, 10);
+      amount = parseFloat((payload.get("amount") as string)?.replace(/\s/g, ""));
+      description = ((payload.get("description") as string)?.trim() || (payload.get("notes") as string)?.trim() || "Dette initiale antérieure");
+      notes = (payload.get("notes") as string)?.trim() || null;
+      dateStr = (payload.get("date") as string) || (payload.get("debtDate") as string) || undefined;
+      reference = (payload.get("reference") as string)?.trim() || undefined;
+    } else {
+      supplierId = Number(payload.supplierId);
+      amount = Number(payload.amount);
+      description = (payload.description || payload.notes || "Dette initiale antérieure")?.trim();
+      notes = payload.notes?.trim() || null;
+      dateStr = payload.debtDate || payload.date;
+      reference = payload.reference?.trim() || undefined;
+    }
+
     const date = dateStr ? new Date(dateStr) : new Date();
 
     if (isNaN(amount) || amount <= 0) {
@@ -223,11 +245,41 @@ export async function recordSupplierInitialDebtAction(payload: {
       };
     }
 
-    const reference = await generateNextSupplierDebtReference();
+    // Protection anti-double soumission rapide (15 secondes)
+    const recent = await prisma.supplierDebt.findFirst({
+      where: {
+        supplierId,
+        amount,
+        createdAt: { gte: new Date(Date.now() - 15000) },
+      },
+    });
+    if (recent) {
+      return {
+        success: false,
+        error: `Une dette identique (${amount.toLocaleString(
+          "fr-DZ"
+        )} DA) vient d'être enregistrée il y a quelques secondes.`,
+      };
+    }
+
+    // Protection anti-doublon référence explicite
+    if (reference && reference.trim()) {
+      const existingByRef = await prisma.supplierDebt.findUnique({
+        where: { reference: reference.trim() },
+      });
+      if (existingByRef) {
+        return {
+          success: false,
+          error: `Une dette avec la référence "${reference.trim()}" existe déjà.`,
+        };
+      }
+    }
+
+    const finalReference = reference && reference.trim() ? reference.trim() : await generateNextSupplierDebtReference();
 
     const createdDebt = await prisma.supplierDebt.create({
       data: {
-        reference,
+        reference: finalReference,
         supplierId,
         amount,
         type: "initial_debt",
@@ -369,6 +421,24 @@ export async function recordSupplierPaymentMultiAccountAction(
         );
       }
 
+      // Protection anti-double soumission rapide (15 secondes)
+      const recentDup = await tx.payment.findFirst({
+        where: {
+          supplierId: supplier.id,
+          accountId: sourceAccountId,
+          amount,
+          status: { not: "cancelled" },
+          createdAt: { gte: new Date(Date.now() - 15000) },
+        },
+      });
+      if (recentDup) {
+        throw new Error(
+          `Un règlement identique (${amount.toLocaleString(
+            "fr-DZ"
+          )} DA) vient d'être validé il y a quelques secondes.`
+        );
+      }
+
       // 3. Rattachement éventuel à la session de caisse si Caisse Journalière
       let sessionId: number | null = null;
       if (sourceAccount.type === "cash" && method === "cash") {
@@ -490,8 +560,8 @@ export async function getSupplierStatement(
       type: "INITIAL_DEBT",
       typeLabel: "Dette Antérieure / Initiale",
       description: d.description,
-      debit: d.amount,
-      credit: 0,
+      debit: 0,
+      credit: d.amount,
       runningBalance: 0,
       notes: d.notes,
     });
@@ -513,8 +583,8 @@ export async function getSupplierStatement(
       type: "PURCHASE_INVOICE",
       typeLabel: "Bon de Commande / Achat",
       description: `Achat ${p.reference}${p.notes ? ` — ${p.notes}` : ""}`,
-      debit: p.totalAmount,
-      credit: 0,
+      debit: 0,
+      credit: p.totalAmount,
       runningBalance: 0,
       notes: p.notes,
     });
@@ -544,9 +614,9 @@ export async function getSupplierStatement(
       typeLabel: "Règlement Fournisseur",
       description: pay.purchase
         ? `Règlement achat ${pay.purchase.reference}`
-        : "Règlement sur compte fournisseur",
-      debit: 0,
-      credit: pay.amount,
+        : (pay.notes || "Règlement sur compte fournisseur"),
+      debit: pay.amount,
+      credit: 0,
       runningBalance: 0,
       accountName: pay.account?.name || (pay.method === "cash" ? "Caisse journalière" : "Compte bancaire"),
       method: pay.method,
@@ -555,11 +625,24 @@ export async function getSupplierStatement(
   }
 
   // Tri chronologique croissant pour calcul de la balance courante
-  events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Priorité le même jour : 1 = Dette antérieure, 2 = Achat, 3 = Paiement
+  const typeAscPriority: Record<string, number> = {
+    INITIAL_DEBT: 1,
+    PURCHASE_INVOICE: 2,
+    PAYMENT: 3,
+    ADJUSTMENT: 4,
+  };
+
+  events.sort((a, b) => {
+    const tA = new Date(a.date).getTime();
+    const tB = new Date(b.date).getTime();
+    if (tA !== tB) return tA - tB;
+    return (typeAscPriority[a.type] || 5) - (typeAscPriority[b.type] || 5);
+  });
 
   let running = 0;
   for (const ev of events) {
-    running = running + ev.debit - ev.credit;
+    running = running + ev.credit - ev.debit;
     ev.runningBalance = Math.round(running * 100) / 100;
   }
 
@@ -574,8 +657,20 @@ export async function getSupplierStatement(
     filtered = filtered.filter((ev) => new Date(ev.date).getTime() <= e);
   }
 
-  // Tri décroissant pour affichage standard
-  filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Tri décroissant pour affichage standard (plus récent en premier)
+  const typeDescPriority: Record<string, number> = {
+    PAYMENT: 1,
+    PURCHASE_INVOICE: 2,
+    INITIAL_DEBT: 3,
+    ADJUSTMENT: 4,
+  };
+
+  filtered.sort((a, b) => {
+    const tA = new Date(a.date).getTime();
+    const tB = new Date(b.date).getTime();
+    if (tA !== tB) return tB - tA;
+    return (typeDescPriority[a.type] || 5) - (typeDescPriority[b.type] || 5);
+  });
 
   const debtsTotal = debts.reduce((sum, d) => sum + d.amount, 0);
   const purchasesTotal = purchases.reduce((sum, p) => sum + p.totalAmount, 0);
