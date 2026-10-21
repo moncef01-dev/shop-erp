@@ -327,6 +327,7 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
       // 5. Enregistrer le paiement initial / acompte si fourni (valable sur vente confirmée ou commande/devis)
       if (paymentAmount > 0 && initialPayment) {
         let sessionId: number | null = null;
+        let accountId: number | null = null;
         const payMethod = initialPayment.method || "cash";
         if (payMethod === "cash") {
           const activeSession = await tx.cashSession.findFirst({
@@ -336,13 +337,26 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
           if (activeSession) {
             sessionId = activeSession.id;
           }
+          const defaultCaisse = await tx.treasuryAccount.findFirst({
+            where: { isDefault: true, isActive: true },
+            select: { id: true },
+          });
+          if (defaultCaisse) {
+            accountId = defaultCaisse.id;
+          }
         }
 
         const payRef = await generateNextPaymentReference(tx);
+        const parsedPaymentDate = new Date(saleDate);
+        const now = new Date();
+        const effectivePaymentDate =
+          parsedPaymentDate.toDateString() === now.toDateString() ? now : parsedPaymentDate;
+
         await tx.payment.create({
           data: {
             reference: payRef,
             saleId: sale.id,
+            accountId,
             amount: paymentAmount,
             method: payMethod,
             status: "completed",
@@ -351,7 +365,7 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
               (isDraft
                 ? `Acompte initial sur commande ${sale.reference}`
                 : `Règlement initial pour facture ${sale.reference}`),
-            paymentDate: new Date(saleDate),
+            paymentDate: effectivePaymentDate,
             sessionId,
           },
         });
@@ -653,6 +667,7 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
 
     const result = await prisma.$transaction(async (tx) => {
       let sessionId: number | null = null;
+      let accountId: number | null = null;
       if (method === "cash") {
         const activeSession = await tx.cashSession.findFirst({
           where: { status: "open" },
@@ -660,6 +675,13 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
         });
         if (activeSession) {
           sessionId = activeSession.id;
+        }
+        const defaultCaisse = await tx.treasuryAccount.findFirst({
+          where: { isDefault: true, isActive: true },
+          select: { id: true },
+        });
+        if (defaultCaisse) {
+          accountId = defaultCaisse.id;
         }
       }
 
@@ -670,6 +692,7 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
         data: {
           reference: payRef,
           saleId: sale.id,
+          accountId,
           amount,
           method,
           status: "completed",

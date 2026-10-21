@@ -158,11 +158,25 @@ export async function calculateAccountBalance(
 
       const [trIn, trOut, payIn, advIn, incIn, suppOut, expOut] = await Promise.all([
         db.treasuryTransfer.aggregate({
-          where: { toAccountId: accountId, date: { gte: sessionStart } },
+          where: {
+            toAccountId: accountId,
+            OR: [
+              { sessionId: activeSession.id },
+              { date: { gte: sessionStart } },
+              { createdAt: { gte: sessionStart } },
+            ],
+          },
           _sum: { amount: true },
         }),
         db.treasuryTransfer.aggregate({
-          where: { fromAccountId: accountId, date: { gte: sessionStart } },
+          where: {
+            fromAccountId: accountId,
+            OR: [
+              { sessionId: activeSession.id },
+              { date: { gte: sessionStart } },
+              { createdAt: { gte: sessionStart } },
+            ],
+          },
           _sum: { amount: true },
         }),
         db.payment.aggregate({
@@ -170,31 +184,47 @@ export async function calculateAccountBalance(
             status: { not: "cancelled" },
             purchaseId: null,
             supplierId: null,
-            paymentDate: { gte: sessionStart },
-            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+            OR: [
+              { sessionId: activeSession.id },
+              { paymentDate: { gte: sessionStart } },
+              { createdAt: { gte: sessionStart } },
+            ],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
           },
           _sum: { amount: true },
         }),
         db.customerAdvance.aggregate({
           where: {
             status: { not: "cancelled" },
-            paymentDate: { gte: sessionStart },
-            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+            OR: [
+              { sessionId: activeSession.id },
+              { paymentDate: { gte: sessionStart } },
+              { createdAt: { gte: sessionStart } },
+            ],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
           },
           _sum: { amount: true },
         }),
         db.expense.aggregate({
           where: {
             type: "income",
-            date: { gte: sessionStart },
-            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+            OR: [
+              { sessionId: activeSession.id },
+              { date: { gte: sessionStart } },
+              { createdAt: { gte: sessionStart } },
+            ],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
           },
           _sum: { amount: true },
         }),
         db.payment.aggregate({
           where: {
             status: { not: "cancelled" },
-            paymentDate: { gte: sessionStart },
+            OR: [
+              { sessionId: activeSession.id },
+              { paymentDate: { gte: sessionStart } },
+              { createdAt: { gte: sessionStart } },
+            ],
             AND: [
               { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
               { OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] },
@@ -205,8 +235,12 @@ export async function calculateAccountBalance(
         db.expense.aggregate({
           where: {
             type: "expense",
-            date: { gte: sessionStart },
-            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+            OR: [
+              { sessionId: activeSession.id },
+              { date: { gte: sessionStart } },
+              { createdAt: { gte: sessionStart } },
+            ],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
           },
           _sum: { amount: true },
         }),
@@ -222,11 +256,17 @@ export async function calculateAccountBalance(
 
       const [trIn, trOut, payIn, advIn, incIn, suppOut, expOut] = await Promise.all([
         db.treasuryTransfer.aggregate({
-          where: { toAccountId: accountId, date: { gt: closedAt } },
+          where: {
+            toAccountId: accountId,
+            OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
+          },
           _sum: { amount: true },
         }),
         db.treasuryTransfer.aggregate({
-          where: { fromAccountId: accountId, date: { gt: closedAt } },
+          where: {
+            fromAccountId: accountId,
+            OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
+          },
           _sum: { amount: true },
         }),
         db.payment.aggregate({
@@ -234,31 +274,31 @@ export async function calculateAccountBalance(
             status: { not: "cancelled" },
             purchaseId: null,
             supplierId: null,
-            paymentDate: { gt: closedAt },
-            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+            OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
           },
           _sum: { amount: true },
         }),
         db.customerAdvance.aggregate({
           where: {
             status: { not: "cancelled" },
-            paymentDate: { gt: closedAt },
-            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+            OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
           },
           _sum: { amount: true },
         }),
         db.expense.aggregate({
           where: {
             type: "income",
-            date: { gt: closedAt },
-            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+            OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
           },
           _sum: { amount: true },
         }),
         db.payment.aggregate({
           where: {
             status: { not: "cancelled" },
-            paymentDate: { gt: closedAt },
+            OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
             AND: [
               { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
               { OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] },
@@ -269,8 +309,8 @@ export async function calculateAccountBalance(
         db.expense.aggregate({
           where: {
             type: "expense",
-            date: { gt: closedAt },
-            OR: [{ accountId: accountId }, { accountId: null, method: "cash" }],
+            OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
           },
           _sum: { amount: true },
         }),
