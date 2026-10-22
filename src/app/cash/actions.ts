@@ -202,11 +202,17 @@ export async function reconcileOutOfSessionCashAction(sessionId: number): Promis
       return { success: false, error: "Les encaissements ne peuvent être rattachés qu'à une session de caisse ouverte." };
     }
 
+    const defaultCaisse =
+      (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
+      (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+    const caisseId = defaultCaisse?.id;
+
     const unlinkedPayments = await prisma.payment.findMany({
       where: {
         sessionId: null,
         method: "cash",
         status: { not: "cancelled" },
+        OR: [{ accountId: caisseId }, { accountId: null }],
       },
       select: { id: true, amount: true },
     });
@@ -215,6 +221,7 @@ export async function reconcileOutOfSessionCashAction(sessionId: number): Promis
       where: {
         sessionId: null,
         method: "cash",
+        OR: [{ accountId: caisseId }, { accountId: null }],
       },
       select: { id: true, amount: true, type: true },
     });
@@ -332,6 +339,11 @@ export async function closeCashSessionAction(
 
     const now = new Date();
 
+    const defaultCaisse =
+      (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
+      (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+    const caisseId = defaultCaisse?.id;
+
     // Calcul autoritaire côté serveur sur la fenêtre [openedAt, now] et les opérations rattachées
     // 1. Encaissements physiques (Ventes et encaissements en espèces)
     const salesPayments = await prisma.payment.findMany({
@@ -342,7 +354,14 @@ export async function closeCashSessionAction(
         supplierId: null,
         OR: [
           { sessionId: sessionId },
-          { sessionId: null, paymentDate: { gte: session.openedAt, lte: now } },
+          {
+            sessionId: null,
+            OR: [
+              { paymentDate: { gte: session.openedAt, lte: now } },
+              { createdAt: { gte: session.openedAt, lte: now } },
+            ],
+            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+          },
         ],
       },
       select: { id: true, amount: true },
@@ -359,7 +378,14 @@ export async function closeCashSessionAction(
           {
             OR: [
               { sessionId: sessionId },
-              { sessionId: null, paymentDate: { gte: session.openedAt, lte: now } },
+              {
+                sessionId: null,
+                OR: [
+                  { paymentDate: { gte: session.openedAt, lte: now } },
+                  { createdAt: { gte: session.openedAt, lte: now } },
+                ],
+                AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+              },
             ],
           },
         ],
@@ -368,13 +394,41 @@ export async function closeCashSessionAction(
     });
     const cashOutPurchases = supplierPayments.reduce((acc, p) => acc + p.amount, 0);
 
-    // 3. Charges et encaissements exceptionnels en espèces
+    // 3. Acomptes clients reçus en espèces
+    const customerAdvances = await prisma.customerAdvance.findMany({
+      where: {
+        status: { not: "cancelled" },
+        method: "cash",
+        OR: [
+          { sessionId: sessionId },
+          {
+            sessionId: null,
+            OR: [
+              { paymentDate: { gte: session.openedAt, lte: now } },
+              { createdAt: { gte: session.openedAt, lte: now } },
+            ],
+            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+          },
+        ],
+      },
+      select: { id: true, amount: true },
+    });
+    const cashInAdvances = customerAdvances.reduce((acc, a) => acc + a.amount, 0);
+
+    // 4. Charges et encaissements exceptionnels en espèces
     const expenses = await prisma.expense.findMany({
       where: {
         method: "cash",
         OR: [
           { sessionId: sessionId },
-          { sessionId: null, date: { gte: session.openedAt, lte: now } },
+          {
+            sessionId: null,
+            OR: [
+              { date: { gte: session.openedAt, lte: now } },
+              { createdAt: { gte: session.openedAt, lte: now } },
+            ],
+            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+          },
         ],
       },
       select: { id: true, amount: true, type: true },
@@ -386,8 +440,49 @@ export async function closeCashSessionAction(
       .filter((e) => e.type === "income")
       .reduce((acc, e) => acc + e.amount, 0);
 
-    const totalCashIn = cashInSales + cashInOther;
-    const totalCashOut = cashOutPurchases + cashOutExpenses;
+    // 5. Transferts internes affectant la caisse pendant la session
+    const transfersIn = caisseId
+      ? await prisma.treasuryTransfer.findMany({
+          where: {
+            toAccountId: caisseId,
+            OR: [
+              { sessionId: sessionId },
+              {
+                sessionId: null,
+                OR: [
+                  { date: { gte: session.openedAt, lte: now } },
+                  { createdAt: { gte: session.openedAt, lte: now } },
+                ],
+              },
+            ],
+          },
+          select: { id: true, amount: true },
+        })
+      : [];
+    const cashInTransfers = transfersIn.reduce((acc, t) => acc + t.amount, 0);
+
+    const transfersOut = caisseId
+      ? await prisma.treasuryTransfer.findMany({
+          where: {
+            fromAccountId: caisseId,
+            OR: [
+              { sessionId: sessionId },
+              {
+                sessionId: null,
+                OR: [
+                  { date: { gte: session.openedAt, lte: now } },
+                  { createdAt: { gte: session.openedAt, lte: now } },
+                ],
+              },
+            ],
+          },
+          select: { id: true, amount: true },
+        })
+      : [];
+    const cashOutTransfers = transfersOut.reduce((acc, t) => acc + t.amount, 0);
+
+    const totalCashIn = cashInSales + cashInAdvances + cashInOther + cashInTransfers;
+    const totalCashOut = cashOutPurchases + cashOutExpenses + cashOutTransfers;
     const theoreticalAmount = session.openingAmount + totalCashIn - totalCashOut;
     const difference = closingAmount - theoreticalAmount;
 
@@ -412,7 +507,7 @@ export async function closeCashSessionAction(
         },
       });
 
-      // 2. Lier la session aux paiements et dépenses concernés pour archivage immuable
+      // 2. Lier la session aux paiements, dépenses, acomptes et transferts concernés
       const paymentIds = [...salesPayments.map((p) => p.id), ...supplierPayments.map((p) => p.id)];
       if (paymentIds.length > 0) {
         await tx.payment.updateMany({
@@ -421,10 +516,26 @@ export async function closeCashSessionAction(
         });
       }
 
+      const advanceIds = customerAdvances.map((a) => a.id);
+      if (advanceIds.length > 0) {
+        await tx.customerAdvance.updateMany({
+          where: { id: { in: advanceIds } },
+          data: { sessionId: sessionId },
+        });
+      }
+
       const expenseIds = expenses.map((e) => e.id);
       if (expenseIds.length > 0) {
         await tx.expense.updateMany({
           where: { id: { in: expenseIds } },
+          data: { sessionId: sessionId },
+        });
+      }
+
+      const transferIds = [...transfersIn.map((t) => t.id), ...transfersOut.map((t) => t.id)];
+      if (transferIds.length > 0) {
+        await tx.treasuryTransfer.updateMany({
+          where: { id: { in: transferIds } },
           data: { sessionId: sessionId },
         });
       }
@@ -1055,6 +1166,24 @@ export async function getCashDashboardData(filters?: {
     orderBy: { date: "desc" },
   });
 
+  // 4.1 Récupérer l'ensemble des acomptes clients non annulés
+  const advances = await prisma.customerAdvance.findMany({
+    where: {
+      status: { not: "cancelled" },
+    },
+    include: {
+      customer: { select: { name: true } },
+      account: { select: { id: true, name: true, code: true } },
+      session: { select: { id: true, reference: true } },
+    },
+    orderBy: { paymentDate: "desc" },
+  });
+
+  const defaultCashAcc =
+    (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
+    (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+  const defaultCashAccId = defaultCashAcc?.id;
+
   // 5. Construire le Grand Livre unifié (Ledger) sans doublons
   const ledgerItems: CashLedgerItem[] = [];
 
@@ -1076,7 +1205,8 @@ export async function getCashDashboardData(filters?: {
         method: p.method || "cash",
         amount: p.amount,
         notes: p.notes,
-        affectsCash: (p.method || "cash") === "cash",
+        affectsCash:
+          (p.method || "cash") === "cash" && (p.accountId === defaultCashAccId || p.accountId === null),
         sessionId: p.sessionId,
         sessionRef: p.session?.reference,
         accountId: p.accountId,
@@ -1099,14 +1229,15 @@ export async function getCashDashboardData(filters?: {
         method: p.method || "cash",
         amount: p.amount,
         notes: p.notes,
-        affectsCash: (p.method || "cash") === "cash",
+        affectsCash:
+          (p.method || "cash") === "cash" && (p.accountId === defaultCashAccId || p.accountId === null),
         sessionId: p.sessionId,
         sessionRef: p.session?.reference,
         accountId: p.accountId,
         accountName: p.account?.name || null,
       });
     } else {
-      // 5.2.1 Paiements directs (ex: acompte ou encaissement direct)
+      // 5.2.1 Paiements directs (ex: encaissement direct)
       ledgerItems.push({
         id: `pay-${p.id}`,
         rawId: p.id,
@@ -1121,13 +1252,39 @@ export async function getCashDashboardData(filters?: {
         method: p.method || "cash",
         amount: p.amount,
         notes: p.notes,
-        affectsCash: (p.method || "cash") === "cash",
+        affectsCash:
+          (p.method || "cash") === "cash" && (p.accountId === defaultCashAccId || p.accountId === null),
         sessionId: p.sessionId,
         sessionRef: p.session?.reference,
         accountId: p.accountId,
         accountName: p.account?.name || null,
       });
     }
+  }
+
+  // 5.2.2 Acomptes clients reçus
+  for (const adv of advances) {
+    ledgerItems.push({
+      id: `adv-${adv.id}`,
+      rawId: adv.id,
+      reference: adv.reference,
+      date: adv.paymentDate.toISOString(),
+      type: "encaissement",
+      source: "sale",
+      category: "Acompte Client",
+      description: `Acompte client — ${adv.customer?.name || "Client"}`,
+      partyName: adv.customer?.name || "Client",
+      docReference: null,
+      method: adv.method || "cash",
+      amount: adv.amount,
+      notes: adv.notes,
+      affectsCash:
+        (adv.method || "cash") === "cash" && (adv.accountId === defaultCashAccId || adv.accountId === null),
+      sessionId: adv.sessionId,
+      sessionRef: adv.session?.reference,
+      accountId: adv.accountId,
+      accountName: adv.account?.name || null,
+    });
   }
 
   // 5.3 Dépenses d'exploitation et encaissements exceptionnels (depuis expenses)
@@ -1147,9 +1304,12 @@ export async function getCashDashboardData(filters?: {
       method: e.method || "cash",
       amount: e.amount,
       notes: e.notes,
-      affectsCash: (e.method || "cash") === "cash",
+      affectsCash:
+        (e.method || "cash") === "cash" && (e.accountId === defaultCashAccId || e.accountId === null),
       sessionId: e.sessionId,
       sessionRef: e.session?.reference,
+      accountId: e.accountId,
+      accountName: e.account?.name || null,
     });
   }
 
@@ -1169,7 +1329,7 @@ export async function getCashDashboardData(filters?: {
       method: "internal_transfer",
       amount: t.amount,
       notes: t.notes,
-      affectsCash: t.fromAccount.type === "cash" || t.toAccount.type === "cash",
+      affectsCash: t.fromAccountId === defaultCashAccId || t.toAccountId === defaultCashAccId,
       sessionId: t.sessionId,
       sessionRef: t.session?.reference,
       accountId: t.fromAccountId,
@@ -1336,7 +1496,7 @@ export async function getCashDashboardData(filters?: {
         reference: t.reference,
         amount: t.amount,
         toAccountId: t.toAccountId,
-        toAccountName: t.toAccount.name,
+        toAccountName: t.toAccount?.name || "Compte Coffre",
       })),
       openingNotes: s.openingNotes,
       closingNotes: s.closingNotes,
@@ -1357,5 +1517,535 @@ export async function getCashDashboardData(filters?: {
       globalNet,
     },
     expensesCount: expenses.length,
+  };
+}
+
+// ─── JOURNAL JOURNALIER DE TRÉSORERIE (CAISSE JOURNALIÈRE PHYSIQUE) ───────────
+
+export interface DailyCashJournalItem {
+  id: string;
+  timestamp: string;
+  dateFormatted: string;
+  reference: string;
+  operationType: string;
+  operationBadgeClass: string;
+  description: string;
+  partyName: string;
+  inflow: number;
+  outflow: number;
+  runningBalance: number;
+  method: string;
+  docReference?: string | null;
+  source: "sale" | "purchase" | "advance" | "expense" | "income" | "transfer";
+  sessionId?: number | null;
+}
+
+export interface DailyCashJournalData {
+  selectedDate: string; // YYYY-MM-DD
+  formattedDate: string; // "mercredi 21 octobre 2026"
+  isToday: boolean;
+  caisseAccount: {
+    id: number;
+    code: string;
+    name: string;
+  };
+  session: {
+    id: number;
+    reference: string;
+    status: "open" | "closed";
+    openedAt: string;
+    closedAt?: string | null;
+    openingAmount: number;
+    closingAmount?: number | null;
+  } | null;
+  openingBalance: number;
+  totalInflows: number;
+  totalOutflows: number;
+  theoreticalFinalBalance: number;
+  items: DailyCashJournalItem[];
+  availableDates: string[];
+}
+
+export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJournalData> {
+  // 1. Identification du compte de caisse physique principale
+  const defaultCaisse =
+    (await prisma.treasuryAccount.findFirst({
+      where: { isDefault: true, isActive: true },
+    })) ||
+    (await prisma.treasuryAccount.findFirst({
+      where: { type: "cash", isActive: true },
+    })) ||
+    (await prisma.treasuryAccount.findFirst({
+      where: { type: "cash" },
+    }));
+
+  if (!defaultCaisse) {
+    throw new Error("Compte de caisse journalière introuvable.");
+  }
+  const caisseId = defaultCaisse.id;
+
+  // 2. Normalisation de la date demandée (fuseau local du magasin)
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate()
+  ).padStart(2, "0")}`;
+  const targetDayStr = dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : todayStr;
+  const isToday = targetDayStr === todayStr;
+
+  const targetDateObj = new Date(`${targetDayStr}T12:00:00.000Z`);
+  const formattedDate = targetDateObj.toLocaleDateString("fr-DZ", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  // 3. Identification des sessions de caisse ouvertes ou enregistrées pour ce jour
+  const sessionsOnDay = await prisma.cashSession.findMany({
+    where: {
+      OR: [
+        {
+          openedAt: {
+            gte: new Date(`${targetDayStr}T00:00:00.000Z`),
+            lte: new Date(`${targetDayStr}T23:59:59.999Z`),
+          },
+        },
+        {
+          createdAt: {
+            gte: new Date(`${targetDayStr}T00:00:00.000Z`),
+            lte: new Date(`${targetDayStr}T23:59:59.999Z`),
+          },
+        },
+      ],
+    },
+    orderBy: { openedAt: "desc" },
+  });
+
+  const sessionIdsForDay = new Set(sessionsOnDay.map((s) => s.id));
+  const primarySession = sessionsOnDay[0] || null;
+
+  // 4. Détermination rigoureuse du solde initial du jour
+  let openingBalance = 0;
+  if (primarySession) {
+    openingBalance = primarySession.openingAmount;
+  } else {
+    // Si aucune session n'a été ouverte ce jour, chercher la dernière session clôturée antérieure
+    const priorClosedSession = await prisma.cashSession.findFirst({
+      where: {
+        status: "closed",
+        closedAt: { lt: new Date(`${targetDayStr}T00:00:00.000Z`) },
+      },
+      orderBy: { closedAt: "desc" },
+    });
+
+    if (priorClosedSession && priorClosedSession.closedAt) {
+      let bal = priorClosedSession.retainedAmount ?? priorClosedSession.closingAmount ?? 0;
+      const cutoff = priorClosedSession.closedAt;
+      const dayStart = new Date(`${targetDayStr}T00:00:00.000Z`);
+
+      const [trIn, trOut, pIn, advIn, incIn, suppOut, expOut] = await Promise.all([
+        prisma.treasuryTransfer.aggregate({
+          where: { toAccountId: caisseId, date: { gt: cutoff, lt: dayStart } },
+          _sum: { amount: true },
+        }),
+        prisma.treasuryTransfer.aggregate({
+          where: { fromAccountId: caisseId, date: { gt: cutoff, lt: dayStart } },
+          _sum: { amount: true },
+        }),
+        prisma.payment.aggregate({
+          where: {
+            status: { not: "cancelled" },
+            method: "cash",
+            purchaseId: null,
+            supplierId: null,
+            OR: [{ accountId: caisseId }, { accountId: null }],
+            paymentDate: { gt: cutoff, lt: dayStart },
+          },
+          _sum: { amount: true },
+        }),
+        prisma.customerAdvance.aggregate({
+          where: {
+            status: { not: "cancelled" },
+            method: "cash",
+            OR: [{ accountId: caisseId }, { accountId: null }],
+            paymentDate: { gt: cutoff, lt: dayStart },
+          },
+          _sum: { amount: true },
+        }),
+        prisma.expense.aggregate({
+          where: {
+            type: "income",
+            method: "cash",
+            OR: [{ accountId: caisseId }, { accountId: null }],
+            date: { gt: cutoff, lt: dayStart },
+          },
+          _sum: { amount: true },
+        }),
+        prisma.payment.aggregate({
+          where: {
+            status: { not: "cancelled" },
+            method: "cash",
+            OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }],
+            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+            paymentDate: { gt: cutoff, lt: dayStart },
+          },
+          _sum: { amount: true },
+        }),
+        prisma.expense.aggregate({
+          where: {
+            type: "expense",
+            method: "cash",
+            OR: [{ accountId: caisseId }, { accountId: null }],
+            date: { gt: cutoff, lt: dayStart },
+          },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      bal += (trIn._sum.amount ?? 0) - (trOut._sum.amount ?? 0);
+      bal += (pIn._sum.amount ?? 0) + (advIn._sum.amount ?? 0) + (incIn._sum.amount ?? 0);
+      bal -= (suppOut._sum.amount ?? 0) + (expOut._sum.amount ?? 0);
+      openingBalance = Math.round(bal * 100) / 100;
+    } else {
+      openingBalance = defaultCaisse.openingBalance;
+    }
+  }
+
+  // 5. Requêtage de tous les flux physiques en espèces liés à la caisse
+  const [salePayments, customerAdvances, allExpenses, suppPayments, transfers, allSessions] =
+    await Promise.all([
+      prisma.payment.findMany({
+        where: {
+          status: { not: "cancelled" },
+          method: "cash",
+          purchaseId: null,
+          supplierId: null,
+          OR: [{ accountId: caisseId }, { accountId: null }],
+        },
+        include: { sale: { include: { customer: true } } },
+      }),
+      prisma.customerAdvance.findMany({
+        where: {
+          status: { not: "cancelled" },
+          method: "cash",
+          OR: [{ accountId: caisseId }, { accountId: null }],
+        },
+        include: { customer: true },
+      }),
+      prisma.expense.findMany({
+        where: {
+          method: "cash",
+          OR: [{ accountId: caisseId }, { accountId: null }],
+        },
+      }),
+      prisma.payment.findMany({
+        where: {
+          status: { not: "cancelled" },
+          method: "cash",
+          AND: [
+            { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
+            { OR: [{ accountId: caisseId }, { accountId: null }] },
+          ],
+        },
+        include: { purchase: { include: { supplier: true } }, supplier: true },
+      }),
+      prisma.treasuryTransfer.findMany({
+        where: {
+          OR: [{ fromAccountId: caisseId }, { toAccountId: caisseId }],
+        },
+        include: { fromAccount: true, toAccount: true },
+      }),
+      prisma.cashSession.findMany({
+        select: { openedAt: true, createdAt: true },
+      }),
+    ]);
+
+  // 6. Détection des dates disponibles pour l'historique
+  const dateSet = new Set<string>();
+  const addDateToSet = (d: Date) => {
+    dateSet.add(d.toISOString().slice(0, 10));
+    dateSet.add(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    );
+  };
+
+  salePayments.forEach((p) => {
+    addDateToSet(p.paymentDate);
+  });
+  customerAdvances.forEach((a) => {
+    addDateToSet(a.paymentDate);
+  });
+  allExpenses.forEach((e) => {
+    addDateToSet(e.date);
+  });
+  suppPayments.forEach((p) => {
+    addDateToSet(p.paymentDate);
+  });
+  transfers.forEach((t) => {
+    addDateToSet(t.date);
+  });
+  allSessions.forEach((s) => {
+    addDateToSet(s.openedAt);
+  });
+
+  const availableDates = Array.from(dateSet).sort().reverse();
+
+  // 7. Filtrage et normalisation des mouvements de la journée sélectionnée
+  const matchesDay = (d: Date, sId?: number | null) => {
+    const dStr = d.toISOString().slice(0, 10);
+    if (dStr === targetDayStr) return true;
+    const dLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+    if (dLocal === targetDayStr) return true;
+    return false;
+  };
+
+  const getSortTime = (d: Date, c: Date | null) => {
+    const isMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
+    if (isMidnight && c) {
+      const datePart = new Date(d);
+      datePart.setHours(c.getHours(), c.getMinutes(), c.getSeconds(), c.getMilliseconds());
+      return datePart.getTime();
+    }
+    return d.getTime();
+  };
+
+  const formatItemDateTime = (d: Date, c: Date | null) => {
+    const isMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
+    const dateFormatted = d.toLocaleDateString("fr-DZ", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    if (isMidnight && c) {
+      const timeStr = c.toLocaleTimeString("fr-DZ", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      return `${dateFormatted} ${timeStr}`;
+    }
+    return d.toLocaleDateString("fr-DZ", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  interface JournalRawItem {
+    id: string;
+    sortTime: number;
+    timestamp: string;
+    dateFormatted: string;
+    reference: string;
+    operationType: string;
+    operationBadgeClass: string;
+    description: string;
+    partyName: string;
+    inflow: number;
+    outflow: number;
+    method: string;
+    docReference?: string | null;
+    source: "sale" | "purchase" | "advance" | "expense" | "income" | "transfer";
+    sessionId?: number | null;
+  }
+
+  const rawItems: JournalRawItem[] = [];
+
+  // 7.1 Encaissements ventes clients
+  for (const p of salePayments) {
+    if (matchesDay(p.paymentDate, p.sessionId)) {
+      const cust = p.sale?.customer?.name || "Client comptoir";
+      rawItems.push({
+        id: `pay-sale-${p.id}`,
+        sortTime: getSortTime(p.paymentDate, p.createdAt),
+        timestamp: (p.createdAt || p.paymentDate).toISOString(),
+        dateFormatted: formatItemDateTime(p.paymentDate, p.createdAt),
+        reference: p.reference || `PAY-${p.id}`,
+        operationType: "Encaissement Vente",
+        operationBadgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        description: `Règlement vente ${p.sale?.reference || ""} — ${cust}`,
+        partyName: cust,
+        inflow: p.amount,
+        outflow: 0,
+        method: p.method,
+        docReference: p.sale?.reference,
+        source: "sale",
+        sessionId: p.sessionId,
+      });
+    }
+  }
+
+  // 7.2 Acomptes clients reçus en espèces
+  for (const a of customerAdvances) {
+    if (matchesDay(a.paymentDate, a.sessionId)) {
+      rawItems.push({
+        id: `adv-${a.id}`,
+        sortTime: getSortTime(a.paymentDate, a.createdAt),
+        timestamp: (a.createdAt || a.paymentDate).toISOString(),
+        dateFormatted: formatItemDateTime(a.paymentDate, a.createdAt),
+        reference: a.reference,
+        operationType: "Acompte Client",
+        operationBadgeClass: "bg-teal-50 text-teal-700 border-teal-200",
+        description: `Versement d'acompte client — ${a.customer.name}`,
+        partyName: a.customer.name,
+        inflow: a.amount,
+        outflow: 0,
+        method: a.method,
+        source: "advance",
+        sessionId: a.sessionId,
+      });
+    }
+  }
+
+  // 7.3 Dépenses d'exploitation et recettes manuelles
+  for (const e of allExpenses) {
+    if (matchesDay(e.date, e.sessionId)) {
+      const isInc = e.type === "income";
+      const catLower = (e.category || "").toLowerCase();
+      let opType = isInc ? "Recette / Apport" : "Dépense d'exploitation";
+      let badgeClass = isInc
+        ? "bg-blue-50 text-blue-700 border-blue-200"
+        : "bg-amber-50 text-amber-700 border-amber-200";
+
+      if (!isInc) {
+        if (catLower.includes("salaire")) {
+          opType = "Paiement Salaire";
+          badgeClass = "bg-orange-50 text-orange-700 border-orange-200";
+        } else if (catLower.includes("retrait") || catLower.includes("prélèvement")) {
+          opType = "Prélèvement Exploitant";
+          badgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+        }
+      }
+
+      rawItems.push({
+        id: isInc ? `inc-${e.id}` : `exp-${e.id}`,
+        sortTime: getSortTime(e.date, e.createdAt),
+        timestamp: (e.createdAt || e.date).toISOString(),
+        dateFormatted: formatItemDateTime(e.date, e.createdAt),
+        reference: e.reference,
+        operationType: opType,
+        operationBadgeClass: badgeClass,
+        description: e.description,
+        partyName: e.beneficiary || (isInc ? "Exploitant / Associé" : "Interne"),
+        inflow: isInc ? e.amount : 0,
+        outflow: isInc ? 0 : e.amount,
+        method: e.method,
+        docReference: e.receiptNumber,
+        source: isInc ? "income" : "expense",
+        sessionId: e.sessionId,
+      });
+    }
+  }
+
+  // 7.4 Règlements fournisseurs décaissés de la caisse
+  for (const p of suppPayments) {
+    if (matchesDay(p.paymentDate, p.sessionId)) {
+      const supp = p.purchase?.supplier?.name || p.supplier?.name || "Fournisseur";
+      rawItems.push({
+        id: `pay-supp-${p.id}`,
+        sortTime: getSortTime(p.paymentDate, p.createdAt),
+        timestamp: (p.createdAt || p.paymentDate).toISOString(),
+        dateFormatted: formatItemDateTime(p.paymentDate, p.createdAt),
+        reference: p.reference || `PAYF-${p.id}`,
+        operationType: "Paiement Fournisseur",
+        operationBadgeClass: "bg-rose-50 text-rose-700 border-rose-200",
+        description: `Règlement fournisseur — ${supp}`,
+        partyName: supp,
+        inflow: 0,
+        outflow: p.amount,
+        method: p.method,
+        docReference: p.purchase?.reference,
+        source: "purchase",
+        sessionId: p.sessionId,
+      });
+    }
+  }
+
+  // 7.5 Virements internes touchant la caisse (Entrées ou Sorties)
+  for (const t of transfers) {
+    if (matchesDay(t.date, t.sessionId)) {
+      const isTo = t.toAccountId === caisseId;
+      rawItems.push({
+        id: isTo ? `trf-in-${t.id}` : `trf-out-${t.id}`,
+        sortTime: getSortTime(t.date, t.createdAt),
+        timestamp: (t.createdAt || t.date).toISOString(),
+        dateFormatted: formatItemDateTime(t.date, t.createdAt),
+        reference: t.reference,
+        operationType: isTo ? "Transfert Reçu" : "Transfert Émis",
+        operationBadgeClass: isTo
+          ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+          : "bg-purple-50 text-purple-700 border-purple-200",
+        description: isTo
+          ? `${t.motif} (De : ${t.fromAccount.name})`
+          : `${t.motif} (Vers : ${t.toAccount.name})`,
+        partyName: isTo ? t.fromAccount.name : t.toAccount.name,
+        inflow: isTo ? t.amount : 0,
+        outflow: isTo ? 0 : t.amount,
+        method: "internal_transfer",
+        source: "transfer",
+        sessionId: t.sessionId,
+      });
+    }
+  }
+
+  // 8. Tri chronologique strict (le plus ancien en premier)
+  rawItems.sort((a, b) => a.sortTime - b.sortTime || a.id.localeCompare(b.id));
+
+  // 9. Calcul du solde courant après chaque opération (Running Balance)
+  let run = openingBalance;
+  const items: DailyCashJournalItem[] = rawItems.map((item) => {
+    run = run + item.inflow - item.outflow;
+    return {
+      id: item.id,
+      timestamp: item.timestamp,
+      dateFormatted: item.dateFormatted,
+      reference: item.reference,
+      operationType: item.operationType,
+      operationBadgeClass: item.operationBadgeClass,
+      description: item.description,
+      partyName: item.partyName,
+      inflow: item.inflow,
+      outflow: item.outflow,
+      runningBalance: Math.round(run * 100) / 100,
+      method: item.method,
+      docReference: item.docReference,
+      source: item.source,
+      sessionId: item.sessionId,
+    };
+  });
+
+  const totalInflows = Math.round(items.reduce((s, i) => s + i.inflow, 0) * 100) / 100;
+  const totalOutflows = Math.round(items.reduce((s, i) => s + i.outflow, 0) * 100) / 100;
+  const theoreticalFinalBalance = Math.round((openingBalance + totalInflows - totalOutflows) * 100) / 100;
+
+  return {
+    selectedDate: targetDayStr,
+    formattedDate,
+    isToday,
+    caisseAccount: {
+      id: defaultCaisse.id,
+      code: defaultCaisse.code,
+      name: defaultCaisse.name,
+    },
+    session: primarySession
+      ? {
+          id: primarySession.id,
+          reference: primarySession.reference,
+          status: primarySession.status as "open" | "closed",
+          openedAt: primarySession.openedAt.toISOString(),
+          closedAt: primarySession.closedAt ? primarySession.closedAt.toISOString() : null,
+          openingAmount: primarySession.openingAmount,
+          closingAmount: primarySession.closingAmount,
+        }
+      : null,
+    openingBalance,
+    totalInflows,
+    totalOutflows,
+    theoreticalFinalBalance,
+    items,
+    availableDates,
   };
 }

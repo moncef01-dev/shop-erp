@@ -15,6 +15,8 @@ import {
   History,
   TrendingDown,
   TrendingUp,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   openCashSessionAction,
@@ -22,6 +24,17 @@ import {
   editClosedCashSessionAction,
   type CashDashboardData,
 } from "../actions";
+
+function formatClosingDateTime(dateStr?: string | null) {
+  if (!dateStr) return "-";
+  return new Date(dateStr).toLocaleDateString("fr-DZ", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 import type { TreasuryAccountData } from "../treasury-actions";
 import { TreasuryNavigationTabs } from "@/components/cash/TreasuryNavigationTabs";
 import {
@@ -66,6 +79,11 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
 
   // Printing state
   const [printingSession, setPrintingSession] = useState<(typeof sessions)[0] | null>(null);
+  const [expandedSessionId, setExpandedSessionId] = useState<number | null>(null);
+
+  const toggleExpand = (id: number) => {
+    setExpandedSessionId((prev) => (prev === id ? null : id));
+  };
 
   const showNotification = (type: "success" | "error", text: string) => {
     setNotification({ type, text });
@@ -74,6 +92,10 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
 
   // Safe accounts for transfer destination
   const safeAccounts = treasuryAccounts.filter((a) => a.type === "safe" && a.isActive);
+
+  const closedSessions = sessions.filter(
+    (s) => s.status?.toLowerCase() === "closed" || (s.closedAt && s.status?.toLowerCase() !== "open")
+  );
 
   // Opening session handler
   const handleOpenSession = async (e: React.FormEvent) => {
@@ -345,15 +367,15 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
         )}
       </div>
 
-      {/* Historique des Sessions Clôturées */}
+      {/* Historique audité de Clôture de Caisse & Comptage Fin de Journée */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <History className="h-5 w-5 text-slate-500" />
-            Historique des Clôtures de Caisse
+            Historique audité de Clôture de Caisse &amp; Comptage Fin de Journée
           </h2>
           <span className="text-xs text-slate-400">
-            {sessions.filter((s) => s.status === "closed").length} clôture(s) enregistrée(s)
+            {closedSessions.length} clôture(s) enregistrée(s)
           </span>
         </div>
 
@@ -362,41 +384,75 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">Session & Date</th>
-                  <th className="py-3 px-4 text-right">Ouverture</th>
-                  <th className="py-3 px-4 text-right">Théorique</th>
-                  <th className="py-3 px-4 text-right">Compté Physique</th>
+                  <th className="py-3 px-4">Session & Horodatages</th>
+                  <th className="py-3 px-4 text-right">Solde Ouverture</th>
+                  <th className="py-3 px-4 text-right">Théorique Calculé</th>
+                  <th className="py-3 px-4 text-right">Compté Réel (Physique)</th>
                   <th className="py-3 px-4 text-right">Écart Constaté</th>
                   <th className="py-3 px-4 text-right">Transféré Coffre</th>
                   <th className="py-3 px-4 text-right">Conservé Caisse</th>
-                  <th className="py-3 px-4 text-center">Statut</th>
-                  <th className="py-3 px-4 text-center">Actions</th>
+                  <th className="py-3 px-4 text-center">Statut &amp; Opérateur</th>
+                  <th className="py-3 px-4 text-center">Actions &amp; Audit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {sessions.filter((s) => s.status === "closed").length === 0 ? (
+                {closedSessions.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-slate-400 text-xs">
                       Aucune session de caisse clôturée pour le moment.
                     </td>
                   </tr>
                 ) : (
-                  sessions
-                    .filter((s) => s.status === "closed")
-                    .map((s) => {
-                      const diff = s.difference ?? 0;
-                      const hasAudit = Boolean(s.closingEditAudit);
-                      const transferItem = s.transfers?.[0];
+                  closedSessions.map((s) => {
+                    const diff = s.difference ?? 0;
+                    const hasAudit = Boolean(s.closingEditAudit);
+                    const transferItem = s.transfers?.[0];
+                    const isExpanded = expandedSessionId === s.id;
 
-                      return (
-                        <tr key={s.id} className="hover:bg-slate-50/80 transition">
+                    let auditRecords: Array<{
+                      editedAt: string;
+                      reason: string;
+                      previous?: { closingAmount?: number; difference?: number };
+                      next?: { closingAmount?: number; difference?: number };
+                    }> = [];
+                    if (s.closingEditAudit) {
+                      try {
+                        const parsed = JSON.parse(s.closingEditAudit);
+                        auditRecords = Array.isArray(parsed) ? parsed : [parsed];
+                      } catch {
+                        auditRecords = [];
+                      }
+                    }
+
+                    return (
+                      <React.Fragment key={s.id}>
+                        <tr className={`hover:bg-slate-50/80 transition ${isExpanded ? "bg-slate-50/70" : ""}`}>
                           <td className="py-3.5 px-4">
-                            <span className="font-mono font-bold text-slate-900 text-xs block">
-                              {s.reference}
-                            </span>
-                            <span className="text-[11px] text-slate-400">
-                              {new Date(s.openedAt).toLocaleDateString("fr-DZ")}
-                            </span>
+                            <div className="flex items-start gap-2">
+                              <button
+                                onClick={() => toggleExpand(s.id)}
+                                className="p-1 mt-0.5 hover:bg-slate-200 rounded text-slate-500 hover:text-slate-900 transition"
+                                title="Voir les détails du comptage et audit"
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4 text-amber-600" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                                )}
+                              </button>
+                              <div>
+                                <span className="font-mono font-bold text-slate-900 text-xs block">
+                                  {s.reference}
+                                </span>
+                                <span className="text-[11px] font-medium text-slate-700 block">
+                                  Date : {new Date(s.openedAt).toLocaleDateString("fr-DZ")}
+                                </span>
+                                <div className="text-[10px] text-slate-400 space-y-0.5 mt-0.5">
+                                  <div>Ouv : {formatClosingDateTime(s.openedAt)}</div>
+                                  <div>Clôt : {s.closedAt ? formatClosingDateTime(s.closedAt) : "-"}</div>
+                                </div>
+                              </div>
+                            </div>
                           </td>
                           <td className="py-3.5 px-4 text-right font-mono text-xs text-slate-600">
                             {formatDA(s.openingAmount)}
@@ -406,7 +462,7 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
                           </td>
                           <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 text-sm">
                             {formatDA(s.closingAmount ?? 0)}
-                            {hasAudit && s.originalClosingAmount !== s.closingAmount && (
+                            {hasAudit && s.originalClosingAmount !== null && s.originalClosingAmount !== s.closingAmount && (
                               <span className="block text-[10px] text-slate-400 line-through">
                                 Init : {formatDA(s.originalClosingAmount ?? 0)}
                               </span>
@@ -445,24 +501,37 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
                               : formatDA((s.closingAmount ?? 0) - (transferItem?.amount ?? 0))}
                           </td>
                           <td className="py-3.5 px-4 text-center">
-                            {hasAudit ? (
-                              <span
-                                title="Clôture corrigée après pointage initial (audit tracé)"
-                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
-                              >
-                                Clôturée (Corrigée)
+                            <div className="flex flex-col items-center gap-1">
+                              {hasAudit ? (
+                                <span
+                                  title="Clôture corrigée après pointage initial (audit tracé)"
+                                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                                >
+                                  <ShieldCheck className="h-3 w-3" />
+                                  Clôturée (Auditée)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
+                                  Clôturée
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400">
+                                Opérateur : Caissier / Admin
                               </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
-                                Clôturée
-                              </span>
-                            )}
+                            </div>
                           </td>
                           <td className="py-3.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-1.5">
                               <button
+                                onClick={() => toggleExpand(s.id)}
+                                title="Afficher/masquer les détails du comptage et audit"
+                                className={`p-1.5 rounded-md transition ${isExpanded ? "bg-amber-100 text-amber-900" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}`}
+                              >
+                                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                              </button>
+                              <button
                                 onClick={() => handleOpenEdit(s)}
-                                title="Corriger temporairement les montants de cette clôture (avec audit trail)"
+                                title="Corriger les montants de cette clôture (avec audit trail)"
                                 className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-md transition"
                               >
                                 <Edit2 className="h-4 w-4" />
@@ -477,8 +546,84 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
                             </div>
                           </td>
                         </tr>
-                      );
-                    })
+                        {isExpanded && (
+                          <tr className="bg-slate-50/90 border-b border-slate-200">
+                            <td colSpan={9} className="p-4">
+                              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4 shadow-xs">
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                                    <ShieldCheck className="h-4 w-4 text-amber-500" />
+                                    Détails du comptage de fin de journée &amp; Audit — {s.reference}
+                                  </h4>
+                                  <span className="text-xs text-slate-500">
+                                    Exercice du {new Date(s.openedAt).toLocaleDateString("fr-DZ")}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                  <div className="p-3 bg-slate-50 rounded-lg space-y-1.5 border border-slate-100">
+                                    <div className="font-bold text-slate-700">Horodatages de Session</div>
+                                    <div className="text-slate-600">Ouverture : <span className="font-mono">{formatClosingDateTime(s.openedAt)}</span></div>
+                                    <div className="text-slate-600">Clôture : <span className="font-mono">{s.closedAt ? formatClosingDateTime(s.closedAt) : "En cours"}</span></div>
+                                    <div className="text-slate-600">Opérateur : <span className="font-medium">Responsable Caisse / Admin</span></div>
+                                  </div>
+                                  <div className="p-3 bg-slate-50 rounded-lg space-y-1.5 border border-slate-100">
+                                    <div className="font-bold text-slate-700">Flux financiers de la session</div>
+                                    <div className="text-slate-600">Fond d&apos;ouverture : <span className="font-mono font-bold">{formatDA(s.openingAmount)}</span></div>
+                                    <div className="text-emerald-700">Total Encaissements : <span className="font-mono font-bold">+{formatDA(s.totalCashIn)}</span></div>
+                                    <div className="text-rose-700">Total Décaissements : <span className="font-mono font-bold">-{formatDA(s.totalCashOut)}</span></div>
+                                    <div className="text-slate-900 pt-1 border-t border-slate-200">
+                                      Théorique : <span className="font-mono font-bold">{formatDA(s.theoreticalAmount ?? 0)}</span> | Compté : <span className="font-mono font-bold">{formatDA(s.closingAmount ?? 0)}</span>
+                                    </div>
+                                  </div>
+                                  <div className="p-3 bg-slate-50 rounded-lg space-y-1.5 border border-slate-100">
+                                    <div className="font-bold text-slate-700">Ventilation de Clôture</div>
+                                    <div className="text-slate-600">Transféré vers Coffre : <span className="font-mono font-bold text-indigo-700">{transferItem ? `${formatDA(transferItem.amount)} (${transferItem.toAccountName})` : "0 DA"}</span></div>
+                                    <div className="text-slate-600">Conservé en Caisse : <span className="font-mono font-bold">{formatDA(s.retainedAmount ?? ((s.closingAmount ?? 0) - (transferItem?.amount ?? 0)))}</span></div>
+                                    <div className="text-slate-600">Statut Écart : <span className="font-bold">{diff === 0 ? "Conforme (0 DA)" : `${diff > 0 ? "+" : ""}${formatDA(diff)}`}</span></div>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                  <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100">
+                                    <span className="font-bold text-slate-700 block mb-1">Notes &amp; Observations de comptage :</span>
+                                    <p className="text-slate-600 italic">
+                                      {s.closingNotes ? s.closingNotes : "Aucune observation saisie lors du comptage de fin de journée."}
+                                    </p>
+                                    {s.openingNotes && (
+                                      <p className="text-slate-500 text-[11px] mt-2">
+                                        <span className="font-semibold">Note d&apos;ouverture :</span> {s.openingNotes}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100">
+                                    <span className="font-bold text-slate-700 block mb-1">Historique d&apos;Audit &amp; Traçabilité :</span>
+                                    {auditRecords.length > 0 ? (
+                                      <div className="space-y-1.5">
+                                        {auditRecords.map((a, aIdx) => (
+                                          <div key={aIdx} className="text-[11px] p-2 bg-amber-50 rounded border border-amber-200 text-amber-950">
+                                            <span className="font-bold block">Correction le {formatClosingDateTime(a.editedAt)}</span>
+                                            <span>Motif : {a.reason}</span>
+                                            {a.previous?.closingAmount !== undefined && a.next?.closingAmount !== undefined && (
+                                              <span className="block text-[10px] text-amber-800">
+                                                Ancien comptage : {formatDA(a.previous.closingAmount)} → Nouveau comptage : {formatDA(a.next.closingAmount)}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-slate-500 italic text-[11px]">
+                                        Clôture originale validée lors du comptage initial. Aucune modification postérieure.
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>

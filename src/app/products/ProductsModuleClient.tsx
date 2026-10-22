@@ -179,6 +179,8 @@ export function ProductsModuleClient({
     isOpen: boolean;
     productId?: number;
     productName?: string;
+    stockQuantity?: number;
+    hasHistory?: boolean;
   }>({ isOpen: false });
 
   // Dedicated Stock Modals state
@@ -854,13 +856,20 @@ export function ProductsModuleClient({
                                 <Pencil className="h-4 w-4" />
                               </button>
                               <button
-                                onClick={() =>
+                                onClick={() => {
+                                  const totalStock = p.stocks.reduce((sum, s) => sum + s.quantity, 0);
+                                  const hasHistory =
+                                    (p._count?.movements ?? 0) > 0 ||
+                                    (p._count?.saleItems ?? 0) > 0 ||
+                                    (p._count?.purchaseItems ?? 0) > 0;
                                   setDeleteConfirm({
                                     isOpen: true,
                                     productId: p.id,
                                     productName: p.name,
-                                  })
-                                }
+                                    stockQuantity: totalStock,
+                                    hasHistory,
+                                  });
+                                }}
                                 title="Supprimer"
                                 className="rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
                               >
@@ -1884,12 +1893,32 @@ export function ProductsModuleClient({
               </h3>
             </div>
             <p className="mt-3 text-sm text-slate-600">
-              Êtes-vous sûr de vouloir supprimer définitivement le meuble{" "}
+              Êtes-vous sûr de vouloir supprimer le meuble{" "}
               <strong>&quot;{deleteConfirm.productName}&quot;</strong> ?
             </p>
-            <p className="mt-2 text-xs text-slate-400">
-              Note : S&apos;il existe des mouvements historiques ou du stock, la suppression sera bloquée pour garantir la traçabilité comptable et il vous sera conseillé de le désactiver.
-            </p>
+
+            <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 font-medium">Quantité en stock actuelle :</span>
+                <span
+                  className={`font-mono font-bold px-2.5 py-0.5 rounded-full ${
+                    (deleteConfirm.stockQuantity ?? 0) > 0
+                      ? "bg-amber-100 text-amber-800"
+                      : (deleteConfirm.stockQuantity ?? 0) < 0
+                      ? "bg-rose-100 text-rose-800"
+                      : "bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  {deleteConfirm.stockQuantity ?? 0} unité(s)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                {deleteConfirm.hasHistory
+                  ? "Cet article possède un historique comptable/commercial (ventes, achats ou mouvements). Sa suppression l'archivera et le retirera définitivement du catalogue de vente tout en préservant l'intégrité de vos documents passés et de votre inventaire."
+                  : "Cet article n'a aucun historique d'opérations. Il sera définitivement supprimé de la base de données."}
+              </p>
+            </div>
+
             <div className="mt-5 flex items-center justify-end gap-3">
               <button
                 type="button"
@@ -1915,7 +1944,7 @@ export function ProductsModuleClient({
                 }}
                 className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
               >
-                {isPending ? "Suppression..." : "Supprimer"}
+                {isPending ? "Traitement..." : "Confirmer la suppression"}
               </button>
             </div>
           </div>

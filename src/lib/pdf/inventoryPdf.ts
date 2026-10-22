@@ -155,6 +155,31 @@ export async function buildInventoryPdf({
     38
   );
 
+  // 6. Tri des articles : groupés et triés par catégorie (alphabétique),
+  // puis triés par SKU / désignation au sein de chaque catégorie.
+  // Les articles non catégorisés sont placés à la fin.
+  const sortedItems = [...data.items].sort((a, b) => {
+    const catA = (a.category || "").trim();
+    const catB = (b.category || "").trim();
+
+    if (!catA && catB) return 1;
+    if (catA && !catB) return -1;
+
+    if (catA.toLowerCase() !== catB.toLowerCase()) {
+      return catA.localeCompare(catB, "fr", { sensitivity: "base" });
+    }
+
+    const skuA = (a.sku || "").trim();
+    const skuB = (b.sku || "").trim();
+    if (skuA && skuB && skuA.toLowerCase() !== skuB.toLowerCase()) {
+      return skuA.localeCompare(skuB, "fr", { numeric: true, sensitivity: "base" });
+    }
+
+    const nameA = (a.name || "").trim();
+    const nameB = (b.name || "").trim();
+    return nameA.localeCompare(nameB, "fr", { sensitivity: "base" });
+  });
+
   // 6. Définition du tableau selon l'orientation
   const knownLocations = data.locations && data.locations.length > 0
     ? data.locations
@@ -192,7 +217,7 @@ export async function buildInventoryPdf({
     const locationSums: Record<number, number> = {};
     for (const loc of knownLocations) locationSums[loc.id] = 0;
 
-    tableBody = data.items.map((it, idx) => {
+    tableBody = sortedItems.map((it, idx) => {
       const locCells = knownLocations.map((loc) => {
         const q = it.locationStocks ? (it.locationStocks[loc.id] || 0) : 0;
         locationSums[loc.id] = (locationSums[loc.id] || 0) + q;
@@ -241,7 +266,7 @@ export async function buildInventoryPdf({
       11: { cellWidth: 40 },
     };
   } else {
-    // Mode Portrait : Emplacement spécifique
+    // Mode Portrait : Emplacement spécifique (Fiche d'Inventaire Dépôt)
     tableHead = [
       [
         { content: "N°", styles: { halign: "center" } },
@@ -249,24 +274,19 @@ export async function buildInventoryPdf({
         { content: "Désignation de l'Article", styles: { halign: "left" } },
         { content: "Catégorie", styles: { halign: "left" } },
         { content: `Stock Dépôt (${data.locationCode || "DÉPÔT"})`, styles: { halign: "center", fontStyle: "bold" } },
-        { content: "Stock Global", styles: { halign: "center" } },
         { content: "Comptage Réel", styles: { halign: "center", fontStyle: "bold" } },
         { content: "Écart", styles: { halign: "center" } },
         { content: "Observations", styles: { halign: "left" } },
       ],
     ];
 
-    let grandTotalShop = 0;
-    tableBody = data.items.map((it, idx) => {
-      const gStock = it.totalStock !== undefined ? it.totalStock : it.systemStock;
-      grandTotalShop += gStock;
+    tableBody = sortedItems.map((it, idx) => {
       return [
         String(idx + 1),
         it.sku,
         it.name,
         it.category || "Général",
         String(it.systemStock),
-        String(gStock),
         "", // Comptage réel manuscrit
         "", // Écart
         "", // Observations
@@ -277,7 +297,6 @@ export async function buildInventoryPdf({
       [
         { content: "TOTAL", colSpan: 4, styles: { halign: "right", fontStyle: "bold" } },
         { content: String(totalStockCount), styles: { halign: "center", fontStyle: "bold" } },
-        { content: String(grandTotalShop), styles: { halign: "center", fontStyle: "bold" } },
         { content: "", styles: { halign: "center" } },
         { content: "", styles: { halign: "center" } },
         { content: "", styles: { halign: "center" } },
@@ -287,13 +306,12 @@ export async function buildInventoryPdf({
     columnStyles = {
       0: { cellWidth: 8, halign: "center" },
       1: { cellWidth: 22, fontStyle: "bold" },
-      2: { cellWidth: 48 },
-      3: { cellWidth: 24 },
-      4: { cellWidth: 18, halign: "center", fontStyle: "bold", textColor: [180, 83, 9] },
-      5: { cellWidth: 16, halign: "center" },
-      6: { cellWidth: 18, halign: "center", fillColor: [255, 255, 255] },
-      7: { cellWidth: 12, halign: "center" },
-      8: { cellWidth: 20 },
+      2: { cellWidth: 50 },
+      3: { cellWidth: 26 },
+      4: { cellWidth: 22, halign: "center", fontStyle: "bold", textColor: [180, 83, 9] },
+      5: { cellWidth: 20, halign: "center", fillColor: [255, 255, 255] },
+      6: { cellWidth: 14, halign: "center" },
+      7: { cellWidth: 20 },
     };
   }
 

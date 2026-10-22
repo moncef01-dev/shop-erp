@@ -344,13 +344,24 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
           if (defaultCaisse) {
             accountId = defaultCaisse.id;
           }
+        } else if (payMethod === "transfer" || payMethod === "check" || payMethod === "cib") {
+          const bankAcc = await tx.treasuryAccount.findFirst({
+            where: { code: "ACC-BANQUE", isActive: true },
+            select: { id: true },
+          });
+          if (bankAcc) {
+            accountId = bankAcc.id;
+          }
         }
 
         const payRef = await generateNextPaymentReference(tx);
         const parsedPaymentDate = new Date(saleDate);
         const now = new Date();
         const effectivePaymentDate =
-          parsedPaymentDate.toDateString() === now.toDateString() ? now : parsedPaymentDate;
+          parsedPaymentDate.toDateString() === now.toDateString() ||
+          (parsedPaymentDate.getHours() === 0 && parsedPaymentDate.getMinutes() === 0)
+            ? now
+            : parsedPaymentDate;
 
         await tx.payment.create({
           data: {
@@ -480,6 +491,7 @@ export async function confirmDraftSaleAction(
 
       if (paymentAmount > 0 && initialPayment) {
         let sessionId: number | null = null;
+        let accountId: number | null = null;
         const payMethod = initialPayment.method || "cash";
         if (payMethod === "cash") {
           const activeSession = await tx.cashSession.findFirst({
@@ -489,6 +501,21 @@ export async function confirmDraftSaleAction(
           if (activeSession) {
             sessionId = activeSession.id;
           }
+          const defaultCaisse = await tx.treasuryAccount.findFirst({
+            where: { isDefault: true, isActive: true },
+            select: { id: true },
+          });
+          if (defaultCaisse) {
+            accountId = defaultCaisse.id;
+          }
+        } else if (payMethod === "transfer" || payMethod === "check" || payMethod === "cib") {
+          const bankAcc = await tx.treasuryAccount.findFirst({
+            where: { code: "ACC-BANQUE", isActive: true },
+            select: { id: true },
+          });
+          if (bankAcc) {
+            accountId = bankAcc.id;
+          }
         }
 
         const payRef = await generateNextPaymentReference(tx);
@@ -496,10 +523,12 @@ export async function confirmDraftSaleAction(
           data: {
             reference: payRef,
             saleId: sale.id,
+            accountId,
             amount: paymentAmount,
             method: payMethod,
             status: "completed",
             notes: initialPayment.notes?.trim() || `Paiement à la confirmation de facture ${reference}`,
+            paymentDate: new Date(),
             sessionId,
           },
         });
@@ -666,6 +695,23 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      const currentSale = await tx.sales.findUnique({
+        where: { id: saleId },
+        select: { id: true, reference: true, totalAmount: true, paidAmount: true, status: true },
+      });
+
+      if (!currentSale) throw new Error("Facture introuvable.");
+      if (currentSale.status === "cancelled") {
+        throw new Error("Impossible d'enregistrer un règlement sur une vente ou commande annulée.");
+      }
+
+      const remainingBalance = roundMoney(Math.max(0, currentSale.totalAmount - currentSale.paidAmount));
+      if (amount > remainingBalance) {
+        throw new Error(
+          `Le montant versé (${amount.toLocaleString("fr-DZ")} DA) dépasse le solde restant dû (${remainingBalance.toLocaleString("fr-DZ")} DA). Les trop-perçus ne sont pas autorisés.`
+        );
+      }
+
       let sessionId: number | null = null;
       let accountId: number | null = null;
       if (method === "cash") {
@@ -683,30 +729,44 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
         if (defaultCaisse) {
           accountId = defaultCaisse.id;
         }
+      } else if (method === "transfer" || method === "check" || method === "cib") {
+        const bankAcc = await tx.treasuryAccount.findFirst({
+          where: { code: "ACC-BANQUE", isActive: true },
+          select: { id: true },
+        });
+        if (bankAcc) {
+          accountId = bankAcc.id;
+        }
       }
 
       const payRef = await generateNextPaymentReference(tx);
-      const paymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
+      const parsedPaymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
+      const now = new Date();
+      const effectivePaymentDate =
+        parsedPaymentDate.toDateString() === now.toDateString() ||
+        (parsedPaymentDate.getHours() === 0 && parsedPaymentDate.getMinutes() === 0)
+          ? now
+          : parsedPaymentDate;
 
       const payment = await tx.payment.create({
         data: {
           reference: payRef,
-          saleId: sale.id,
+          saleId: currentSale.id,
           accountId,
           amount,
           method,
           status: "completed",
-          notes: notes || `Règlement sur commande/facture ${sale.reference}`,
-          paymentDate,
+          notes: notes || `Règlement sur commande/facture ${currentSale.reference}`,
+          paymentDate: effectivePaymentDate,
           sessionId,
         },
       });
 
-      const newPaid = roundMoney(sale.paidAmount + amount);
-      const newPaymentStatus = newPaid >= sale.totalAmount ? "paid" : "partial";
+      const newPaid = roundMoney(currentSale.paidAmount + amount);
+      const newPaymentStatus = newPaid >= currentSale.totalAmount ? "paid" : "partial";
 
       await tx.sales.update({
-        where: { id: sale.id },
+        where: { id: currentSale.id },
         data: {
           paidAmount: newPaid,
           paymentStatus: newPaymentStatus,

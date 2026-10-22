@@ -15,6 +15,7 @@ import {
   ChevronRight,
   TrendingUp,
   Coins,
+  BookOpen,
 } from "lucide-react";
 import type { CashDashboardData } from "./actions";
 import { TreasuryNavigationTabs } from "@/components/cash/TreasuryNavigationTabs";
@@ -53,6 +54,13 @@ export function GlobalSituationClient({ data }: GlobalSituationClientProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/cash/journal"
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-800 bg-amber-400 hover:bg-amber-500 rounded-lg shadow-xs transition-colors"
+          >
+            <BookOpen className="h-4 w-4 text-slate-900" />
+            Journal journalier
+          </Link>
           <Link
             href="/cash/transfers"
             className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-xs"

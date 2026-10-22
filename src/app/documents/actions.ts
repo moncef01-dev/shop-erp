@@ -660,6 +660,29 @@ export async function getInventorySheetData(locationId?: number): Promise<{
     };
   });
 
+  // Tri des articles groupés par catégorie (alphabétique), puis SKU / nom. Non catégorisés à la fin.
+  items.sort((a, b) => {
+    const catA = (a.category || "").trim();
+    const catB = (b.category || "").trim();
+
+    if (!catA && catB) return 1;
+    if (catA && !catB) return -1;
+
+    if (catA.toLowerCase() !== catB.toLowerCase()) {
+      return catA.localeCompare(catB, "fr", { sensitivity: "base" });
+    }
+
+    const skuA = (a.sku || "").trim();
+    const skuB = (b.sku || "").trim();
+    if (skuA && skuB && skuA.toLowerCase() !== skuB.toLowerCase()) {
+      return skuA.localeCompare(skuB, "fr", { numeric: true, sensitivity: "base" });
+    }
+
+    const nameA = (a.name || "").trim();
+    const nameB = (b.name || "").trim();
+    return nameA.localeCompare(nameB, "fr", { sensitivity: "base" });
+  });
+
   return {
     locationName,
     locationCode,

@@ -373,6 +373,7 @@ export async function deleteProductAction(id: number): Promise<ActionResponse> {
             movements: true,
             saleItems: true,
             purchaseItems: true,
+            purchaseReceiptItems: true,
           },
         },
         stocks: true,
@@ -383,30 +384,60 @@ export async function deleteProductAction(id: number): Promise<ActionResponse> {
       return { success: false, error: "Produit introuvable." };
     }
 
-    // Protection stricte : si le produit a du stock ou des opérations historiques
     const totalStock = product.stocks.reduce((sum, s) => sum + s.quantity, 0);
-    const hasHistory =
+    const hasHistoricalTransactions =
       product._count.movements > 0 ||
       product._count.saleItems > 0 ||
       product._count.purchaseItems > 0 ||
-      totalStock > 0;
+      product._count.purchaseReceiptItems > 0;
 
-    if (hasHistory) {
+    // Si le produit a un historique d'opérations commerciales ou de mouvements de stock :
+    // Utiliser l'archivage (soft-delete) pour préserver l'intégrité référentielle et la traçabilité comptable
+    if (hasHistoricalTransactions) {
+      await prisma.product.update({
+        where: { id },
+        data: {
+          isActive: false,
+        },
+      });
+
+      safeRevalidate("/products");
+      safeRevalidate("/sales");
+      safeRevalidate("/purchases");
+      safeRevalidate("/");
+
+      const stockDetail =
+        totalStock !== 0
+          ? ` (Stock restant conservé pour l'audit d'inventaire : ${totalStock} unité(s))`
+          : "";
+
       return {
-        success: false,
-        error: `Impossible de supprimer définitivement le meuble "${product.name}" car des opérations ou du stock (${totalStock} unité(s)) y sont rattachés. Pour préserver l'historique et la traçabilité comptable, veuillez plutôt le désactiver.`,
+        success: true,
+        message: `Le meuble "${product.name}" possède un historique comptable/commercial : il a été archivé et retiré du catalogue actif avec succès${stockDetail}.`,
+        data: { action: "archived", totalStock },
       };
     }
 
-    await prisma.product.delete({
-      where: { id },
+    // Si le produit n'a aucun historique d'opérations commerciales ou de mouvements :
+    // Suppression définitive propre avec nettoyage de ses enregistrements d'emplacements de stock
+    await prisma.$transaction(async (tx) => {
+      await tx.productStock.deleteMany({
+        where: { productId: id },
+      });
+      await tx.product.delete({
+        where: { id },
+      });
     });
 
     safeRevalidate("/products");
+    safeRevalidate("/sales");
+    safeRevalidate("/purchases");
     safeRevalidate("/");
+
     return {
       success: true,
-      message: `Produit "${product.name}" supprimé avec succès.`,
+      message: `Meuble "${product.name}" supprimé définitivement avec succès.`,
+      data: { action: "deleted", totalStock },
     };
   } catch (err: unknown) {
     console.error("Erreur suppression produit:", err);

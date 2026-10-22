@@ -62,6 +62,8 @@ export interface AccountMovementItem {
   runningBalance: number;
   method?: string;
   docReference?: string | null;
+  sessionId?: number | null;
+  createdAt?: string;
 }
 
 export interface TreasuryDashboardSummary {
@@ -182,6 +184,7 @@ export async function calculateAccountBalance(
         db.payment.aggregate({
           where: {
             status: { not: "cancelled" },
+            method: "cash",
             purchaseId: null,
             supplierId: null,
             OR: [
@@ -189,37 +192,40 @@ export async function calculateAccountBalance(
               { paymentDate: { gte: sessionStart } },
               { createdAt: { gte: sessionStart } },
             ],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
           _sum: { amount: true },
         }),
         db.customerAdvance.aggregate({
           where: {
             status: { not: "cancelled" },
+            method: "cash",
             OR: [
               { sessionId: activeSession.id },
               { paymentDate: { gte: sessionStart } },
               { createdAt: { gte: sessionStart } },
             ],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
           _sum: { amount: true },
         }),
         db.expense.aggregate({
           where: {
             type: "income",
+            method: "cash",
             OR: [
               { sessionId: activeSession.id },
               { date: { gte: sessionStart } },
               { createdAt: { gte: sessionStart } },
             ],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
           _sum: { amount: true },
         }),
         db.payment.aggregate({
           where: {
             status: { not: "cancelled" },
+            method: "cash",
             OR: [
               { sessionId: activeSession.id },
               { paymentDate: { gte: sessionStart } },
@@ -227,7 +233,7 @@ export async function calculateAccountBalance(
             ],
             AND: [
               { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
-              { OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] },
+              { OR: [{ accountId: accountId }, { accountId: null }] },
             ],
           },
           _sum: { amount: true },
@@ -235,12 +241,13 @@ export async function calculateAccountBalance(
         db.expense.aggregate({
           where: {
             type: "expense",
+            method: "cash",
             OR: [
               { sessionId: activeSession.id },
               { date: { gte: sessionStart } },
               { createdAt: { gte: sessionStart } },
             ],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
           _sum: { amount: true },
         }),
@@ -272,36 +279,40 @@ export async function calculateAccountBalance(
         db.payment.aggregate({
           where: {
             status: { not: "cancelled" },
+            method: "cash",
             purchaseId: null,
             supplierId: null,
             OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
           _sum: { amount: true },
         }),
         db.customerAdvance.aggregate({
           where: {
             status: { not: "cancelled" },
+            method: "cash",
             OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
           _sum: { amount: true },
         }),
         db.expense.aggregate({
           where: {
             type: "income",
+            method: "cash",
             OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
           _sum: { amount: true },
         }),
         db.payment.aggregate({
           where: {
             status: { not: "cancelled" },
+            method: "cash",
             OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
             AND: [
               { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
-              { OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] },
+              { OR: [{ accountId: accountId }, { accountId: null }] },
             ],
           },
           _sum: { amount: true },
@@ -309,8 +320,9 @@ export async function calculateAccountBalance(
         db.expense.aggregate({
           where: {
             type: "expense",
+            method: "cash",
             OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null, method: "cash" }] }],
+            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
           _sum: { amount: true },
         }),
@@ -1037,6 +1049,8 @@ export async function getAccountMovements(
       outflow: 0,
       runningBalance: 0,
       method: "internal_transfer",
+      sessionId: t.sessionId,
+      createdAt: t.createdAt.toISOString(),
     });
   }
 
@@ -1058,6 +1072,8 @@ export async function getAccountMovements(
       outflow: t.amount,
       runningBalance: 0,
       method: "internal_transfer",
+      sessionId: t.sessionId,
+      createdAt: t.createdAt.toISOString(),
     });
   }
 
@@ -1067,6 +1083,7 @@ export async function getAccountMovements(
       status: { not: "cancelled" },
       purchaseId: null,
       supplierId: null,
+      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
       OR: [
         { accountId: accountId },
         ...(account.isDefault ? [{ accountId: null, method: "cash" }] : []),
@@ -1089,6 +1106,8 @@ export async function getAccountMovements(
       runningBalance: 0,
       method: p.method,
       docReference: p.sale?.reference,
+      sessionId: p.sessionId,
+      createdAt: p.createdAt.toISOString(),
     });
   }
 
@@ -1096,6 +1115,7 @@ export async function getAccountMovements(
   const advances = await prisma.customerAdvance.findMany({
     where: {
       status: { not: "cancelled" },
+      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
       OR: [
         { accountId: accountId },
         ...(account.isDefault ? [{ accountId: null, method: "cash" }] : []),
@@ -1117,6 +1137,8 @@ export async function getAccountMovements(
       outflow: 0,
       runningBalance: 0,
       method: adv.method,
+      sessionId: adv.sessionId,
+      createdAt: adv.createdAt.toISOString(),
     });
   }
 
@@ -1124,6 +1146,7 @@ export async function getAccountMovements(
   const supplierPayments = await prisma.payment.findMany({
     where: {
       status: { not: "cancelled" },
+      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
       AND: [
         {
           OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }],
@@ -1156,12 +1179,15 @@ export async function getAccountMovements(
       runningBalance: 0,
       method: p.method,
       docReference: p.purchase?.reference,
+      sessionId: p.sessionId,
+      createdAt: p.createdAt.toISOString(),
     });
   }
 
   // 6. Dépenses d'exploitation et encaissements exceptionnels
   const expenses = await prisma.expense.findMany({
     where: {
+      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
       OR: [
         { accountId: accountId },
         ...(account.isDefault
@@ -1187,6 +1213,8 @@ export async function getAccountMovements(
       runningBalance: 0,
       method: e.method,
       docReference: e.receiptNumber,
+      sessionId: e.sessionId,
+      createdAt: e.createdAt.toISOString(),
     });
   }
 
@@ -1194,20 +1222,75 @@ export async function getAccountMovements(
   // si aucune date de début spécifique n'est demandée et qu'une session clôturée existe,
   // le relevé part du montant arrêté lors de la dernière clôture.
   if ((account.isDefault || account.type === "cash") && !filters?.startDate) {
+    const activeSession = await prisma.cashSession.findFirst({
+      where: { status: "open" },
+      orderBy: { openedAt: "desc" },
+    });
     const latestClosed = await prisma.cashSession.findFirst({
       where: { status: "closed" },
       orderBy: { closedAt: "desc" },
     });
-    if (latestClosed && latestClosed.closedAt) {
+
+    const getMovementSortTime = (m: AccountMovementItem) => {
+      const d = new Date(m.date).getTime();
+      const c = m.createdAt ? new Date(m.createdAt).getTime() : 0;
+      if (new Date(m.date).getUTCHours() === 0 && new Date(m.date).getUTCMinutes() === 0 && c > 0) {
+        return c;
+      }
+      return d;
+    };
+
+    if (activeSession) {
+      const sessionStart = new Date(activeSession.openedAt).getTime();
+      const sessionMovements = movements.filter((m) => {
+        if (m.sessionId === activeSession.id) return true;
+        const d = new Date(m.date).getTime();
+        const c = m.createdAt ? new Date(m.createdAt).getTime() : 0;
+        return d >= sessionStart || c >= sessionStart;
+      });
+      sessionMovements.sort((a, b) => getMovementSortTime(a) - getMovementSortTime(b));
+      let run = activeSession.openingAmount;
+      for (const m of sessionMovements) {
+        run = run + m.inflow - m.outflow;
+        m.runningBalance = Math.round(run * 100) / 100;
+      }
+      sessionMovements.sort((a, b) => getMovementSortTime(b) - getMovementSortTime(a));
+      const currentBal = await calculateAccountBalance(accountId);
+      return {
+        account: {
+          id: account.id,
+          code: account.code,
+          name: account.name,
+          type: account.type as "cash" | "safe" | "bank" | "other",
+          openingBalance: account.openingBalance,
+          openingDate: account.openingDate.toISOString(),
+          currentBalance: currentBal,
+          isDefault: account.isDefault,
+          isActive: account.isActive,
+          notes: account.notes,
+          transfersInCount: transfersIn.length,
+          transfersOutCount: transfersOut.length,
+          totalTransfersIn: transfersIn.reduce((s, t) => s + t.amount, 0),
+          totalTransfersOut: transfersOut.reduce((s, t) => s + t.amount, 0),
+        },
+        movements: sessionMovements,
+        openingBalance: activeSession.openingAmount,
+        finalBalance: currentBal,
+      };
+    } else if (latestClosed && latestClosed.closedAt) {
       const closedAtTime = new Date(latestClosed.closedAt).getTime();
-      const recentMovements = movements.filter((m) => new Date(m.date).getTime() > closedAtTime);
-      recentMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const recentMovements = movements.filter((m) => {
+        const d = new Date(m.date).getTime();
+        const c = m.createdAt ? new Date(m.createdAt).getTime() : 0;
+        return d > closedAtTime || c > closedAtTime;
+      });
+      recentMovements.sort((a, b) => getMovementSortTime(a) - getMovementSortTime(b));
       let run = latestClosed.retainedAmount ?? latestClosed.closingAmount ?? 0;
       for (const m of recentMovements) {
         run = run + m.inflow - m.outflow;
         m.runningBalance = Math.round(run * 100) / 100;
       }
-      recentMovements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      recentMovements.sort((a, b) => getMovementSortTime(b) - getMovementSortTime(a));
       const currentBal = await calculateAccountBalance(accountId);
       return {
         account: {

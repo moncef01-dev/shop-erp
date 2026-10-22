@@ -19,6 +19,7 @@ import {
   ArrowLeftRight,
   Coins,
   Lock,
+  BookOpen,
 } from "lucide-react";
 
 export interface SubNavItem {
@@ -37,14 +38,19 @@ export interface NavItem {
 
 export const treasurySubItems: SubNavItem[] = [
   {
-    label: "Paiements Clients",
-    href: "/cash/customer-payments",
-    icon: CreditCard,
+    label: "Journal journalier",
+    href: "/cash/journal",
+    icon: BookOpen,
   },
   {
     label: "Situation financière globale",
     href: "/cash",
     icon: LineChart,
+  },
+  {
+    label: "Paiements Clients",
+    href: "/cash/customer-payments",
+    icon: CreditCard,
   },
   {
     label: "Paiement Fournisseurs",

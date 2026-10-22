@@ -261,6 +261,32 @@ export function PrintableInventorySheet({
 }) {
   const [isDownloading, setIsDownloading] = React.useState(false);
 
+  // Group and sort products by category (alphabetically), then by SKU/designation within each category.
+  // Uncategorized products placed at the end.
+  const sortedItems = React.useMemo(() => {
+    return [...items].sort((a, b) => {
+      const catA = (a.category || "").trim();
+      const catB = (b.category || "").trim();
+
+      if (!catA && catB) return 1;
+      if (catA && !catB) return -1;
+
+      if (catA.toLowerCase() !== catB.toLowerCase()) {
+        return catA.localeCompare(catB, "fr", { sensitivity: "base" });
+      }
+
+      const skuA = (a.sku || "").trim();
+      const skuB = (b.sku || "").trim();
+      if (skuA && skuB && skuA.toLowerCase() !== skuB.toLowerCase()) {
+        return skuA.localeCompare(skuB, "fr", { numeric: true, sensitivity: "base" });
+      }
+
+      const nameA = (a.name || "").trim();
+      const nameB = (b.name || "").trim();
+      return nameA.localeCompare(nameB, "fr", { sensitivity: "base" });
+    });
+  }, [items]);
+
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -281,7 +307,7 @@ export function PrintableInventorySheet({
           locationName,
           locationCode,
           isGlobal: !locationCode || locationCode === "GLOBAL",
-          items,
+          items: sortedItems,
         },
         settings,
       });
@@ -393,10 +419,12 @@ export function PrintableInventorySheet({
               <thead>
                 <tr className="bg-slate-100 text-slate-700 uppercase text-[10px] tracking-wider border-b border-slate-300">
                   <th className="py-2 px-2.5 border-r border-slate-300 w-10 text-center">N°</th>
-                  <th className="py-2 px-2.5 border-r border-slate-300 w-28 font-mono">SKU / Code</th>
+                  <th className="py-2 px-2.5 border-r border-slate-300 w-28 font-mono">Réf. SKU</th>
                   <th className="py-2 px-2.5 border-r border-slate-300">Désignation de l&apos;Article</th>
                   <th className="py-2 px-2.5 border-r border-slate-300 w-28">Catégorie</th>
-                  <th className="py-2 px-2.5 border-r border-slate-300 w-20 text-center">Théorique</th>
+                  <th className="py-2 px-2.5 border-r border-slate-300 w-28 text-center font-bold">
+                    Stock Dépôt ({locationCode || "DÉPÔT"})
+                  </th>
                   <th className="py-2 px-2.5 border-r border-slate-300 w-24 text-center bg-white font-bold text-slate-900">
                     Comptage Réel
                   </th>
@@ -405,14 +433,14 @@ export function PrintableInventorySheet({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300 text-xs">
-                {items.length === 0 ? (
+                {sortedItems.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-6 text-center text-slate-400 italic">
                       Aucun article répertorié dans ce dépôt.
                     </td>
                   </tr>
                 ) : (
-                  items.map((it, idx) => (
+                  sortedItems.map((it, idx) => (
                     <tr key={it.id} className="hover:bg-slate-50">
                       <td className="py-2 px-2.5 border-r border-slate-300 text-center text-slate-400 font-mono">
                         {idx + 1}
