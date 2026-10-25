@@ -100,6 +100,11 @@ export async function getSalesModuleData() {
         },
         payments: {
           orderBy: { paymentDate: "desc" },
+          include: {
+            session: {
+              select: { id: true, reference: true, status: true },
+            },
+          },
         },
         movements: true,
       },
@@ -589,6 +594,552 @@ export async function confirmDraftSaleAction(
   } catch (err: unknown) {
     console.error("Erreur confirmation vente:", err);
     const msg = err instanceof Error ? err.message : "Erreur lors de la confirmation de la vente.";
+    return { success: false, error: msg };
+  }
+}
+
+// ─── MODIFICATION / RÉOUVERTURE D'UNE VENTE OU FACTURE ───────────────────────
+
+export interface UpdateSaleInput {
+  saleId: number;
+  customerId?: number | null;
+  saleDate?: string;
+  notes?: string | null;
+  editReason?: string;
+  deliveryFee?: number;
+  includeDeliveryFee?: boolean;
+  discount?: number;
+  items: SaleItemInput[];
+  revisedPaidAmount?: number;
+  additionalPaymentMethod?: "cash" | "cib" | "check" | "transfer";
+  additionalPaymentNotes?: string;
+  additionalPayment?: {
+    amount: number;
+    method: "cash" | "cib" | "check" | "transfer";
+    notes?: string;
+  };
+}
+
+export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleActionResponse> {
+  try {
+    const {
+      saleId,
+      customerId = null,
+      saleDate,
+      notes = null,
+      editReason = "",
+      deliveryFee = 0,
+      includeDeliveryFee,
+      discount = 0,
+      items,
+      revisedPaidAmount,
+      additionalPaymentMethod,
+      additionalPaymentNotes,
+      additionalPayment,
+    } = payload;
+
+    if (!saleId || typeof saleId !== "number") {
+      return { success: false, error: "Identifiant de facture invalide." };
+    }
+
+    if (!items || items.length === 0) {
+      return { success: false, error: "Veuillez conserver au moins une ligne d'article dans la facture." };
+    }
+
+    // 1. Validation stricte des lignes
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (!it.productId || !it.locationId) {
+        return { success: false, error: `Ligne ${i + 1} : Produit et dépôt source obligatoires.` };
+      }
+      if (!Number.isInteger(it.quantity) || it.quantity <= 0) {
+        return { success: false, error: `Ligne ${i + 1} : La quantité doit être un nombre entier strictement positif.` };
+      }
+      if (typeof it.unitPrice !== "number" || it.unitPrice < 0) {
+        return { success: false, error: `Ligne ${i + 1} : Le prix unitaire ne peut pas être négatif.` };
+      }
+    }
+
+    // 2. Calculs des montants côté serveur
+    let subtotal = 0;
+    const validatedItems = items.map((it) => {
+      const lineDiscount = roundMoney(Math.max(0, it.discount || 0));
+      const lineSubtotal = roundMoney(Math.max(0, it.quantity * it.unitPrice - lineDiscount));
+      subtotal = roundMoney(subtotal + lineSubtotal);
+      return {
+        ...it,
+        discount: lineDiscount,
+        subtotal: lineSubtotal,
+      };
+    });
+
+    const parsedDeliveryFee = roundMoney(Math.max(0, deliveryFee || 0));
+    const shouldIncludeDeliveryFee =
+      includeDeliveryFee !== undefined ? Boolean(includeDeliveryFee) : parsedDeliveryFee > 0;
+    const effectiveDeliveryFee = shouldIncludeDeliveryFee ? parsedDeliveryFee : 0;
+    const safeGlobalDiscount = roundMoney(Math.max(0, discount || 0));
+    const newTotalAmount = roundMoney(Math.max(0, subtotal + effectiveDeliveryFee - safeGlobalDiscount));
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 3. Charger la vente existante avec ses lignes, paiements et allocations
+      const existingSale = await tx.sales.findUnique({
+        where: { id: saleId },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: { select: { id: true, name: true, sku: true, costPrice: true } },
+              location: { select: { id: true, name: true } },
+            },
+          },
+          payments: {
+            where: { status: { not: "cancelled" } },
+            include: {
+              session: {
+                select: { id: true, reference: true, status: true },
+              },
+            },
+            orderBy: { paymentDate: "desc" },
+          },
+          advanceAllocations: true,
+        },
+      });
+
+      if (!existingSale) {
+        throw new Error("Facture introuvable.");
+      }
+      if (existingSale.status === "cancelled") {
+        throw new Error("Impossible de modifier une facture ou vente annulée.");
+      }
+
+      // Valider le client si modifié
+      if (customerId && customerId !== existingSale.customerId) {
+        const c = await tx.customer.findUnique({
+          where: { id: customerId },
+          select: { id: true, name: true },
+        });
+        if (!c) throw new Error("Client sélectionné introuvable.");
+      }
+
+      // 4. Réconciliation fine des stocks si la vente est confirmée
+      if (existingSale.status === "confirmed") {
+        const oldStockMap = new Map<string, { productId: number; locationId: number; qty: number }>();
+        for (const it of existingSale.items) {
+          if (!it.locationId) continue;
+          const key = `${it.productId}_${it.locationId}`;
+          const current = oldStockMap.get(key) || {
+            productId: it.productId,
+            locationId: it.locationId,
+            qty: 0,
+          };
+          current.qty += it.quantity;
+          oldStockMap.set(key, current);
+        }
+
+        const newStockMap = new Map<string, { productId: number; locationId: number; qty: number }>();
+        for (const it of validatedItems) {
+          const key = `${it.productId}_${it.locationId}`;
+          const current = newStockMap.get(key) || {
+            productId: it.productId,
+            locationId: it.locationId,
+            qty: 0,
+          };
+          current.qty += it.quantity;
+          newStockMap.set(key, current);
+        }
+
+        const allStockKeys = new Set([...oldStockMap.keys(), ...newStockMap.keys()]);
+
+        for (const key of allStockKeys) {
+          const oldEntry = oldStockMap.get(key);
+          const newEntry = newStockMap.get(key);
+
+          const productId = oldEntry?.productId ?? newEntry!.productId;
+          const locationId = oldEntry?.locationId ?? newEntry!.locationId;
+          const oldQty = oldEntry?.qty ?? 0;
+          const newQty = newEntry?.qty ?? 0;
+          const delta = newQty - oldQty; // positif = prélèvement supplémentaire, négatif = réintégration
+
+          if (delta === 0) continue;
+
+          const product = await tx.product.findUnique({
+            where: { id: productId },
+            select: { id: true, name: true, sku: true, costPrice: true, isActive: true },
+          });
+          if (!product) throw new Error(`Produit introuvable (ID: ${productId}).`);
+
+          const location = await tx.location.findUnique({
+            where: { id: locationId },
+            select: { id: true, name: true, code: true, isActive: true },
+          });
+          if (!location) throw new Error(`Emplacement introuvable (ID: ${locationId}).`);
+
+          const currentStockRecord = await tx.productStock.findUnique({
+            where: { productId_locationId: { productId, locationId } },
+          });
+          const availableStock = currentStockRecord?.quantity ?? 0;
+
+          if (delta > 0) {
+            // Prélèvement supplémentaire
+            if (!product.isActive) {
+              throw new Error(`Le produit "${product.name}" (${product.sku}) est inactif.`);
+            }
+            if (!location.isActive) {
+              throw new Error(`L'emplacement "${location.name}" est inactif.`);
+            }
+            if (availableStock < delta) {
+              throw new Error(
+                `Stock disponible insuffisant pour "${product.name}" au dépôt "${location.name}". ` +
+                `Disponible : ${availableStock} unité(s), augmentation demandée : +${delta} unité(s).`
+              );
+            }
+
+            const stockBefore = availableStock;
+            const stockAfter = availableStock - delta;
+
+            await tx.productStock.update({
+              where: { productId_locationId: { productId, locationId } },
+              data: { quantity: stockAfter },
+            });
+
+            const allStocks = await tx.productStock.findMany({
+              where: { productId },
+              select: { quantity: true },
+            });
+            const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
+            await tx.product.update({
+              where: { id: productId },
+              data: { stock: newTotal },
+            });
+
+            await tx.stockMovement.create({
+              data: {
+                reference: `MVT-MOD-${existingSale.reference}-${product.sku}`,
+                type: "SALE",
+                productId,
+                fromLocationId: locationId,
+                toLocationId: null,
+                quantity: delta,
+                unitCost: product.costPrice,
+                stockBefore,
+                stockAfter,
+                reason: `Ajustement modification vente ${existingSale.reference}`,
+                notes: `Facture N° ${existingSale.reference} modifiée (augmentation quantité: +${delta})`,
+                saleId: existingSale.id,
+              },
+            });
+          } else {
+            // delta < 0 : Réintégration de stock (annulation partielle / retour)
+            const restoreQty = Math.abs(delta);
+            const stockBefore = availableStock;
+            const stockAfter = availableStock + restoreQty;
+
+            await tx.productStock.upsert({
+              where: { productId_locationId: { productId, locationId } },
+              create: {
+                productId,
+                locationId,
+                quantity: stockAfter,
+              },
+              update: {
+                quantity: stockAfter,
+              },
+            });
+
+            const allStocks = await tx.productStock.findMany({
+              where: { productId },
+              select: { quantity: true },
+            });
+            const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
+            await tx.product.update({
+              where: { id: productId },
+              data: { stock: newTotal },
+            });
+
+            await tx.stockMovement.create({
+              data: {
+                reference: `RET-MOD-${existingSale.reference}-${product.sku}`,
+                type: "RECEIPT",
+                productId,
+                fromLocationId: null,
+                toLocationId: locationId,
+                quantity: restoreQty,
+                unitCost: product.costPrice,
+                stockBefore,
+                stockAfter,
+                reason: `Réintégration modification vente ${existingSale.reference}`,
+                notes: `Facture N° ${existingSale.reference} modifiée (réduction quantité: -${restoreQty})`,
+                saleId: existingSale.id,
+              },
+            });
+          }
+        }
+      }
+
+      // 5. Remplacement des lignes de vente
+      await tx.saleItem.deleteMany({
+        where: { saleId },
+      });
+
+      for (const item of validatedItems) {
+        await tx.saleItem.create({
+          data: {
+            saleId: existingSale.id,
+            productId: item.productId,
+            locationId: item.locationId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discount: item.discount,
+            subtotal: item.subtotal,
+          },
+        });
+      }
+
+      // 6. Gestion financière des paiements existants & éventuelle révision du montant encaissé
+      const realPayments = existingSale.payments;
+      const realPaymentsSum = realPayments.reduce((sum, p) => sum + p.amount, 0);
+      const advanceAllocationsSum = existingSale.advanceAllocations.reduce((sum, a) => sum + a.amount, 0);
+      const originalTotalPaid = roundMoney(realPaymentsSum + advanceAllocationsSum);
+
+      let targetPaidAmount = originalTotalPaid;
+      if (revisedPaidAmount !== undefined) {
+        if (typeof revisedPaidAmount !== "number" || isNaN(revisedPaidAmount) || revisedPaidAmount < 0) {
+          throw new Error("Le montant déjà encaissé doit être un nombre positif ou nul.");
+        }
+        targetPaidAmount = roundMoney(revisedPaidAmount);
+      }
+
+      if (additionalPayment && additionalPayment.amount > 0) {
+        targetPaidAmount = roundMoney(targetPaidAmount + additionalPayment.amount);
+      }
+
+      const deltaPaid = roundMoney(targetPaidAmount - originalTotalPaid);
+      let totalPaid = originalTotalPaid;
+      const paymentAuditEntries: string[] = [];
+
+      if (deltaPaid < 0) {
+        // Scénario A & D : Correction à la baisse d'un encaissement saisi par erreur
+        const toReduce = roundMoney(Math.abs(deltaPaid));
+
+        // Identifier les règlements rattachés à une session de caisse clôturée
+        const closedPayments = realPayments.filter(
+          (p) => p.session && p.session.status === "closed"
+        );
+        const openPayments = realPayments.filter(
+          (p) => !p.session || p.session.status !== "closed"
+        );
+
+        const openPaymentsSum = roundMoney(openPayments.reduce((sum, p) => sum + p.amount, 0));
+
+        // Si le montant à réduire dépasse ce qui peut être absorbé par les paiements ouverts / non clôturés
+        if (toReduce > openPaymentsSum) {
+          const closedDesc = closedPayments
+            .map(
+              (p) =>
+                `${p.reference || "Paiement"} de ${p.amount.toLocaleString("fr-DZ")} DA (Session ${
+                  p.session?.reference || "clôturée"
+                })`
+            )
+            .join(", ");
+
+          throw new Error(
+            `Impossible de réduire le montant déjà encaissé de ${toReduce.toLocaleString("fr-DZ")} DA : ` +
+              (closedPayments.length > 0
+                ? `les règlements correspondants [${closedDesc}] appartiennent à une session de caisse clôturée dont l'arrêté comptable est définitivement scellé. `
+                : `le montant à déduire excède le total des règlements directs modifiables (${openPaymentsSum.toLocaleString("fr-DZ")} DA). `) +
+              `Pour régulariser une erreur de caisse historique sans fausser les arrêtés passés, enregistrez une opération de régularisation explicite dans le module Caisse / Trésorerie.`
+          );
+        }
+
+        // Réduire depuis les paiements ouverts (du plus récent au plus ancien)
+        let remainingToReduce = toReduce;
+        for (const p of openPayments) {
+          if (remainingToReduce <= 0) break;
+          const deduct = roundMoney(Math.min(p.amount, remainingToReduce));
+          const newAmount = roundMoney(p.amount - deduct);
+          remainingToReduce = roundMoney(remainingToReduce - deduct);
+
+          const nowTimeStr = new Date().toLocaleDateString("fr-DZ") + " à " + new Date().toLocaleTimeString("fr-DZ");
+          const auditText = `[Rectification le ${nowTimeStr} : Montant ajusté de ${p.amount.toLocaleString("fr-DZ")} DA à ${newAmount.toLocaleString("fr-DZ")} DA. Motif : ${editReason?.trim() || "Correction d'encaissement sur facture"}]`;
+
+          if (newAmount > 0) {
+            await tx.payment.update({
+              where: { id: p.id },
+              data: {
+                amount: newAmount,
+                notes: p.notes ? `${p.notes}\n${auditText}` : auditText,
+              },
+            });
+          } else {
+            await tx.payment.update({
+              where: { id: p.id },
+              data: {
+                amount: 0,
+                status: "cancelled",
+                notes: p.notes ? `${p.notes}\n${auditText}` : auditText,
+              },
+            });
+          }
+
+          paymentAuditEntries.push(
+            `Règlement ${p.reference || "N°" + p.id} rectifié : ${p.amount.toLocaleString("fr-DZ")} DA → ${newAmount.toLocaleString("fr-DZ")} DA`
+          );
+        }
+
+        totalPaid = roundMoney(originalTotalPaid - toReduce);
+      } else if (deltaPaid > 0) {
+        // Scénario C : Enregistrement d'un versement réel additionnel
+        const addAmount = deltaPaid;
+        let sessionId: number | null = null;
+        let accountId: number | null = null;
+        const payMethod = additionalPaymentMethod || additionalPayment?.method || "cash";
+
+        if (payMethod === "cash") {
+          const activeSession = await tx.cashSession.findFirst({
+            where: { status: "open" },
+            select: { id: true },
+          });
+          if (activeSession) {
+            sessionId = activeSession.id;
+          }
+          const defaultCaisse = await tx.treasuryAccount.findFirst({
+            where: { isDefault: true, isActive: true },
+            select: { id: true },
+          });
+          if (defaultCaisse) {
+            accountId = defaultCaisse.id;
+          }
+        } else if (payMethod === "transfer" || payMethod === "check" || payMethod === "cib") {
+          const bankAcc = await tx.treasuryAccount.findFirst({
+            where: { code: "ACC-BANQUE", isActive: true },
+            select: { id: true },
+          });
+          if (bankAcc) {
+            accountId = bankAcc.id;
+          }
+        }
+
+        const payRef = await generateNextPaymentReference(tx);
+        const payNotes =
+          additionalPaymentNotes?.trim() ||
+          additionalPayment?.notes?.trim() ||
+          editReason?.trim() ||
+          `Encaissement lors de la modification de facture ${existingSale.reference}`;
+
+        await tx.payment.create({
+          data: {
+            reference: payRef,
+            saleId: existingSale.id,
+            accountId,
+            amount: addAmount,
+            method: payMethod,
+            status: "completed",
+            notes: payNotes,
+            paymentDate: new Date(),
+            sessionId,
+          },
+        });
+
+        paymentAuditEntries.push(
+          `Nouveau règlement ${payRef} enregistré : +${addAmount.toLocaleString("fr-DZ")} DA (${payMethod})`
+        );
+
+        totalPaid = roundMoney(originalTotalPaid + addAmount);
+      }
+
+      let paymentStatus = "unpaid";
+      if (totalPaid >= newTotalAmount && newTotalAmount > 0) {
+        paymentStatus = "paid";
+      } else if (totalPaid > 0) {
+        paymentStatus = "partial";
+      }
+
+      // 7. Construire la trace d'audit détaillée dans les notes
+      const nowStr = new Date().toLocaleDateString("fr-DZ") + " à " + new Date().toLocaleTimeString("fr-DZ");
+      const reasonLabel = editReason?.trim() ? ` — Motif: ${editReason.trim()}` : "";
+      const priceChangeLabel =
+        newTotalAmount !== existingSale.totalAmount
+          ? ` (Total: ${existingSale.totalAmount.toLocaleString("fr-DZ")} DA → ${newTotalAmount.toLocaleString("fr-DZ")} DA)`
+          : "";
+      const paymentChangeLabel =
+        totalPaid !== originalTotalPaid
+          ? ` (Encaissé: ${originalTotalPaid.toLocaleString("fr-DZ")} DA → ${totalPaid.toLocaleString("fr-DZ")} DA)`
+          : "";
+      const paymentDetailsLabel =
+        paymentAuditEntries.length > 0 ? ` [${paymentAuditEntries.join("; ")}]` : "";
+
+      const auditTrailEntry = `[Modifiée le ${nowStr}${reasonLabel}${priceChangeLabel}${paymentChangeLabel}${paymentDetailsLabel}]`;
+
+      const updatedNotes = existingSale.notes
+        ? `${existingSale.notes}\n${auditTrailEntry}`
+        : auditTrailEntry;
+
+      const updatedSale = await tx.sales.update({
+        where: { id: existingSale.id },
+        data: {
+          customerId,
+          subtotal,
+          discount: safeGlobalDiscount,
+          deliveryFee: parsedDeliveryFee,
+          includeDeliveryFee: shouldIncludeDeliveryFee,
+          totalAmount: newTotalAmount,
+          paidAmount: totalPaid,
+          paymentStatus,
+          notes: notes ? `${notes}\n${auditTrailEntry}` : updatedNotes,
+          saleDate: saleDate ? new Date(saleDate) : existingSale.saleDate,
+        },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  sku: true,
+                  name: true,
+                  model: true,
+                  color: true,
+                  sellingPrice: true,
+                },
+              },
+              location: {
+                select: { id: true, code: true, name: true },
+              },
+            },
+          },
+          payments: {
+            orderBy: { paymentDate: "desc" },
+          },
+        },
+      });
+
+      return {
+        updatedSale,
+        oldTotal: existingSale.totalAmount,
+        newTotal: newTotalAmount,
+        totalPaid,
+      };
+    });
+
+    safeRevalidate("/sales");
+    safeRevalidate("/products");
+    safeRevalidate("/customers");
+    safeRevalidate("/cash");
+
+    const overpayment = roundMoney(Math.max(0, result.totalPaid - result.newTotal));
+    let message = `Facture ${result.updatedSale.reference} modifiée avec succès.`;
+    if (overpayment > 0) {
+      message += ` Attention : un trop-perçu client de ${overpayment.toLocaleString("fr-DZ")} DA est constaté (Déjà encaissé : ${result.totalPaid.toLocaleString("fr-DZ")} DA > Nouveau montant : ${result.newTotal.toLocaleString("fr-DZ")} DA). Les encaissements réels sont préservés.`;
+    }
+
+    return {
+      success: true,
+      message,
+      data: result.updatedSale,
+    };
+  } catch (err: unknown) {
+    console.error("Erreur modification vente:", err);
+    const msg = err instanceof Error ? err.message : "Erreur lors de la modification de la facture.";
     return { success: false, error: msg };
   }
 }

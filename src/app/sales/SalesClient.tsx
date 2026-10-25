@@ -20,9 +20,11 @@ import {
   ArrowRight,
   RotateCcw,
   ShoppingCart,
+  Pencil,
 } from "lucide-react";
 import {
   createSaleAction,
+  updateSaleAction,
   confirmDraftSaleAction,
   cancelSaleAction,
   recordSalePaymentAction,
@@ -199,12 +201,14 @@ export function SalesClient({ initialData }: SalesClientProps) {
   const [printingReceipt, setPrintingReceipt] = useState<{ payment: PrintablePayment; sale: PrintableSale } | null>(null);
   const [cancelModalSale, setCancelModalSale] = useState<PrintableSale | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [editingSale, setEditingSale] = useState<PrintableSale | null>(null);
 
   // Standardized Escape key close (Feature F)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (viewingPaymentHistorySale) setViewingPaymentHistorySale(null);
+        else if (editingSale) setEditingSale(null);
         else if (allocatingAdvance) setAllocatingAdvance(null);
         else if (refundingAdvance) setRefundingAdvance(null);
         else if (paymentModalSale) closePaymentModal();
@@ -218,6 +222,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     viewingPaymentHistorySale,
+    editingSale,
     allocatingAdvance,
     refundingAdvance,
     paymentModalSale,
@@ -242,6 +247,247 @@ export function SalesClient({ initialData }: SalesClientProps) {
   const showNotification = (type: "success" | "error", text: string) => {
     setNotification({ type, text });
     setTimeout(() => setNotification(null), 6000);
+  };
+
+  // ─── ÉDITION / RÉOUVERTURE DE FACTURE ─────────────────────────────────────
+  const [editCustomerId, setEditCustomerId] = useState<string>("walkin");
+  const [editSaleDate, setEditSaleDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [editNotes, setEditNotes] = useState<string>("");
+  const [editReason, setEditReason] = useState<string>("");
+  const [editDeliveryFee, setEditDeliveryFee] = useState<string>("0");
+  const [editIncludeDeliveryFee, setEditIncludeDeliveryFee] = useState<boolean>(false);
+  const [editGlobalDiscount, setEditGlobalDiscount] = useState<string>("0");
+  const [editLines, setEditLines] = useState<FormLine[]>([]);
+  const [editPaidAmountInput, setEditPaidAmountInput] = useState<string>("0");
+  const [editAdditionalPaymentMethod, setEditAdditionalPaymentMethod] = useState<"cash" | "cib" | "check" | "transfer">("cash");
+  const [editAdditionalPaymentNotes, setEditAdditionalPaymentNotes] = useState<string>("");
+
+  const openEditModal = (sale: PrintableSale) => {
+    setEditingSale(sale);
+    setEditCustomerId(sale.customer?.id ? String(sale.customer.id) : "walkin");
+    setEditSaleDate(
+      sale.saleDate
+        ? new Date(sale.saleDate).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10)
+    );
+    setEditNotes(sale.notes || "");
+    setEditReason("");
+    setEditDeliveryFee(String(sale.deliveryFee || 0));
+    setEditIncludeDeliveryFee(Boolean(sale.includeDeliveryFee));
+    setEditGlobalDiscount(String(sale.discount || 0));
+
+    const lines: FormLine[] =
+      sale.items && sale.items.length > 0
+        ? sale.items.map((it, idx) => {
+            const prodId = ((it as any).productId || (it as any).product?.id || products.find((p) => p.sku === it.product?.sku)?.id || 0) as number;
+            const locId = ((it as any).locationId || (it as any).location?.id || defaultLocation) as number;
+            return {
+              id: `edit-line-${idx + 1}-${Date.now()}`,
+              productId: prodId,
+              locationId: locId,
+              quantity: String(it.quantity),
+              unitPrice: String(it.unitPrice),
+              discount: String(it.discount || 0),
+            };
+          })
+        : [
+            {
+              id: `edit-line-1-${Date.now()}`,
+              productId: products[0]?.id || 0,
+              locationId: defaultLocation,
+              quantity: "1",
+              unitPrice: String(products[0]?.sellingPrice ?? 0),
+              discount: "0",
+            },
+          ];
+    setEditLines(lines);
+    setEditPaidAmountInput(String(sale.paidAmount || 0));
+    setEditAdditionalPaymentMethod("cash");
+    setEditAdditionalPaymentNotes("");
+  };
+
+  const closeEditModal = () => {
+    setEditingSale(null);
+  };
+
+  const editSubtotal = useMemo(() => {
+    return roundMoney(
+      editLines.reduce((sum, line) => {
+        const q = Math.max(0, parseInt(line.quantity, 10) || 0);
+        const p = Math.max(0, parseFloat(line.unitPrice) || 0);
+        const d = Math.max(0, parseFloat(line.discount) || 0);
+        const lineTotal = Math.max(0, q * p - d);
+        return sum + lineTotal;
+      }, 0)
+    );
+  }, [editLines]);
+
+  const editParsedDeliveryFee = useMemo(() => {
+    const val = parseFloat(editDeliveryFee);
+    return isNaN(val) || val < 0 ? 0 : roundMoney(val);
+  }, [editDeliveryFee]);
+
+  const editEffectiveDeliveryFee = useMemo(() => {
+    return editIncludeDeliveryFee ? editParsedDeliveryFee : 0;
+  }, [editIncludeDeliveryFee, editParsedDeliveryFee]);
+
+  const editEffectiveGlobalDiscount = useMemo(() => {
+    return roundMoney(Math.max(0, parseFloat(editGlobalDiscount) || 0));
+  }, [editGlobalDiscount]);
+
+  const editGrandTotal = useMemo(() => {
+    return roundMoney(
+      Math.max(0, editSubtotal + editEffectiveDeliveryFee - editEffectiveGlobalDiscount)
+    );
+  }, [editSubtotal, editEffectiveDeliveryFee, editEffectiveGlobalDiscount]);
+
+  const editOriginalPaidAmount = editingSale ? editingSale.paidAmount : 0;
+  const editParsedPaidAmount = useMemo(() => {
+    const val = parseFloat(editPaidAmountInput);
+    return isNaN(val) || val < 0 ? 0 : roundMoney(val);
+  }, [editPaidAmountInput]);
+
+  const editDeltaPaid = useMemo(() => {
+    return roundMoney(editParsedPaidAmount - editOriginalPaidAmount);
+  }, [editParsedPaidAmount, editOriginalPaidAmount]);
+
+  const editOverpayment = useMemo(() => {
+    return roundMoney(Math.max(0, editParsedPaidAmount - editGrandTotal));
+  }, [editParsedPaidAmount, editGrandTotal]);
+
+  const editNewRemainingBalance = useMemo(() => {
+    return roundMoney(Math.max(0, editGrandTotal - editParsedPaidAmount));
+  }, [editGrandTotal, editParsedPaidAmount]);
+
+  const getAvailableStockForEdit = (prodId: number, locId: number): number => {
+    const baseStock = getAvailableStock(prodId, locId);
+    if (!editingSale || editingSale.status !== "confirmed" || !editingSale.items) {
+      return baseStock;
+    }
+    const previouslyReserved = editingSale.items
+      .filter((it) => {
+        const itProdId = (it as any).productId || (it as any).product?.id || products.find((p) => p.sku === it.product?.sku)?.id;
+        const itLocId = (it as any).locationId || (it as any).location?.id;
+        return itProdId === prodId && itLocId === locId;
+      })
+      .reduce((sum, it) => sum + it.quantity, 0);
+
+    return baseStock + previouslyReserved;
+  };
+
+  const handleAddEditLine = () => {
+    nextLineIdRef.current += 1;
+    setEditLines((prev) => [
+      ...prev,
+      {
+        id: `edit-line-${nextLineIdRef.current}-${Date.now()}`,
+        productId: products[0]?.id || 0,
+        locationId: defaultLocation,
+        quantity: "1",
+        unitPrice: String(products[0]?.sellingPrice ?? 0),
+        discount: "0",
+      },
+    ]);
+  };
+
+  const handleRemoveEditLine = (id: string) => {
+    if (editLines.length <= 1) {
+      showNotification("error", "Une facture doit comporter au moins une ligne d'article.");
+      return;
+    }
+    setEditLines((prev) => prev.filter((l) => l.id !== id));
+  };
+
+  const handleUpdateEditLine = (
+    lineId: string,
+    field: "productId" | "locationId" | "quantity" | "unitPrice" | "discount",
+    value: string | number
+  ) => {
+    setEditLines((prev) =>
+      prev.map((line) => {
+        if (line.id !== lineId) return line;
+        if (field === "productId") {
+          const p = products.find((prod) => prod.id === value);
+          return {
+            ...line,
+            productId: Number(value),
+            unitPrice:
+              p?.sellingPrice !== null && p?.sellingPrice !== undefined
+                ? String(p.sellingPrice)
+                : line.unitPrice,
+          };
+        }
+        return {
+          ...line,
+          [field]: value,
+        };
+      })
+    );
+  };
+
+  const handleUpdateSaleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSale) return;
+
+    if (editLines.length === 0) {
+      showNotification("error", "Veuillez conserver au moins une ligne d'article.");
+      return;
+    }
+
+    for (const line of editLines) {
+      const q = parseInt(line.quantity, 10);
+      if (isNaN(q) || q <= 0) {
+        showNotification("error", "La quantité de chaque ligne doit être au moins de 1.");
+        return;
+      }
+      const available = getAvailableStockForEdit(line.productId, line.locationId);
+      if (editingSale.status === "confirmed" && q > available) {
+        const prod = products.find((p) => p.id === line.productId);
+        showNotification(
+          "error",
+          `Stock insuffisant pour "${prod?.name || "cet article"}". Disponible pour cette facture : ${available} unité(s).`
+        );
+        return;
+      }
+    }
+
+    const parsedPaid = parseFloat(editPaidAmountInput);
+    if (isNaN(parsedPaid) || parsedPaid < 0) {
+      showNotification("error", "Le montant déjà encaissé doit être un nombre positif ou nul.");
+      return;
+    }
+
+    const payload = {
+      saleId: editingSale.id,
+      customerId: editCustomerId === "walkin" ? null : parseInt(editCustomerId, 10),
+      saleDate: editSaleDate,
+      notes: editNotes.trim() || null,
+      editReason: editReason.trim() || undefined,
+      deliveryFee: editParsedDeliveryFee,
+      includeDeliveryFee: editIncludeDeliveryFee,
+      discount: editEffectiveGlobalDiscount,
+      items: editLines.map((l) => ({
+        productId: l.productId,
+        locationId: l.locationId,
+        quantity: parseInt(l.quantity, 10),
+        unitPrice: parseFloat(l.unitPrice) || 0,
+        discount: parseFloat(l.discount) || 0,
+      })),
+      revisedPaidAmount: parsedPaid,
+      additionalPaymentMethod: editAdditionalPaymentMethod,
+      additionalPaymentNotes: editAdditionalPaymentNotes.trim() || undefined,
+    };
+
+    startTransition(async () => {
+      const res = await updateSaleAction(payload);
+      if (res.success) {
+        showNotification("success", res.message || "Facture modifiée avec succès.");
+        setEditingSale(null);
+        router.refresh();
+      } else {
+        showNotification("error", res.error || "Erreur lors de la modification de la facture.");
+      }
+    });
   };
 
   // ─── FORMULAIRE DE CRÉATION DE VENTE ──────────────────────────────────────
@@ -1123,6 +1369,16 @@ export function SalesClient({ initialData }: SalesClientProps) {
                               >
                                 <FileText className="h-4 w-4" />
                               </button>
+
+                              {sale.status !== "cancelled" && (
+                                <button
+                                  onClick={() => openEditModal(sale)}
+                                  title="Modifier / Réouvrir la facture"
+                                  className="p-1.5 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded-lg cursor-pointer transition-colors"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              )}
 
                               {sale.status !== "cancelled" && (
                                 <button
@@ -2661,6 +2917,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
             setShouldAutoPrint(false);
             router.refresh();
           }}
+          onEdit={(sale) => openEditModal(sale)}
           autoPrint={shouldAutoPrint}
         />
       )}
@@ -2691,7 +2948,475 @@ export function SalesClient({ initialData }: SalesClientProps) {
         />
       )}
 
+      {/* ── MODAL: MODIFIER / RÉOUVRIR LA FACTURE ─────────────────────────── */}
+      {editingSale && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-200">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Pencil className="h-5 w-5 text-amber-600" />
+                    Modifier / Réouvrir la Facture {editingSale.reference}
+                  </h2>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
+                      editingSale.status === "confirmed"
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    {editingSale.status === "confirmed" ? "Confirmée" : "Devis / Brouillon"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Ajustez les articles, quantités, prix unitaires, remises et frais. Les stocks et le solde client seront automatiquement synchronisés.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
+            {/* Warning Banner */}
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-xs text-amber-900">
+              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Avertissement de réconciliation :</span> La modification de cette facture recalculera le solde dû par le client sur la base de la différence entre l&apos;ancien total ({editingSale.totalAmount.toLocaleString("fr-DZ")} DA) et le nouveau montant. Les encaissements initialement enregistrés ({editOriginalPaidAmount.toLocaleString("fr-DZ")} DA) peuvent être ajustés ou complétés en direct avec mise à jour comptable traçable.
+              </div>
+            </div>
+
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleUpdateSaleSubmit} className="flex-1 overflow-y-auto mt-4 space-y-5 pr-1">
+              {/* Client & Date & Motif */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                      Client <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsNewCustomerModalOpen(true)}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 hover:text-amber-800 hover:underline cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" /> Nouveau
+                    </button>
+                  </div>
+                  <select
+                    value={editCustomerId}
+                    onChange={(e) => setEditCustomerId(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="walkin">Comptoir / Client Passager</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.phone ? `(${c.phone})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Date de la facture <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={editSaleDate}
+                    onChange={(e) => setEditSaleDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Motif de la modification (Audit)
+                  </label>
+                  <input
+                    type="text"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    placeholder="Ex: Négociation prix, échange article..."
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Articles Table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Articles de la facture
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    Disponibilité calculée avec le stock déjà alloué à cette facture
+                  </span>
+                </div>
+
+                <div className="border border-slate-200 rounded-lg overflow-visible">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
+                        <th className="py-2 px-3">Article / Référence</th>
+                        <th className="py-2 px-3 w-48">Dépôt</th>
+                        <th className="py-2 px-2 w-24 text-center">Qté</th>
+                        <th className="py-2 px-3 w-32 text-right">P.U (DA)</th>
+                        <th className="py-2 px-2 w-24 text-right">Remise (DA)</th>
+                        <th className="py-2 px-3 w-32 text-right">Total (DA)</th>
+                        <th className="py-2 px-1 w-10 text-center"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs">
+                      {editLines.map((line) => {
+                        const qNum = parseInt(line.quantity, 10) || 0;
+                        const pNum = parseFloat(line.unitPrice) || 0;
+                        const dNum = parseFloat(line.discount) || 0;
+                        const available = getAvailableStockForEdit(line.productId, line.locationId);
+                        const isStockExceeded = editingSale.status === "confirmed" && qNum > available;
+                        const lineTotal = roundMoney(Math.max(0, qNum * pNum - dNum));
+
+                        return (
+                          <tr key={line.id} className={isStockExceeded ? "bg-rose-50/60" : ""}>
+                            <td className="py-2 px-3">
+                              <ArticleSearchSelector
+                                products={products}
+                                selectedProductId={line.productId}
+                                selectedLocationId={line.locationId}
+                                onSelectProduct={(p) => handleUpdateEditLine(line.id, "productId", p.id)}
+                              />
+                            </td>
+
+                            <td className="py-2 px-3">
+                              <select
+                                value={line.locationId}
+                                onChange={(e) => handleUpdateEditLine(line.id, "locationId", parseInt(e.target.value, 10))}
+                                className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-medium focus:ring-1 focus:ring-amber-500"
+                              >
+                                {locations.map((loc) => (
+                                  <option key={loc.id} value={loc.id}>
+                                    {loc.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <span
+                                className={`block text-2xs mt-0.5 font-mono ${
+                                  available <= 0
+                                    ? "text-rose-600 font-bold"
+                                    : available < 3
+                                    ? "text-amber-600 font-semibold"
+                                    : "text-emerald-700 font-semibold"
+                                }`}
+                              >
+                                Dispo : {available}
+                              </span>
+                            </td>
+
+                            <td className="py-2 px-2">
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={line.quantity}
+                                onChange={(e) => handleUpdateEditLine(line.id, "quantity", e.target.value)}
+                                className={`w-full px-2 py-1 text-xs text-center border rounded font-mono font-bold ${
+                                  isStockExceeded
+                                    ? "border-rose-400 bg-rose-50 text-rose-700"
+                                    : "border-slate-300 bg-white"
+                                }`}
+                              />
+                              {isStockExceeded && (
+                                <span className="block text-2xs text-rose-600 text-center font-bold">
+                                  Max: {available}
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="py-2 px-3">
+                              <input
+                                type="number"
+                                min="0"
+                                step="500"
+                                value={line.unitPrice}
+                                onChange={(e) => handleUpdateEditLine(line.id, "unitPrice", e.target.value)}
+                                className="w-full px-2 py-1 text-xs text-right border border-slate-300 rounded bg-white font-mono"
+                              />
+                            </td>
+
+                            <td className="py-2 px-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step="100"
+                                value={line.discount}
+                                onChange={(e) => handleUpdateEditLine(line.id, "discount", e.target.value)}
+                                className="w-full px-2 py-1 text-xs text-right border border-slate-300 rounded bg-white font-mono text-slate-500"
+                              />
+                            </td>
+
+                            <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                              {lineTotal.toLocaleString("fr-DZ")} DA
+                            </td>
+
+                            <td className="py-2 px-1 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveEditLine(line.id)}
+                                className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                                title="Supprimer la ligne"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddEditLine}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 cursor-pointer transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Ajouter un article
+                </button>
+              </div>
+
+              {/* Delivery Fee, Global Discount, & Notes */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-200">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Frais de livraison (DA)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={editDeliveryFee}
+                    onChange={(e) => setEditDeliveryFee(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:ring-1 focus:ring-amber-500"
+                  />
+                  <label className="mt-1.5 flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={editIncludeDeliveryFee}
+                      onChange={(e) => setEditIncludeDeliveryFee(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    />
+                    <span>Inclure les frais dans la facture</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Remise globale (DA)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={editGlobalDiscount}
+                    onChange={(e) => setEditGlobalDiscount(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:ring-1 focus:ring-amber-500 text-amber-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Observations / Notes
+                  </label>
+                  <input
+                    type="text"
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    placeholder="Remarques éventuelles..."
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Additional payment or payment reduction details */}
+              {editDeltaPaid > 0 && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide">
+                        Règlement additionnel (+{editDeltaPaid.toLocaleString("fr-DZ")} DA)
+                      </span>
+                      <p className="text-2xs text-emerald-700 mt-0.5">
+                        Un paiement réel sera enregistré et rattaché à la trésorerie active.
+                      </p>
+                    </div>
+                    <span className="px-2 py-0.5 text-2xs font-bold bg-emerald-100 text-emerald-800 rounded-full border border-emerald-300">
+                      Entrée de fonds
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-emerald-200">
+                    <div>
+                      <label className="block text-2xs font-bold text-emerald-800 uppercase mb-1">
+                        Mode de paiement <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={editAdditionalPaymentMethod}
+                        onChange={(e) =>
+                          setEditAdditionalPaymentMethod(
+                            e.target.value as "cash" | "cib" | "check" | "transfer"
+                          )
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-emerald-300 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                      >
+                        <option value="cash">Espèces (Caisse active)</option>
+                        <option value="transfer">Virement bancaire</option>
+                        <option value="check">Chèque</option>
+                        <option value="cib">Carte CIB / Edahabia</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-2xs font-bold text-emerald-800 uppercase mb-1">
+                        Référence / Note du règlement
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Versement suite négociation"
+                        value={editAdditionalPaymentNotes}
+                        onChange={(e) => setEditAdditionalPaymentNotes(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-emerald-300 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {editDeltaPaid < 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Correction à la baisse (-{Math.abs(editDeltaPaid).toLocaleString("fr-DZ")} DA) :</span> Cette rectification sera déduite des règlements directs modifiables avec inscription d&apos;une note d&apos;audit. Conformément aux règles de sécurité comptable, tout règlement rattaché à une session de caisse déjà clôturée restera scellé et protégé.
+                  </div>
+                </div>
+              )}
+
+              {/* Financial Reconciliation Summary Bar */}
+              <div className="p-4 bg-slate-900 text-white rounded-xl space-y-3">
+                <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800">
+                  <span className="text-slate-400 font-semibold uppercase">Réconciliation financière</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">Total initial :</span>
+                    <span className="font-mono font-bold text-slate-300">
+                      {editingSale.totalAmount.toLocaleString("fr-DZ")} DA
+                    </span>
+                    {editGrandTotal !== editingSale.totalAmount && (
+                      <span
+                        className={`font-mono text-2xs px-1.5 py-0.5 rounded font-bold ${
+                          editGrandTotal < editingSale.totalAmount
+                            ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
+                            : "bg-amber-950 text-amber-400 border border-amber-800"
+                        }`}
+                      >
+                        {editGrandTotal < editingSale.totalAmount ? "Baisse: -" : "Hausse: +"}
+                        {Math.abs(editGrandTotal - editingSale.totalAmount).toLocaleString("fr-DZ")} DA
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                  <div className="p-2.5 bg-slate-800/80 rounded-lg flex flex-col justify-between">
+                    <span className="block text-2xs text-slate-400 uppercase font-semibold">Sous-total</span>
+                    <span className="font-mono font-bold text-sm text-slate-200 mt-1">
+                      {editSubtotal.toLocaleString("fr-DZ")} DA
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-slate-800/80 rounded-lg flex flex-col justify-between">
+                    <span className="block text-2xs text-slate-400 uppercase font-semibold">Nouveau Total</span>
+                    <span className="font-mono font-bold text-base text-amber-400 mt-1">
+                      {editGrandTotal.toLocaleString("fr-DZ")} DA
+                    </span>
+                  </div>
+
+                  {/* EDITABLE DÉJÀ ENCAISSÉ INPUT */}
+                  <div className="p-2 bg-slate-800/80 rounded-lg flex flex-col justify-between border border-emerald-500/30">
+                    <label className="block text-2xs text-emerald-400 uppercase font-bold mb-1">
+                      Montant déjà encaissé (DA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="500"
+                      value={editPaidAmountInput}
+                      onChange={(e) => setEditPaidAmountInput(e.target.value)}
+                      className="w-full px-2 py-1 text-sm font-mono font-bold text-emerald-300 bg-slate-950 border border-emerald-500/50 rounded focus:ring-2 focus:ring-emerald-400 focus:outline-hidden text-center"
+                    />
+                    {editDeltaPaid !== 0 ? (
+                      <span
+                        className={`block text-2xs mt-1 font-mono font-bold ${
+                          editDeltaPaid > 0 ? "text-emerald-300" : "text-amber-300"
+                        }`}
+                      >
+                        {editDeltaPaid > 0 ? "Hausse: +" : "Baisse: "}
+                        {editDeltaPaid.toLocaleString("fr-DZ")} DA
+                      </span>
+                    ) : (
+                      <span className="block text-2xs text-slate-500 mt-1">Inchangé</span>
+                    )}
+                  </div>
+
+                  <div className="p-2.5 bg-slate-800/80 rounded-lg flex flex-col justify-between">
+                    <span className="block text-2xs text-slate-400 uppercase font-semibold">Reste à payer</span>
+                    <span
+                      className={`font-mono font-bold text-base mt-1 ${
+                        editNewRemainingBalance > 0 ? "text-rose-400" : "text-emerald-300"
+                      }`}
+                    >
+                      {editNewRemainingBalance.toLocaleString("fr-DZ")} DA
+                    </span>
+                  </div>
+                </div>
+
+                {editOverpayment > 0 && (
+                  <div className="p-2.5 bg-amber-950/70 border border-amber-700/60 rounded-lg flex items-center gap-2 text-xs text-amber-200">
+                    <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
+                    <span>
+                      <strong>Trop-perçu client ({editOverpayment.toLocaleString("fr-DZ")} DA) :</strong> Les règlements enregistrés ({editParsedPaidAmount.toLocaleString("fr-DZ")} DA) dépassent le nouveau total ({editGrandTotal.toLocaleString("fr-DZ")} DA). La créance client est apurée. Aucun décaissement de trésorerie n&apos;est généré automatiquement.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  disabled={isPending}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="px-5 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg shadow-sm cursor-pointer disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  {isPending ? "Mise à jour en cours..." : "Valider les modifications"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL: NOUVEAU CLIENT DEPUIS LA VENTE ────────────────────────────── */}
       <NewCustomerModal

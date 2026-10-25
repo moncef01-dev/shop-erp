@@ -9,10 +9,10 @@ export interface SupplierStatementEvent {
   id: string;
   date: string;
   reference: string;
-  type: "INITIAL_DEBT" | "PURCHASE_INVOICE" | "PAYMENT" | "ADJUSTMENT";
+  type: "INITIAL_DEBT" | "PURCHASE_INVOICE" | "PAYMENT" | "ADJUSTMENT" | "RETURN";
   typeLabel: string;
   description: string;
-  debit: number; // Montant diminuant la dette envers le fournisseur (Paiement / Règlement)
+  debit: number; // Montant diminuant la dette envers le fournisseur (Paiement / Règlement / Retour)
   credit: number; // Montant augmentant la dette envers le fournisseur (Achat, dette initiale)
   runningBalance: number; // Solde restant dû après l'opération (précédent + Crédit - Débit)
   accountName?: string | null;
@@ -32,6 +32,7 @@ export interface SupplierDetailsWithBalance {
   initialDebt: number;
   totalPurchases: number;
   totalPaid: number;
+  totalReturns?: number;
   outstandingDebt: number;
   purchasesCount: number;
   paymentsCount: number;
@@ -47,6 +48,7 @@ export interface SupplierStatementData {
     totalPurchases: number;
     totalInvoiced: number;
     totalPaid: number;
+    totalReturns?: number;
     outstandingDebt: number;
   };
 }
@@ -113,6 +115,31 @@ export async function generateNextSupplierPaymentRef(
   return `${prefix}${String(nextSeq).padStart(4, "0")}`;
 }
 
+export async function generateNextSupplierReturnReference(
+  txClient?: PrismaTransactionClient
+): Promise<string> {
+  const db = txClient || prisma;
+  const now = new Date();
+  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const prefix = `RET-${yearMonth}-`;
+
+  const last = await db.supplierDebt.findFirst({
+    where: { reference: { startsWith: prefix } },
+    orderBy: { reference: "desc" },
+    select: { reference: true },
+  });
+
+  let nextSeq = 1;
+  if (last?.reference) {
+    const parts = last.reference.split("-");
+    const lastSeq = parseInt(parts[2], 10);
+    if (!isNaN(lastSeq)) {
+      nextSeq = lastSeq + 1;
+    }
+  }
+  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
+}
+
 // ─── CALCUL DU SOLDE D'UN FOURNISSEUR ──────────────────────────────────────────
 
 export async function calculateSupplierDebt(
@@ -122,18 +149,26 @@ export async function calculateSupplierDebt(
   initialDebt: number;
   totalPurchases: number;
   totalPaid: number;
+  totalReturns: number;
   outstandingDebt: number;
 }> {
   const db = txClient || prisma;
 
-  // 1. Dettes initiales / antérieures
+  // 1. Dettes initiales / antérieures (hors retours)
   const debtsAgg = await db.supplierDebt.aggregate({
-    where: { supplierId },
+    where: { supplierId, type: { notIn: ["supplier_return", "return"] } },
     _sum: { amount: true },
   });
   const initialDebt = debtsAgg._sum.amount ?? 0;
 
-  // 2. Achats confirmés dans le système
+  // 2. Retours marchandises / Avoirs (déduits de la dette)
+  const returnsAgg = await db.supplierDebt.aggregate({
+    where: { supplierId, type: { in: ["supplier_return", "return"] } },
+    _sum: { amount: true },
+  });
+  const totalReturns = returnsAgg._sum.amount ?? 0;
+
+  // 3. Achats confirmés dans le système
   const purchasesAgg = await db.purchase.aggregate({
     where: {
       supplierId,
@@ -143,7 +178,7 @@ export async function calculateSupplierDebt(
   });
   const totalPurchases = purchasesAgg._sum.totalAmount ?? 0;
 
-  // 3. Paiements effectués au fournisseur
+  // 4. Paiements effectués au fournisseur
   const paymentsAgg = await db.payment.aggregate({
     where: {
       status: { not: "cancelled" },
@@ -156,12 +191,13 @@ export async function calculateSupplierDebt(
   });
   const totalPaid = paymentsAgg._sum.amount ?? 0;
 
-  const outstandingDebt = Math.max(0, initialDebt + totalPurchases - totalPaid);
+  const outstandingDebt = Math.max(0, initialDebt + totalPurchases - totalPaid - totalReturns);
 
   return {
     initialDebt: Math.round(initialDebt * 100) / 100,
     totalPurchases: Math.round(totalPurchases * 100) / 100,
     totalPaid: Math.round(totalPaid * 100) / 100,
+    totalReturns: Math.round(totalReturns * 100) / 100,
     outstandingDebt: Math.round(outstandingDebt * 100) / 100,
   };
 }
@@ -311,13 +347,160 @@ export async function recordSupplierInitialDebtAction(
   }
 }
 
-// ─── ENREGISTRER UN RÈGLEMENT FOURNISSEUR MULTI-COMPTES ────────────────────────
+// ─── ENREGISTRER UN RETOUR MARCHANDISE FOURNISSEUR ───────────────────────────
+
+export type SupplierReturnInput = {
+  supplierId: number;
+  amount: number;
+  date?: string;
+  notes?: string | null;
+};
+
+export async function recordSupplierReturnAction(
+  payload: FormData | SupplierReturnInput
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: {
+    id: number;
+    reference: string;
+    supplierId: number;
+    supplierName: string;
+    amount: number;
+    date: string;
+    resultingDebt: number;
+  };
+}> {
+  try {
+    let supplierId: number;
+    let amount: number;
+    let dateStr: string | undefined;
+    let notes: string | null = null;
+
+    if (payload instanceof FormData) {
+      supplierId = parseInt(payload.get("supplierId") as string, 10);
+      const amountRaw = payload.get("amount") as string;
+      amount = parseFloat(amountRaw?.replace(/\s/g, "") || "");
+      dateStr = (payload.get("date") as string) || (payload.get("returnDate") as string) || undefined;
+      notes = (payload.get("notes") as string)?.trim() || null;
+    } else {
+      supplierId = Number(payload.supplierId);
+      amount = Number(payload.amount);
+      dateStr = payload.date;
+      notes = payload.notes?.trim() || null;
+    }
+
+    if (!supplierId || isNaN(supplierId)) {
+      return { success: false, error: "Veuillez désigner le fournisseur concerné." };
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+      return { success: false, error: "Le montant du retour doit être un nombre strictement supérieur à 0 DA." };
+    }
+
+    const supplier = await prisma.supplier.findUnique({
+      where: { id: supplierId },
+    });
+    if (!supplier) {
+      return { success: false, error: "Fournisseur introuvable." };
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Vérification stricte de la dette actuelle
+      const debtInfo = await calculateSupplierDebt(supplier.id, tx);
+      if (debtInfo.outstandingDebt <= 0) {
+        throw new Error(
+          `Le fournisseur "${supplier.name}" n'a aucune dette en cours. Impossible d'enregistrer un retour déductif.`
+        );
+      }
+
+      if (amount > debtInfo.outstandingDebt) {
+        throw new Error(
+          `Le montant du retour (${amount.toLocaleString(
+            "fr-DZ"
+          )} DA) ne peut pas dépasser la dette restante du fournisseur (${debtInfo.outstandingDebt.toLocaleString(
+            "fr-DZ"
+          )} DA).`
+        );
+      }
+
+      // 2. Protection anti-double soumission rapide (15s)
+      const recentDup = await tx.supplierDebt.findFirst({
+        where: {
+          supplierId: supplier.id,
+          type: "supplier_return",
+          amount,
+          createdAt: { gte: new Date(Date.now() - 15000) },
+        },
+      });
+      if (recentDup) {
+        throw new Error(
+          `Un retour identique (${amount.toLocaleString(
+            "fr-DZ"
+          )} DA) a déjà été validé il y a quelques secondes.`
+        );
+      }
+
+      // 3. Génération de référence unique
+      const reference = await generateNextSupplierReturnReference(tx);
+      const date = dateStr ? new Date(dateStr) : new Date();
+
+      const debtRecord = await tx.supplierDebt.create({
+        data: {
+          reference,
+          supplierId: supplier.id,
+          amount,
+          type: "supplier_return",
+          description: notes ? `Retour marchandise — ${notes}` : `Retour marchandise (Avoir fournisseur)`,
+          notes,
+          date,
+        },
+      });
+
+      // 4. Calcul de la dette résultante vérifiée
+      const updatedDebtInfo = await calculateSupplierDebt(supplier.id, tx);
+      const resultingDebt = updatedDebtInfo.outstandingDebt;
+
+      return {
+        id: debtRecord.id,
+        reference,
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        amount,
+        date: date.toISOString(),
+        resultingDebt,
+      };
+    });
+
+    safeRevalidate();
+
+    return {
+      success: true,
+      message: `Retour marchandise de ${result.amount.toLocaleString(
+        "fr-DZ"
+      )} DA validé (Réf: ${result.reference}). Dette restante : ${result.resultingDebt.toLocaleString(
+        "fr-DZ"
+      )} DA.`,
+      data: result,
+    };
+  } catch (err: unknown) {
+    console.error("Erreur enregistrement retour fournisseur:", err);
+    const msg =
+      err instanceof Error
+        ? err.message
+        : "Erreur lors de l'enregistrement du retour fournisseur.";
+    return { success: false, error: msg };
+  }
+}
+
+// ─── RÈGLEMENT MULTI-COMPTES DE TRÉSORERIE ─────────────────────────────────────
 
 export type SupplierPaymentMultiAccountInput = {
   supplierId?: number;
   purchaseId?: number;
   amount: number;
-  sourceAccountId: number;
+  sourceAccountId: number | string;
   method?: string;
   paymentMethod?: string;
   paymentDate?: string;
@@ -326,7 +509,12 @@ export type SupplierPaymentMultiAccountInput = {
 
 export async function recordSupplierPaymentMultiAccountAction(
   input: FormData | SupplierPaymentMultiAccountInput
-) {
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: any;
+}> {
   try {
     let supplierIdStr: string | undefined;
     let purchaseIdStr: string | undefined;
@@ -369,6 +557,18 @@ export async function recordSupplierPaymentMultiAccountAction(
 
     if (!sourceAccountIdStr) {
       return { success: false, error: "Veuillez sélectionner le compte de trésorerie débité (source)." };
+    }
+
+    // Si Retours est sélectionné, déléguer vers l'action dédiée de retour marchandise
+    const normalizedSource = sourceAccountIdStr.trim().toLowerCase();
+    if (normalizedSource === "retours" || normalizedSource === "returns") {
+      const targetSuppId = supplierIdStr ? parseInt(supplierIdStr, 10) : 0;
+      return await recordSupplierReturnAction({
+        supplierId: targetSuppId,
+        amount,
+        date: paymentDateStr,
+        notes,
+      });
     }
 
     const sourceAccountId = parseInt(sourceAccountIdStr, 10);
@@ -548,23 +748,40 @@ export async function getSupplierStatement(
   const events: SupplierStatementEvent[] = [];
 
   // 1. Dettes initiales
+  // 1. Dettes et Retours
   const debts = await prisma.supplierDebt.findMany({
     where: { supplierId },
     orderBy: { date: "asc" },
   });
   for (const d of debts) {
-    events.push({
-      id: `debt-${d.id}`,
-      date: d.date.toISOString(),
-      reference: d.reference,
-      type: "INITIAL_DEBT",
-      typeLabel: "Dette Antérieure / Initiale",
-      description: d.description,
-      debit: 0,
-      credit: d.amount,
-      runningBalance: 0,
-      notes: d.notes,
-    });
+    const isReturn = d.type === "supplier_return" || d.type === "return";
+    if (isReturn) {
+      events.push({
+        id: `return-${d.id}`,
+        date: d.date.toISOString(),
+        reference: d.reference,
+        type: "RETURN",
+        typeLabel: "Retour Marchandise / Avoir",
+        description: d.description || `Retour marchandise (${d.reference})`,
+        debit: d.amount,
+        credit: 0,
+        runningBalance: 0,
+        notes: d.notes,
+      });
+    } else {
+      events.push({
+        id: `debt-${d.id}`,
+        date: d.date.toISOString(),
+        reference: d.reference,
+        type: "INITIAL_DEBT",
+        typeLabel: "Dette Antérieure / Initiale",
+        description: d.description,
+        debit: 0,
+        credit: d.amount,
+        runningBalance: 0,
+        notes: d.notes,
+      });
+    }
   }
 
   // 2. Factures achats
@@ -625,12 +842,13 @@ export async function getSupplierStatement(
   }
 
   // Tri chronologique croissant pour calcul de la balance courante
-  // Priorité le même jour : 1 = Dette antérieure, 2 = Achat, 3 = Paiement
+  // Priorité le même jour : 1 = Dette antérieure, 2 = Achat, 3 = Retour, 4 = Paiement
   const typeAscPriority: Record<string, number> = {
     INITIAL_DEBT: 1,
     PURCHASE_INVOICE: 2,
-    PAYMENT: 3,
-    ADJUSTMENT: 4,
+    RETURN: 3,
+    PAYMENT: 4,
+    ADJUSTMENT: 5,
   };
 
   events.sort((a, b) => {
@@ -660,9 +878,10 @@ export async function getSupplierStatement(
   // Tri décroissant pour affichage standard (plus récent en premier)
   const typeDescPriority: Record<string, number> = {
     PAYMENT: 1,
-    PURCHASE_INVOICE: 2,
-    INITIAL_DEBT: 3,
-    ADJUSTMENT: 4,
+    RETURN: 2,
+    PURCHASE_INVOICE: 3,
+    INITIAL_DEBT: 4,
+    ADJUSTMENT: 5,
   };
 
   filtered.sort((a, b) => {
@@ -672,10 +891,14 @@ export async function getSupplierStatement(
     return (typeDescPriority[a.type] || 5) - (typeDescPriority[b.type] || 5);
   });
 
-  const debtsTotal = debts.reduce((sum, d) => sum + d.amount, 0);
+  const initialDebts = debts.filter((d) => d.type !== "supplier_return" && d.type !== "return");
+  const returnDebts = debts.filter((d) => d.type === "supplier_return" || d.type === "return");
+
+  const debtsTotal = initialDebts.reduce((sum, d) => sum + d.amount, 0);
+  const returnsTotal = returnDebts.reduce((sum, d) => sum + d.amount, 0);
   const purchasesTotal = purchases.reduce((sum, p) => sum + p.totalAmount, 0);
   const paymentsTotal = payments.reduce((sum, p) => sum + p.amount, 0);
-  const outstandingDebt = Math.max(0, debtsTotal + purchasesTotal - paymentsTotal);
+  const outstandingDebt = Math.max(0, debtsTotal + purchasesTotal - paymentsTotal - returnsTotal);
 
   const lastPay = payments.length > 0 ? payments[payments.length - 1].paymentDate.toISOString() : null;
   const lastPur = purchases.length > 0 ? purchases[purchases.length - 1].purchaseDate.toISOString() : null;
@@ -693,6 +916,7 @@ export async function getSupplierStatement(
       initialDebt: debtsTotal,
       totalPurchases: purchasesTotal,
       totalPaid: paymentsTotal,
+      totalReturns: returnsTotal,
       outstandingDebt,
       purchasesCount: purchases.length,
       paymentsCount: payments.length,
@@ -703,6 +927,7 @@ export async function getSupplierStatement(
     summary: {
       initialDebt: debtsTotal,
       totalPurchases: purchasesTotal,
+      totalReturns: returnsTotal,
       totalInvoiced: debtsTotal + purchasesTotal,
       totalPaid: paymentsTotal,
       outstandingDebt,

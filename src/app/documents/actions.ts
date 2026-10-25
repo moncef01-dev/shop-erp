@@ -568,7 +568,7 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
         toLocation: tr.toLocation,
         items: [
           {
-            product: tr.product,
+            product: tr.product ?? undefined,
             quantity: tr.quantity,
             unitCost: tr.unitCost,
           },

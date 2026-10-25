@@ -164,8 +164,13 @@ export async function calculateAccountBalance(
             toAccountId: accountId,
             OR: [
               { sessionId: activeSession.id },
-              { date: { gte: sessionStart } },
-              { createdAt: { gte: sessionStart } },
+              {
+                sessionId: null,
+                OR: [
+                  { date: { gte: sessionStart } },
+                  { createdAt: { gte: sessionStart } },
+                ],
+              },
             ],
           },
           _sum: { amount: true },
@@ -175,8 +180,13 @@ export async function calculateAccountBalance(
             fromAccountId: accountId,
             OR: [
               { sessionId: activeSession.id },
-              { date: { gte: sessionStart } },
-              { createdAt: { gte: sessionStart } },
+              {
+                sessionId: null,
+                OR: [
+                  { date: { gte: sessionStart } },
+                  { createdAt: { gte: sessionStart } },
+                ],
+              },
             ],
           },
           _sum: { amount: true },
@@ -189,8 +199,13 @@ export async function calculateAccountBalance(
             supplierId: null,
             OR: [
               { sessionId: activeSession.id },
-              { paymentDate: { gte: sessionStart } },
-              { createdAt: { gte: sessionStart } },
+              {
+                sessionId: null,
+                OR: [
+                  { paymentDate: { gte: sessionStart } },
+                  { createdAt: { gte: sessionStart } },
+                ],
+              },
             ],
             AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
@@ -202,8 +217,13 @@ export async function calculateAccountBalance(
             method: "cash",
             OR: [
               { sessionId: activeSession.id },
-              { paymentDate: { gte: sessionStart } },
-              { createdAt: { gte: sessionStart } },
+              {
+                sessionId: null,
+                OR: [
+                  { paymentDate: { gte: sessionStart } },
+                  { createdAt: { gte: sessionStart } },
+                ],
+              },
             ],
             AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
@@ -215,8 +235,13 @@ export async function calculateAccountBalance(
             method: "cash",
             OR: [
               { sessionId: activeSession.id },
-              { date: { gte: sessionStart } },
-              { createdAt: { gte: sessionStart } },
+              {
+                sessionId: null,
+                OR: [
+                  { date: { gte: sessionStart } },
+                  { createdAt: { gte: sessionStart } },
+                ],
+              },
             ],
             AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
@@ -228,8 +253,13 @@ export async function calculateAccountBalance(
             method: "cash",
             OR: [
               { sessionId: activeSession.id },
-              { paymentDate: { gte: sessionStart } },
-              { createdAt: { gte: sessionStart } },
+              {
+                sessionId: null,
+                OR: [
+                  { paymentDate: { gte: sessionStart } },
+                  { createdAt: { gte: sessionStart } },
+                ],
+              },
             ],
             AND: [
               { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
@@ -244,8 +274,13 @@ export async function calculateAccountBalance(
             method: "cash",
             OR: [
               { sessionId: activeSession.id },
-              { date: { gte: sessionStart } },
-              { createdAt: { gte: sessionStart } },
+              {
+                sessionId: null,
+                OR: [
+                  { date: { gte: sessionStart } },
+                  { createdAt: { gte: sessionStart } },
+                ],
+              },
             ],
             AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
@@ -258,13 +293,15 @@ export async function calculateAccountBalance(
       bal -= (suppOut._sum.amount ?? 0) + (expOut._sum.amount ?? 0);
       return Math.round(bal * 100) / 100;
     } else if (latestClosedSession && latestClosedSession.closedAt) {
-      let bal = latestClosedSession.retainedAmount ?? latestClosedSession.closingAmount ?? 0;
+      // Lorsqu'une session est fermée, le tiroir de caisse repart à 0 DA (pas de report automatique)
+      let bal = 0;
       const closedAt = latestClosedSession.closedAt;
 
       const [trIn, trOut, payIn, advIn, incIn, suppOut, expOut] = await Promise.all([
         db.treasuryTransfer.aggregate({
           where: {
             toAccountId: accountId,
+            sessionId: null,
             OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
           },
           _sum: { amount: true },
@@ -272,6 +309,7 @@ export async function calculateAccountBalance(
         db.treasuryTransfer.aggregate({
           where: {
             fromAccountId: accountId,
+            sessionId: null,
             OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
           },
           _sum: { amount: true },
@@ -282,6 +320,7 @@ export async function calculateAccountBalance(
             method: "cash",
             purchaseId: null,
             supplierId: null,
+            sessionId: null,
             OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
             AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
@@ -291,6 +330,7 @@ export async function calculateAccountBalance(
           where: {
             status: { not: "cancelled" },
             method: "cash",
+            sessionId: null,
             OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
             AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
@@ -300,6 +340,7 @@ export async function calculateAccountBalance(
           where: {
             type: "income",
             method: "cash",
+            sessionId: null,
             OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
             AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
@@ -309,6 +350,7 @@ export async function calculateAccountBalance(
           where: {
             status: { not: "cancelled" },
             method: "cash",
+            sessionId: null,
             OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
             AND: [
               { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
@@ -321,6 +363,7 @@ export async function calculateAccountBalance(
           where: {
             type: "expense",
             method: "cash",
+            sessionId: null,
             OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
             AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
           },
@@ -728,6 +771,22 @@ export async function createTreasuryTransferAction(payload: {
 
       const reference = await generateNextTreasuryTransferReference(tx);
 
+      let sessionId = payload.sessionId || null;
+      if (!sessionId) {
+        const cashAcc = await tx.treasuryAccount.findFirst({
+          where: { OR: [{ isDefault: true }, { type: "cash" }], isActive: true },
+        });
+        if (cashAcc && (fromAccountId === cashAcc.id || toAccountId === cashAcc.id)) {
+          const activeSession = await tx.cashSession.findFirst({
+            where: { status: "open" },
+            orderBy: { openedAt: "desc" },
+          });
+          if (activeSession) {
+            sessionId = activeSession.id;
+          }
+        }
+      }
+
       const transfer = await tx.treasuryTransfer.create({
         data: {
           reference,
@@ -738,7 +797,7 @@ export async function createTreasuryTransferAction(payload: {
           motif,
           notes,
           date,
-          sessionId: payload.sessionId || null,
+          sessionId,
         },
         include: {
           fromAccount: { select: { id: true, name: true, code: true } },
@@ -1285,7 +1344,7 @@ export async function getAccountMovements(
         return d > closedAtTime || c > closedAtTime;
       });
       recentMovements.sort((a, b) => getMovementSortTime(a) - getMovementSortTime(b));
-      let run = latestClosed.retainedAmount ?? latestClosed.closingAmount ?? 0;
+      let run = 0;
       for (const m of recentMovements) {
         run = run + m.inflow - m.outflow;
         m.runningBalance = Math.round(run * 100) / 100;
@@ -1310,7 +1369,7 @@ export async function getAccountMovements(
           totalTransfersOut: transfersOut.reduce((s, t) => s + t.amount, 0),
         },
         movements: recentMovements,
-        openingBalance: latestClosed.retainedAmount ?? latestClosed.closingAmount ?? 0,
+        openingBalance: 0,
         finalBalance: currentBal,
       };
     }

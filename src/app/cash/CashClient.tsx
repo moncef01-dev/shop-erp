@@ -65,7 +65,7 @@ export function CashClient({ initialData }: CashClientProps) {
 
   // Modals state
   const [isOpeningModalOpen, setIsOpeningModalOpen] = useState(false);
-  const [openingAmountInput, setOpeningAmountInput] = useState("");
+  const [openingAmountInput, setOpeningAmountInput] = useState("0");
   const [openingNotesInput, setOpeningNotesInput] = useState("");
   const [includePendingCash, setIncludePendingCash] = useState(true);
 
@@ -202,7 +202,7 @@ export function CashClient({ initialData }: CashClientProps) {
       if (res.success) {
         showNotification("success", res.message || "Session de caisse ouverte.");
         setIsOpeningModalOpen(false);
-        setOpeningAmountInput("");
+        setOpeningAmountInput("0");
         setOpeningNotesInput("");
         router.refresh();
       } else {
@@ -235,6 +235,10 @@ export function CashClient({ initialData }: CashClientProps) {
     }
 
     const parsedTransfer = closingTransferAmount ? parseFloat(closingTransferAmount.replace(/\s/g, "")) : 0;
+    if (isNaN(parsedTransfer) || parsedTransfer < 0) {
+      showNotification("error", "Le montant du transfert ne peut pas être négatif.");
+      return;
+    }
     if (parsedTransfer > 0 && !closingTransferDestId) {
       showNotification("error", "Veuillez sélectionner un compte de destination pour le transfert.");
       return;
@@ -1600,7 +1604,7 @@ export function CashClient({ initialData }: CashClientProps) {
                   min="0"
                   step="1"
                   required
-                  placeholder="Ex: 20000"
+                  placeholder="0"
                   value={openingAmountInput}
                   onChange={(e) => setOpeningAmountInput(e.target.value)}
                   className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"

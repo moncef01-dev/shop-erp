@@ -147,7 +147,72 @@ export async function getProductsModuleData() {
   };
 }
 
-// ─── GESTION DES PRODUITS ───────────────────────────────────────────────────
+// ─── GESTION DES PRODUITS & GÉNÉRATION AUTOMATIQUE DU SKU ───────────────────────
+
+/**
+ * Génère automatiquement la référence SKU selon la convention de la boutique :
+ * - Préfixe = 1ère lettre alphabétique de la catégorie en majuscule (A=Armoire, F=Fauteuil, T=Table, etc.) ou 'ART' si aucune.
+ * - Suffixe numérique séquentiel formaté sur au moins 3 chiffres (ex: F102, T093, A003).
+ * - Garantit une unicité stricte contre TOUS les produits de la base (actifs ET archivés/inactifs).
+ */
+export async function generateNextProductSku(categoryId?: number | null): Promise<string> {
+  let prefix = "ART";
+  if (categoryId) {
+    const cat = await prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { name: true },
+    });
+    if (cat?.name) {
+      const normalized = cat.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const firstChar = normalized.charAt(0).toUpperCase();
+      if (/^[A-Z]$/.test(firstChar)) {
+        prefix = firstChar;
+      }
+    }
+  }
+
+  // Récupérer toutes les références existantes pour garantir l'unicité globale (y compris archivés)
+  const allProducts = await prisma.product.findMany({
+    select: { sku: true },
+  });
+
+  const existingSkus = new Set(allProducts.map((p) => p.sku.toUpperCase()));
+
+  let maxNum = 0;
+  const prefixRegex = new RegExp(`^${prefix}(\\d+)$`, "i");
+
+  for (const p of allProducts) {
+    const match = p.sku.match(prefixRegex);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  }
+
+  let candidateNum = maxNum + 1;
+  let candidate = `${prefix}${String(candidateNum).padStart(3, "0")}`;
+
+  while (existingSkus.has(candidate.toUpperCase())) {
+    candidateNum++;
+    candidate = `${prefix}${String(candidateNum).padStart(3, "0")}`;
+  }
+
+  return candidate;
+}
+
+export async function generateNextProductSkuAction(
+  categoryId?: number | null
+): Promise<{ success: boolean; sku: string }> {
+  try {
+    const sku = await generateNextProductSku(categoryId);
+    return { success: true, sku };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Erreur génération SKU";
+    return { success: false, sku: "" };
+  }
+}
 
 export async function createProductAction(formData: FormData): Promise<ActionResponse> {
   try {
@@ -169,9 +234,6 @@ export async function createProductAction(formData: FormData): Promise<ActionRes
     const minStock = minStockStr ? parseInt(minStockStr, 10) : 0;
 
     // Validation
-    if (!rawSku) {
-      return { success: false, error: "La référence (SKU) est obligatoire." };
-    }
     if (!rawName) {
       return { success: false, error: "Le nom du produit est obligatoire." };
     }
@@ -185,9 +247,10 @@ export async function createProductAction(formData: FormData): Promise<ActionRes
       return { success: false, error: "Le seuil d'alerte de stock ne peut pas être négatif." };
     }
 
-    const cleanSku = rawSku.toUpperCase();
+    // Référence (SKU) : fournie ou générée automatiquement selon convention
+    const cleanSku = rawSku ? rawSku.toUpperCase() : await generateNextProductSku(categoryId);
 
-    // Vérifier l'unicité stricte et insensible à la casse du SKU
+    // Vérifier l'unicité stricte et insensible à la casse du SKU (inclut tous les statuts)
     const existingSku = await prisma.product.findFirst({
       where: {
         sku: { equals: cleanSku },

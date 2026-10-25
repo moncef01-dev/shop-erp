@@ -971,6 +971,7 @@ export interface CashLedgerItem {
   rawId: number;
   reference: string;
   date: string;
+  createdAt?: string;
   type: "encaissement" | "decaissement" | "transfer";
   source: "sale" | "purchase" | "expense" | "income" | "transfer";
   category: string;
@@ -985,6 +986,8 @@ export interface CashLedgerItem {
   sessionRef?: string | null;
   accountId?: number | null;
   accountName?: string | null;
+  fromAccountId?: number | null;
+  toAccountId?: number | null;
 }
 
 export interface TreasuryChannelSummary {
@@ -1196,6 +1199,7 @@ export async function getCashDashboardData(filters?: {
         rawId: p.id,
         reference: p.reference || `PAY-${String(p.id).padStart(4, "0")}`,
         date: p.paymentDate.toISOString(),
+        createdAt: p.createdAt.toISOString(),
         type: "encaissement",
         source: "sale",
         category: "Vente Meubles",
@@ -1220,6 +1224,7 @@ export async function getCashDashboardData(filters?: {
         rawId: p.id,
         reference: p.reference || `PAYF-${String(p.id).padStart(4, "0")}`,
         date: p.paymentDate.toISOString(),
+        createdAt: p.createdAt.toISOString(),
         type: "decaissement",
         source: "purchase",
         category: "Achat Fournisseur",
@@ -1243,6 +1248,7 @@ export async function getCashDashboardData(filters?: {
         rawId: p.id,
         reference: p.reference || `PAY-${String(p.id).padStart(4, "0")}`,
         date: p.paymentDate.toISOString(),
+        createdAt: p.createdAt.toISOString(),
         type: "encaissement",
         source: "sale",
         category: "Encaissement Caisse",
@@ -1269,6 +1275,7 @@ export async function getCashDashboardData(filters?: {
       rawId: adv.id,
       reference: adv.reference,
       date: adv.paymentDate.toISOString(),
+      createdAt: adv.createdAt.toISOString(),
       type: "encaissement",
       source: "sale",
       category: "Acompte Client",
@@ -1295,6 +1302,7 @@ export async function getCashDashboardData(filters?: {
       rawId: e.id,
       reference: e.reference,
       date: e.date.toISOString(),
+      createdAt: e.createdAt.toISOString(),
       type: isIncome ? "encaissement" : "decaissement",
       source: isIncome ? "income" : "expense",
       category: formatExpenseCategory(e.category),
@@ -1315,11 +1323,14 @@ export async function getCashDashboardData(filters?: {
 
   // 5.4 Mouvements de virements internes entre comptes (sans impacter chiffre d'affaires ni charges)
   for (const t of transfers) {
+    const isFromCash = t.fromAccountId === defaultCashAccId;
+    const isToCash = t.toAccountId === defaultCashAccId;
     ledgerItems.push({
       id: `trf-${t.id}`,
       rawId: t.id,
       reference: t.reference,
       date: t.date.toISOString(),
+      createdAt: t.createdAt.toISOString(),
       type: "transfer",
       source: "transfer",
       category: "Virement Interne",
@@ -1329,11 +1340,13 @@ export async function getCashDashboardData(filters?: {
       method: "internal_transfer",
       amount: t.amount,
       notes: t.notes,
-      affectsCash: t.fromAccountId === defaultCashAccId || t.toAccountId === defaultCashAccId,
+      affectsCash: isFromCash || isToCash,
       sessionId: t.sessionId,
       sessionRef: t.session?.reference,
       accountId: t.fromAccountId,
       accountName: `${t.fromAccount.name} → ${t.toAccount.name}`,
+      fromAccountId: t.fromAccountId,
+      toAccountId: t.toAccountId,
     });
   }
 
@@ -1347,16 +1360,26 @@ export async function getCashDashboardData(filters?: {
     const sessionCashItems = ledgerItems.filter((item) => {
       if (!item.affectsCash) return false;
       if (item.sessionId === activeRaw.id) return true;
+      if (item.sessionId !== null && item.sessionId !== undefined) return false;
       const t = new Date(item.date).getTime();
-      return t >= sessionStart && item.sessionId === null;
+      const tCreated = item.createdAt ? new Date(item.createdAt).getTime() : 0;
+      return t >= sessionStart || tCreated >= sessionStart;
     });
 
     const currentCashIn = sessionCashItems
-      .filter((i) => i.type === "encaissement")
+      .filter((i) => {
+        if (i.type === "encaissement") return true;
+        if (i.type === "transfer" && i.toAccountId === defaultCashAccId) return true;
+        return false;
+      })
       .reduce((acc, i) => acc + i.amount, 0);
 
     const currentCashOut = sessionCashItems
-      .filter((i) => i.type === "decaissement")
+      .filter((i) => {
+        if (i.type === "decaissement") return true;
+        if (i.type === "transfer" && i.fromAccountId === defaultCashAccId) return true;
+        return false;
+      })
       .reduce((acc, i) => acc + i.amount, 0);
 
     const currentTheoreticalCash = activeRaw.openingAmount + currentCashIn - currentCashOut;
@@ -1380,7 +1403,12 @@ export async function getCashDashboardData(filters?: {
     if (!item.affectsCash) return false;
     if (item.type === "transfer") return false; // les transferts ne sont pas des espèces en attente
     if (item.sessionId !== null) return false;
-    if (activeRaw && new Date(item.date).getTime() >= new Date(activeRaw.openedAt).getTime()) return false;
+    if (activeRaw) {
+      const sessionStart = new Date(activeRaw.openedAt).getTime();
+      const t = new Date(item.date).getTime();
+      const tCreated = item.createdAt ? new Date(item.createdAt).getTime() : 0;
+      if (t >= sessionStart || tCreated >= sessionStart) return false;
+    }
     return true;
   });
 
@@ -1561,6 +1589,12 @@ export interface DailyCashJournalData {
   openingBalance: number;
   totalInflows: number;
   totalOutflows: number;
+  operatingInflows: number;
+  operatingOutflows: number;
+  transfersIn: number;
+  transfersOut: number;
+  netTransfers: number;
+  netOperatingFlow: number;
   theoreticalFinalBalance: number;
   items: DailyCashJournalItem[];
   availableDates: string[];
@@ -1639,7 +1673,8 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     });
 
     if (priorClosedSession && priorClosedSession.closedAt) {
-      let bal = priorClosedSession.retainedAmount ?? priorClosedSession.closingAmount ?? 0;
+      // Pas de report automatique du reliquat de clôture précédent : démarrage à 0 DA
+      let bal = 0;
       const cutoff = priorClosedSession.closedAt;
       const dayStart = new Date(`${targetDayStr}T00:00:00.000Z`);
 
@@ -1761,12 +1796,21 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     ]);
 
   // 6. Détection des dates disponibles pour l'historique
+  const getEffectiveDayStr = (d: Date): string => {
+    // Si la date a été enregistrée à minuit pile UTC (00:00:00.000Z), elle représente une date calendaire pure (YYYY-MM-DD)
+    if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0) {
+      return d.toISOString().slice(0, 10);
+    }
+    // Sinon, on extrait la date dans le fuseau horaire local du magasin
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
   const dateSet = new Set<string>();
   const addDateToSet = (d: Date) => {
-    dateSet.add(d.toISOString().slice(0, 10));
-    dateSet.add(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-    );
+    dateSet.add(getEffectiveDayStr(d));
   };
 
   salePayments.forEach((p) => {
@@ -1792,46 +1836,53 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
 
   // 7. Filtrage et normalisation des mouvements de la journée sélectionnée
   const matchesDay = (d: Date, sId?: number | null) => {
-    const dStr = d.toISOString().slice(0, 10);
-    if (dStr === targetDayStr) return true;
-    const dLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-      d.getDate()
-    ).padStart(2, "0")}`;
-    if (dLocal === targetDayStr) return true;
-    return false;
+    return getEffectiveDayStr(d) === targetDayStr;
   };
 
   const getSortTime = (d: Date, c: Date | null) => {
-    const isMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
+    const isMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
     if (isMidnight && c) {
+      const effDay = getEffectiveDayStr(d);
+      const cEffDay = getEffectiveDayStr(c);
+      if (cEffDay === effDay) {
+        const datePart = new Date(d);
+        datePart.setHours(c.getHours(), c.getMinutes(), c.getSeconds(), c.getMilliseconds());
+        return datePart.getTime();
+      }
       const datePart = new Date(d);
-      datePart.setHours(c.getHours(), c.getMinutes(), c.getSeconds(), c.getMilliseconds());
+      datePart.setHours(23, 59, 0, 0);
       return datePart.getTime();
     }
     return d.getTime();
   };
 
   const formatItemDateTime = (d: Date, c: Date | null) => {
-    const isMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
-    const dateFormatted = d.toLocaleDateString("fr-DZ", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+    const isMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
+    const effDayStr = getEffectiveDayStr(d);
+    const [y, m, day] = effDayStr.split("-");
+    const dateFormatted = `${day}/${m}/${y}`;
+
     if (isMidnight && c) {
-      const timeStr = c.toLocaleTimeString("fr-DZ", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      return `${dateFormatted} ${timeStr}`;
+      const cEffDay = getEffectiveDayStr(c);
+      if (cEffDay === effDayStr) {
+        const timeStr = c.toLocaleTimeString("fr-DZ", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        return `${dateFormatted} ${timeStr}`;
+      }
+      return `${dateFormatted} 23:59`;
     }
-    return d.toLocaleDateString("fr-DZ", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+
+    if (isMidnight) {
+      return `${dateFormatted} 23:59`;
+    }
+
+    const timeStr = d.toLocaleTimeString("fr-DZ", {
       hour: "2-digit",
       minute: "2-digit",
     });
+    return `${dateFormatted} ${timeStr}`;
   };
 
   interface JournalRawItem {
@@ -2017,9 +2068,30 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     };
   });
 
-  const totalInflows = Math.round(items.reduce((s, i) => s + i.inflow, 0) * 100) / 100;
-  const totalOutflows = Math.round(items.reduce((s, i) => s + i.outflow, 0) * 100) / 100;
-  const theoreticalFinalBalance = Math.round((openingBalance + totalInflows - totalOutflows) * 100) / 100;
+  // Séparation stricte des flux d'exploitation et des virements internes de trésorerie
+  const operatingInflows = Math.round(
+    items.filter((i) => i.source !== "transfer").reduce((s, i) => s + i.inflow, 0) * 100
+  ) / 100;
+  const operatingOutflows = Math.round(
+    items.filter((i) => i.source !== "transfer").reduce((s, i) => s + i.outflow, 0) * 100
+  ) / 100;
+  const transfersIn = Math.round(
+    items.filter((i) => i.source === "transfer").reduce((s, i) => s + i.inflow, 0) * 100
+  ) / 100;
+  const transfersOut = Math.round(
+    items.filter((i) => i.source === "transfer").reduce((s, i) => s + i.outflow, 0) * 100
+  ) / 100;
+
+  // Total des entrées et sorties d'exploitation (les transferts internes ne sont pas des charges)
+  const totalInflows = operatingInflows;
+  const totalOutflows = operatingOutflows;
+  const netOperatingFlow = Math.round((operatingInflows - operatingOutflows) * 100) / 100;
+  const netTransfers = Math.round((transfersIn - transfersOut) * 100) / 100;
+
+  // Le solde physique final de caisse prend en compte le solde initial, les flux d'exploitation et les transferts de caisse
+  const theoreticalFinalBalance = Math.round(
+    (openingBalance + operatingInflows - operatingOutflows + transfersIn - transfersOut) * 100
+  ) / 100;
 
   return {
     selectedDate: targetDayStr,
@@ -2044,6 +2116,12 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     openingBalance,
     totalInflows,
     totalOutflows,
+    operatingInflows,
+    operatingOutflows,
+    transfersIn,
+    transfersOut,
+    netTransfers,
+    netOperatingFlow,
     theoreticalFinalBalance,
     items,
     availableDates,

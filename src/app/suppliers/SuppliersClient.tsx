@@ -28,6 +28,7 @@ import {
 import {
   recordSupplierInitialDebtAction,
   recordSupplierPaymentMultiAccountAction,
+  recordSupplierReturnAction,
   getSupplierStatement,
   type SupplierDetailsWithBalance,
   type SupplierStatementData,
@@ -242,7 +243,7 @@ export function SuppliersClient({
     });
   };
 
-  // Payer une dette fournisseur
+  // Payer une dette fournisseur ou Enregistrer un retour marchandise
   const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!preselectedSupplierId) {
@@ -252,6 +253,44 @@ export function SuppliersClient({
     const parsedAmount = parseFloat(paymentAmount.replace(/\s/g, ""));
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       showNotification("error", "Veuillez saisir un montant valide strictement supérieur à 0 DA.");
+      return;
+    }
+
+    const isReturnMode =
+      paymentSourceAccountId === "Retours" ||
+      paymentSourceAccountId.toLowerCase() === "retours";
+
+    if (isReturnMode) {
+      if (selectedSupplierObj && parsedAmount > selectedSupplierObj.outstandingDebt) {
+        showNotification(
+          "error",
+          `Le montant du retour (${formatDA(parsedAmount)}) ne peut pas dépasser la dette actuelle du fournisseur (${formatDA(selectedSupplierObj.outstandingDebt)}).`
+        );
+        return;
+      }
+
+      const fd = new FormData();
+      fd.set("supplierId", preselectedSupplierId.toString());
+      fd.set("amount", parsedAmount.toString());
+      fd.set("date", paymentDate);
+      fd.set("notes", paymentNotes.trim());
+
+      startTransition(async () => {
+        const res = await recordSupplierReturnAction(fd);
+        if (res.success) {
+          showNotification("success", res.message || "Retour fournisseur enregistré avec succès.");
+          setIsPaymentOpen(false);
+          setPaymentAmount("");
+          setPaymentNotes("");
+          router.refresh();
+
+          if (selectedSupplierForStatement === Number(preselectedSupplierId)) {
+            handleOpenStatement(Number(preselectedSupplierId));
+          }
+        } else {
+          showNotification("error", res.error || "Erreur lors de l'enregistrement du retour.");
+        }
+      });
       return;
     }
 
@@ -801,6 +840,11 @@ export function SuppliersClient({
                                   Ajustement
                                 </span>
                               )}
+                              {ev.type === "RETURN" && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-100 text-rose-900 border border-rose-200">
+                                  Retour Marchandise
+                                </span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 text-slate-700">
                               <span className="font-medium text-slate-900 block">{ev.description}</span>
@@ -1042,84 +1086,166 @@ export function SuppliersClient({
                       {acc.name} ({acc.type === "cash" ? "Caisse" : acc.type === "safe" ? "Coffre" : acc.type === "bank" ? "Banque" : "Autre"}) &bull; Solde : {formatDA(acc.currentBalance)}
                     </option>
                   ))}
+                  <option value="Retours">Retours (Avoir / Déduction dette)</option>
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Montant à payer (DA) *
-                  </label>
-                  <NumberInput
-                    required
-                    min="1"
-                    step="1"
-                    placeholder="Ex: 500000"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    className="w-full font-mono font-bold text-sm text-emerald-800"
-                  />
+              {paymentSourceAccountId === "Retours" ? (
+                /* Mode Retours : Formulaire simplifié sans sélection d'articles ni gestion de stock */
+                <div className="space-y-3">
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-900 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <RotateCcw className="h-4 w-4 text-rose-700" />
+                      Règlement par Retour Marchandise (Avoir)
+                    </div>
+                    <p className="text-[11px] text-rose-800">
+                      Cette opération déduit le montant du retour de la dette fournisseur, sans impacter la trésorerie (caisse/banque) ni les stocks.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Montant du retour (DA) *
+                    </label>
+                    <NumberInput
+                      required
+                      min="1"
+                      step="1"
+                      placeholder="Ex: 50000"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="w-full font-mono font-bold text-sm text-rose-900 border-rose-300 focus:ring-rose-500"
+                    />
+                    {selectedSupplierObj && (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Dette maximale déductible : <span className="font-semibold text-rose-700">{formatDA(selectedSupplierObj.outstandingDebt)}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Date du retour *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Description ou Référence du retour (Optionnel)
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Motif du retour, n° bon de retour, observation..."
+                      value={paymentNotes}
+                      onChange={(e) => setPaymentNotes(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setIsPaymentOpen(false)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className="px-4 py-2 text-xs font-bold text-white bg-rose-700 hover:bg-rose-800 rounded-lg shadow-xs disabled:opacity-50 cursor-pointer"
+                    >
+                      {isPending ? "Validation..." : "Confirmer le retour"}
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                /* Mode Règlement Trésorerie réel standard */
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Montant à payer (DA) *
+                      </label>
+                      <NumberInput
+                        required
+                        min="1"
+                        step="1"
+                        placeholder="Ex: 500000"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        className="w-full font-mono font-bold text-sm text-emerald-800"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Mode de règlement *
-                  </label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
-                  >
-                    <option value="cash">Espèces</option>
-                    <option value="transfer">Virement bancaire</option>
-                    <option value="check">Chèque</option>
-                    <option value="cib">Carte CIB / Edahabia</option>
-                  </select>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Mode de règlement *
+                      </label>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
+                      >
+                        <option value="cash">Espèces</option>
+                        <option value="transfer">Virement bancaire</option>
+                        <option value="check">Chèque</option>
+                        <option value="cib">Carte CIB / Edahabia</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Date du paiement *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Description ou Référence du paiement (Optionnel)
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="N° de chèque, bordereau de virement, motif..."
+                      value={paymentNotes}
+                      onChange={(e) => setPaymentNotes(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setIsPaymentOpen(false)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className="px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-xs disabled:opacity-50 cursor-pointer"
+                    >
+                      {isPending ? "Validation..." : "Valider le paiement"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Date du paiement *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Description ou Référence du paiement (Optionnel)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="N° de chèque, bordereau de virement, motif..."
-                  value={paymentNotes}
-                  onChange={(e) => setPaymentNotes(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIsPaymentOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-xs disabled:opacity-50 cursor-pointer"
-                >
-                  {isPending ? "Validation..." : "Valider le paiement"}
-                </button>
-              </div>
+              )}
             </form>
           </div>
         </div>

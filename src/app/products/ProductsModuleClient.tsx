@@ -42,6 +42,7 @@ import {
   recordStockIssueAction,
   recordStockAdjustmentAction,
   recordStockTransferAction,
+  generateNextProductSkuAction,
 } from "./actions";
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────
@@ -113,7 +114,7 @@ type MovementItem = {
     model: string | null;
     color: string | null;
     isActive: boolean;
-  };
+  } | null;
   fromLocation: { id: number; name: string; code: string; isActive: boolean } | null;
   toLocation: { id: number; name: string; code: string; isActive: boolean } | null;
 };
@@ -169,6 +170,48 @@ export function ProductsModuleClient({
     mode: "create" | "edit";
     product?: ProductWithDetails;
   }>({ isOpen: false, mode: "create" });
+
+  // Auto SKU state
+  const [formSku, setFormSku] = useState("");
+  const [formCategoryId, setFormCategoryId] = useState("");
+  const [isAutoGeneratingSku, setIsAutoGeneratingSku] = useState(false);
+
+  const handleOpenCreateProduct = async () => {
+    const defaultCatId = initialCategories[0]?.id ? initialCategories[0].id.toString() : "";
+    setFormCategoryId(defaultCatId);
+    setFormSku("");
+    setProductModal({ isOpen: true, mode: "create" });
+    setIsAutoGeneratingSku(true);
+    try {
+      const res = await generateNextProductSkuAction(defaultCatId ? Number(defaultCatId) : null);
+      if (res.success && res.sku) {
+        setFormSku(res.sku);
+      }
+    } finally {
+      setIsAutoGeneratingSku(false);
+    }
+  };
+
+  const handleOpenEditProduct = (prod: ProductWithDetails) => {
+    setFormSku(prod.sku);
+    setFormCategoryId(prod.categoryId?.toString() || "");
+    setProductModal({ isOpen: true, mode: "edit", product: prod });
+  };
+
+  const handleCategoryChangeInModal = async (catIdStr: string) => {
+    setFormCategoryId(catIdStr);
+    if (productModal.mode === "create") {
+      setIsAutoGeneratingSku(true);
+      try {
+        const res = await generateNextProductSkuAction(catIdStr ? Number(catIdStr) : null);
+        if (res.success && res.sku) {
+          setFormSku(res.sku);
+        }
+      } finally {
+        setIsAutoGeneratingSku(false);
+      }
+    }
+  };
 
   const [detailsModal, setDetailsModal] = useState<{
     isOpen: boolean;
@@ -335,15 +378,15 @@ export function ProductsModuleClient({
         (m.reference && m.reference.toLowerCase().includes(q)) ||
         (m.reason && m.reason.toLowerCase().includes(q)) ||
         (m.notes && m.notes.toLowerCase().includes(q)) ||
-        m.product.name.toLowerCase().includes(q) ||
-        m.product.sku.toLowerCase().includes(q);
+        (m.product?.name ? m.product.name.toLowerCase().includes(q) : false) ||
+        (m.product?.sku ? m.product.sku.toLowerCase().includes(q) : false);
 
       const matchesType =
         movementFilterType === "ALL" || m.type === movementFilterType;
 
       const matchesProduct =
         movementFilterProduct === "ALL" ||
-        m.product.id.toString() === movementFilterProduct;
+        (m.product ? m.product.id.toString() === movementFilterProduct : false);
 
       let matchesLocation = true;
       if (movementFilterLocation !== "ALL") {
@@ -486,8 +529,8 @@ export function ProductsModuleClient({
         <div className="flex flex-wrap items-center gap-2">
           {activeTab === "products" && (
             <button
-              onClick={() => setProductModal({ isOpen: true, mode: "create" })}
-              className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-400 transition-colors shadow-sm"
+              onClick={handleOpenCreateProduct}
+              className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-400 transition-colors shadow-sm cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               Nouveau meuble
@@ -847,11 +890,9 @@ export function ProductsModuleClient({
                                 <Eye className="h-4 w-4" />
                               </button>
                               <button
-                                onClick={() =>
-                                  setProductModal({ isOpen: true, mode: "edit", product: p })
-                                }
+                                onClick={() => handleOpenEditProduct(p)}
                                 title="Modifier"
-                                className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                                className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>
@@ -1266,10 +1307,10 @@ export function ProductsModuleClient({
                           </td>
                           <td className="px-4 py-3">
                             <span className="font-semibold text-slate-900 block">
-                              {m.product.name}
+                              {m.product?.name || "Article supprimé"}
                             </span>
                             <span className="font-mono text-xs text-slate-400">
-                              {m.product.sku}
+                              {m.product?.sku || (m.notes?.match(/SKU:\s*([A-Za-z0-9_-]+)/)?.[1] ?? "—")}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center font-mono font-bold text-slate-900">
@@ -1589,19 +1630,49 @@ export function ProductsModuleClient({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-700">
-                    Référence unique (SKU) <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold uppercase text-slate-700">
+                      Référence unique (SKU) <span className="text-rose-500">*</span>
+                    </label>
+                    {productModal.mode === "create" && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setIsAutoGeneratingSku(true);
+                          try {
+                            const res = await generateNextProductSkuAction(
+                              formCategoryId ? Number(formCategoryId) : null
+                            );
+                            if (res.success && res.sku) {
+                              setFormSku(res.sku);
+                            }
+                          } finally {
+                            setIsAutoGeneratingSku(false);
+                          }
+                        }}
+                        className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold inline-flex items-center gap-1 cursor-pointer"
+                        title="Générer automatiquement une référence unique selon la convention"
+                      >
+                        <RefreshCw
+                          className={`h-3 w-3 ${
+                            isAutoGeneratingSku ? "animate-spin text-amber-600" : ""
+                          }`}
+                        />
+                        Générer SKU
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     name="sku"
                     required
-                    placeholder="Ex: CH-SALON-01"
-                    defaultValue={productModal.product?.sku || ""}
+                    value={formSku}
+                    onChange={(e) => setFormSku(e.target.value.toUpperCase())}
+                    placeholder="Ex: F102"
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono uppercase focus:border-amber-500 focus:outline-none"
                   />
                   <p className="mt-1 text-[11px] text-slate-400">
-                    Identifiant unique strict. Espace et casse nettoyés automatiquement.
+                    Générée automatiquement selon la convention SKU. Unique contre tous les articles.
                   </p>
                 </div>
 
@@ -1627,7 +1698,8 @@ export function ProductsModuleClient({
                   </label>
                   <select
                     name="categoryId"
-                    defaultValue={productModal.product?.categoryId?.toString() || ""}
+                    value={formCategoryId}
+                    onChange={(e) => handleCategoryChangeInModal(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
                   >
                     <option value="">-- Sans catégorie --</option>

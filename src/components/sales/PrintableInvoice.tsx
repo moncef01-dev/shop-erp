@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Printer, Download, X } from "lucide-react";
+import { Printer, Download, X, Pencil } from "lucide-react";
 import type { ShopSettingsData } from "@/app/settings/actions";
 import { downloadInvoicePdf, type InvoiceCopyType } from "@/lib/pdf/invoicePdf";
 
@@ -29,6 +29,11 @@ export interface PrintablePayment {
   method?: string;
   paymentDate: string | Date;
   notes?: string | null;
+  session?: {
+    id: number;
+    reference: string;
+    status: string;
+  } | null;
 }
 
 export interface PrintableDelivery {
@@ -76,10 +81,11 @@ interface PrintableInvoiceProps {
   sale: PrintableSale;
   settings?: ShopSettingsData | null;
   onClose: () => void;
+  onEdit?: (sale: PrintableSale) => void;
   autoPrint?: boolean;
 }
 
-export function PrintableInvoice({ sale, settings, onClose, autoPrint }: PrintableInvoiceProps) {
+export function PrintableInvoice({ sale, settings, onClose, onEdit, autoPrint }: PrintableInvoiceProps) {
   const [copyType, setCopyType] = useState<InvoiceCopyType>("client");
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
@@ -192,6 +198,21 @@ export function PrintableInvoice({ sale, settings, onClose, autoPrint }: Printab
           </div>
 
           <div className="flex items-center gap-2">
+            {onEdit && !isCancelled && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEdit(sale);
+                }}
+                className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                title="Modifier ou réouvrir cette facture"
+              >
+                <Pencil className="h-3.5 w-3.5 text-amber-700" />
+                Modifier la facture
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => handleDownloadPdf(copyType)}

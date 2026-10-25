@@ -133,10 +133,14 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
     }
 
     const transferNum = closingTransferAmount ? parseFloat(closingTransferAmount) : 0;
+    if (isNaN(transferNum) || transferNum < 0) {
+      showNotification("error", "Le montant à transférer ne peut pas être négatif.");
+      return;
+    }
     if (transferNum > countedNum) {
       showNotification(
         "error",
-        `Le montant à transférer (${formatDA(transferNum)}) ne peut excéder les espèces comptées (${formatDA(
+        `Le montant à transférer (${formatDA(transferNum)}) ne peut excéder les espèces physiques comptées (${formatDA(
           countedNum
         )}).`
       );
@@ -231,7 +235,8 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
   const currentTheoretical = activeSession ? activeSession.currentTheoreticalCash : 0;
   const currentDiff = currentCountedNum - currentTheoretical;
   const currentTransferNum = parseFloat(closingTransferAmount) || 0;
-  const currentRetained = Math.max(0, currentCountedNum - currentTransferNum);
+  const currentRetained = currentCountedNum - currentTransferNum;
+  const isTransferInvalid = currentTransferNum < 0 || currentTransferNum > currentCountedNum;
 
   return (
     <div className="space-y-6 pb-12">
@@ -273,9 +278,7 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
             <button
               onClick={() => {
                 setClosingCountedAmount(activeSession.currentTheoreticalCash.toString());
-                setClosingTransferAmount(
-                  Math.max(0, activeSession.currentTheoreticalCash - 20000).toString()
-                );
+                setClosingTransferAmount("");
                 setIsClosingModalOpen(true);
               }}
               className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-sm transition cursor-pointer"
@@ -658,7 +661,7 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
                   min="0"
                   step="any"
                   required
-                  placeholder="Ex: 20000"
+                  placeholder="0"
                   value={openingAmount}
                   onChange={(e) => setOpeningAmount(e.target.value)}
                   className="w-full text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -763,11 +766,29 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
 
               {/* Transfert Fin de Journée */}
               <div className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-amber-700" />
-                  <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                    Transfert Manuel de Sécurisation vers le Coffre
-                  </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-amber-700" />
+                    <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                      Transfert de Sécurisation vers le Coffre
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setClosingTransferAmount(currentCountedNum.toString())}
+                      className="text-[10px] px-2 py-0.5 bg-amber-200/70 hover:bg-amber-200 text-amber-900 rounded font-semibold transition cursor-pointer"
+                    >
+                      Tout transférer (0 DA en caisse)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClosingTransferAmount("0")}
+                      className="text-[10px] px-2 py-0.5 bg-slate-200/70 hover:bg-slate-200 text-slate-800 rounded font-semibold transition cursor-pointer"
+                    >
+                      0 DA
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -780,9 +801,14 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
                       min="0"
                       max={currentCountedNum}
                       step="any"
+                      placeholder="0"
                       value={closingTransferAmount}
                       onChange={(e) => setClosingTransferAmount(e.target.value)}
-                      className="w-full text-xs font-mono font-bold bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                      className={`w-full text-xs font-mono font-bold bg-white border rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 ${
+                        isTransferInvalid
+                          ? "border-rose-400 focus:ring-rose-500"
+                          : "border-slate-200 focus:ring-amber-500"
+                      }`}
                     />
                   </div>
                   <div>
@@ -803,10 +829,26 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
                   </div>
                 </div>
 
+                {currentTransferNum > currentCountedNum && (
+                  <p className="text-xs text-rose-600 font-semibold">
+                    Le montant à transférer ne peut pas dépasser les espèces comptées ({formatDA(currentCountedNum)}).
+                  </p>
+                )}
+
+                {currentTransferNum < 0 && (
+                  <p className="text-xs text-rose-600 font-semibold">
+                    Le montant à transférer ne peut pas être négatif.
+                  </p>
+                )}
+
                 <div className="flex justify-between items-center text-xs text-amber-900 pt-1 border-t border-amber-200/80">
                   <span>Espèces conservées en caisse (Fond pour demain) :</span>
-                  <strong className="font-mono text-sm text-amber-950">
-                    {formatDA(currentRetained)}
+                  <strong className={`font-mono text-sm ${isTransferInvalid ? "text-rose-600" : "text-amber-950"}`}>
+                    {currentTransferNum > currentCountedNum
+                      ? "Transfert supérieur aux espèces comptées"
+                      : currentTransferNum < 0
+                      ? "Montant négatif invalide"
+                      : formatDA(currentRetained)}
                   </strong>
                 </div>
               </div>
@@ -834,7 +876,7 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
                 </button>
                 <button
                   type="submit"
-                  disabled={isPending}
+                  disabled={isPending || isTransferInvalid}
                   className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-sm transition disabled:opacity-50"
                 >
                   {isPending ? "Clôture en cours..." : "Valider la Clôture"}

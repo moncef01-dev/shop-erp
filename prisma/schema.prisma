@@ -96,8 +96,8 @@ model StockMovement {
   id             Int       @id @default(autoincrement())
   reference      String?
   type           String    // "RECEIPT", "ISSUE", "ADJUSTMENT", "TRANSFER", "INITIAL", "SALE"
-  productId      Int
-  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId      Int?
+  product        Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
   fromLocationId Int?
   fromLocation   Location? @relation("SourceLocation", fields: [fromLocationId], references: [id])
   toLocationId   Int?

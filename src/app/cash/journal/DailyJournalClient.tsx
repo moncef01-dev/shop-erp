@@ -41,7 +41,7 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
   const [isPending, startTransition] = useTransition();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "inflow" | "outflow">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "inflow" | "outflow" | "transfer">("all");
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   const {
@@ -53,6 +53,12 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
     openingBalance,
     totalInflows,
     totalOutflows,
+    operatingInflows,
+    operatingOutflows,
+    transfersIn,
+    transfersOut,
+    netTransfers,
+    netOperatingFlow,
     theoreticalFinalBalance,
     items,
     availableDates,
@@ -85,9 +91,10 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
 
   // Filtrage local des opérations du tableau
   const filteredItems = items.filter((item) => {
-    // Filtre type (tous, entrées, sorties)
-    if (typeFilter === "inflow" && item.inflow <= 0) return false;
-    if (typeFilter === "outflow" && item.outflow <= 0) return false;
+    // Filtre type (tous, entrées d'exploitation, charges/dépenses, transferts de trésorerie)
+    if (typeFilter === "inflow" && (item.inflow <= 0 || item.source === "transfer")) return false;
+    if (typeFilter === "outflow" && (item.outflow <= 0 || item.source === "transfer")) return false;
+    if (typeFilter === "transfer" && item.source !== "transfer") return false;
 
     // Filtre recherche textuelle
     if (searchQuery.trim()) {
@@ -103,8 +110,15 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
     return true;
   });
 
-  const filteredInflows = filteredItems.reduce((s, i) => s + i.inflow, 0);
-  const filteredOutflows = filteredItems.reduce((s, i) => s + i.outflow, 0);
+  const filteredInflows = filteredItems
+    .filter((i) => i.source !== "transfer")
+    .reduce((s, i) => s + i.inflow, 0);
+  const filteredOutflows = filteredItems
+    .filter((i) => i.source !== "transfer")
+    .reduce((s, i) => s + i.outflow, 0);
+  const filteredTransfers = filteredItems
+    .filter((i) => i.source === "transfer")
+    .reduce((s, i) => s + i.outflow, 0);
 
   // Fonction pour icône d'opération
   const getOpIcon = (source: DailyCashJournalItem["source"], opType: string) => {
@@ -255,8 +269,8 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
         )}
       </div>
 
-      {/* 4. Cartes Récapitulatives (Solde initial, Entrées, Sorties, Solde final) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 4. Cartes Récapitulatives (Solde initial, Entrées, Sorties/Charges, Transferts, Solde final) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* Solde Initial */}
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1.5">
@@ -268,57 +282,77 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
             {session
-              ? `Fond de caisse d'ouverture session (${formatDate(session.openedAt)})`
-              : "Solde de départ au début de journée"}
+              ? `Fond d'ouverture (${formatDate(session.openedAt)})`
+              : "Solde au début de journée"}
           </p>
         </div>
 
-        {/* Total Entrées */}
+        {/* Entrées d'exploitation */}
         <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-xs relative overflow-hidden bg-gradient-to-br from-white to-emerald-50/40">
           <div className="flex items-center justify-between text-emerald-800 text-xs font-semibold uppercase tracking-wider mb-1.5">
-            <span>Total des Entrées</span>
+            <span>Entrées Exploitation</span>
             <span className="p-1 bg-emerald-100 rounded-md">
               <ArrowDownLeft className="h-4 w-4 text-emerald-700" />
             </span>
           </div>
           <div className="text-xl font-black text-emerald-700 font-mono">
-            +{formatDA(totalInflows)}
+            +{formatDA(operatingInflows)}
           </div>
           <p className="text-[11px] text-emerald-600 mt-1 font-medium">
-            {items.filter((i) => i.inflow > 0).length} encaissement(s) en espèces
+            {items.filter((i) => i.inflow > 0 && i.source !== "transfer").length} encaissement(s) ventes & recettes
           </p>
         </div>
 
-        {/* Total Sorties */}
+        {/* Sorties d'exploitation (Charges & Dépenses) */}
         <div className="bg-white rounded-xl p-4 border border-rose-200 shadow-xs relative overflow-hidden bg-gradient-to-br from-white to-rose-50/40">
           <div className="flex items-center justify-between text-rose-800 text-xs font-semibold uppercase tracking-wider mb-1.5">
-            <span>Total des Sorties</span>
+            <span>Sorties (Charges)</span>
             <span className="p-1 bg-rose-100 rounded-md">
               <ArrowUpRight className="h-4 w-4 text-rose-700" />
             </span>
           </div>
           <div className="text-xl font-black text-rose-700 font-mono">
-            -{formatDA(totalOutflows)}
+            -{formatDA(operatingOutflows)}
           </div>
           <p className="text-[11px] text-rose-600 mt-1 font-medium">
-            {items.filter((i) => i.outflow > 0).length} décaissement(s) en espèces
+            {items.filter((i) => i.outflow > 0 && i.source !== "transfer").length} charge(s) & dépenses décaissées
+          </p>
+        </div>
+
+        {/* Transferts de Trésorerie (Hors charges) */}
+        <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-xs relative overflow-hidden bg-gradient-to-br from-white to-purple-50/40">
+          <div className="flex items-center justify-between text-purple-800 text-xs font-semibold uppercase tracking-wider mb-1.5">
+            <span>Transferts Internes</span>
+            <span className="p-1 bg-purple-100 rounded-md">
+              <ArrowLeftRight className="h-4 w-4 text-purple-700" />
+            </span>
+          </div>
+          <div className="text-xl font-black text-purple-700 font-mono">
+            {transfersOut > 0
+              ? `-${formatDA(transfersOut)}`
+              : transfersIn > 0
+              ? `+${formatDA(transfersIn)}`
+              : formatDA(0)}
+          </div>
+          <p className="text-[11px] text-purple-600 mt-1 font-medium">
+            {items.filter((i) => i.source === "transfer").length} virement(s) (vers coffre/banque)
           </p>
         </div>
 
         {/* Solde Final Théorique */}
         <div className="bg-slate-900 text-white rounded-xl p-4 border border-slate-800 shadow-md relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5">
-            <span>Solde Final Théorique</span>
+            <span>Solde Final Caisse</span>
             <ShieldCheck className="h-4 w-4 text-amber-400" />
           </div>
           <div className="text-xl font-black text-amber-400 font-mono">
             {formatDA(theoreticalFinalBalance)}
           </div>
           <div className="flex items-center justify-between mt-1 text-[11px] text-slate-400">
-            <span>Initial + Entrées − Sorties</span>
+            <span>Espèces physiques</span>
             <span className="font-semibold text-slate-300 font-mono">
-              Net : {totalInflows >= totalOutflows ? "+" : ""}
-              {formatDA(totalInflows - totalOutflows)}
+              Net : {netOperatingFlow >= 0 ? "+" : ""}
+              {formatDA(netOperatingFlow)}
             </span>
           </div>
         </div>
@@ -348,7 +382,7 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
           </div>
 
           {/* Sélecteur de type d'opérations */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold self-start sm:self-auto">
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold self-start sm:self-auto flex-wrap">
             <button
               onClick={() => setTypeFilter("all")}
               className={`px-3 py-1.5 rounded-md transition-all ${
@@ -368,7 +402,7 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
               }`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Entrées ({items.filter((i) => i.inflow > 0).length})
+              Entrées ({items.filter((i) => i.inflow > 0 && i.source !== "transfer").length})
             </button>
             <button
               onClick={() => setTypeFilter("outflow")}
@@ -379,20 +413,34 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
               }`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-              Sorties ({items.filter((i) => i.outflow > 0).length})
+              Sorties (Charges) ({items.filter((i) => i.outflow > 0 && i.source !== "transfer").length})
+            </button>
+            <button
+              onClick={() => setTypeFilter("transfer")}
+              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1 ${
+                typeFilter === "transfer"
+                  ? "bg-white text-purple-700 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-purple-700"
+              }`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+              Transferts ({items.filter((i) => i.source === "transfer").length})
             </button>
           </div>
         </div>
 
         {/* Info barre filtre */}
         {(searchQuery || typeFilter !== "all") && (
-          <div className="text-xs text-slate-500 flex items-center justify-between border-t border-slate-100 pt-2">
+          <div className="text-xs text-slate-500 flex items-center justify-between border-t border-slate-100 pt-2 flex-wrap gap-2">
             <span>
               Résultats affichés : <strong>{filteredItems.length}</strong> sur {items.length} opération(s).
             </span>
-            <div className="flex items-center gap-4 text-xs font-mono font-semibold">
+            <div className="flex items-center gap-4 text-xs font-mono font-semibold flex-wrap">
               <span className="text-emerald-700">Entrées : +{formatDA(filteredInflows)}</span>
-              <span className="text-rose-700">Sorties : -{formatDA(filteredOutflows)}</span>
+              <span className="text-rose-700">Sorties (Charges) : -{formatDA(filteredOutflows)}</span>
+              {filteredTransfers > 0 && (
+                <span className="text-purple-700">Transferts : -{formatDA(filteredTransfers)}</span>
+              )}
             </div>
           </div>
         )}
@@ -510,9 +558,16 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
                     {/* Entrée */}
                     <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
                       {item.inflow > 0 ? (
-                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                          +{formatDA(item.inflow)}
-                        </span>
+                        item.source === "transfer" ? (
+                          <span className="text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 inline-flex items-center gap-1" title="Alimentation caisse (Virement interne hors charges)">
+                            <ArrowLeftRight className="h-3 w-3" />
+                            +{formatDA(item.inflow)}
+                          </span>
+                        ) : (
+                          <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                            +{formatDA(item.inflow)}
+                          </span>
+                        )
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
@@ -521,9 +576,16 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
                     {/* Sortie */}
                     <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
                       {item.outflow > 0 ? (
-                        <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
-                          -{formatDA(item.outflow)}
-                        </span>
+                        item.source === "transfer" ? (
+                          <span className="text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 inline-flex items-center gap-1" title="Virement interne vers coffre/banque (hors charges)">
+                            <ArrowLeftRight className="h-3 w-3" />
+                            -{formatDA(item.outflow)}
+                          </span>
+                        ) : (
+                          <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
+                            -{formatDA(item.outflow)}
+                          </span>
+                        )
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
@@ -541,6 +603,11 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
                 <tr className="bg-slate-900 text-white font-semibold text-xs border-t-2 border-slate-950">
                   <td colSpan={4} className="py-3.5 px-4 font-bold text-slate-300 uppercase tracking-wider">
                     Total journée ({filteredItems.length} opérations affichées)
+                    {filteredTransfers > 0 && (
+                      <span className="block text-[11px] font-normal text-purple-300">
+                        Dont transferts internes émis : -{formatDA(filteredTransfers)} (virements hors charges)
+                      </span>
+                    )}
                   </td>
                   <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-400 whitespace-nowrap">
                     +{formatDA(filteredInflows)}
@@ -618,7 +685,7 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
               </div>
 
               {/* Synthèse Chiffrée */}
-              <div className="grid grid-cols-4 gap-4 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+              <div className="grid grid-cols-5 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs">
                 <div>
                   <span className="text-slate-500 block text-[10px] uppercase font-semibold">
                     Solde d&apos;Ouverture
@@ -629,18 +696,30 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px] uppercase font-semibold">
-                    Total Entrées (+)
+                    Entrées Exploitation (+)
                   </span>
                   <span className="font-mono font-bold text-emerald-700 text-sm">
-                    +{formatDA(totalInflows)}
+                    +{formatDA(operatingInflows)}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px] uppercase font-semibold">
-                    Total Sorties (−)
+                    Sorties Charges (−)
                   </span>
                   <span className="font-mono font-bold text-rose-700 text-sm">
-                    -{formatDA(totalOutflows)}
+                    -{formatDA(operatingOutflows)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                    Transferts Internes (⇄)
+                  </span>
+                  <span className="font-mono font-bold text-purple-700 text-sm">
+                    {transfersOut > 0
+                      ? `-${formatDA(transfersOut)}`
+                      : transfersIn > 0
+                      ? `+${formatDA(transfersIn)}`
+                      : formatDA(0)}
                   </span>
                 </div>
                 <div>
@@ -709,14 +788,14 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-slate-900 font-bold bg-slate-100 text-xs">
-                    <td colSpan={4} className="py-2.5 px-2 uppercase">
-                      Total ({items.length} opérations)
+                    <td colSpan={4} className="py-2.5 px-2 uppercase text-[11px]">
+                      Total ({items.length} opérations) — Entrées d&apos;exploitation: +{formatDA(operatingInflows)} | Charges: -{formatDA(operatingOutflows)} | Transferts internes: {transfersOut > 0 ? `-${formatDA(transfersOut)}` : formatDA(0)}
                     </td>
                     <td className="py-2.5 px-2 text-right font-mono text-emerald-700">
-                      +{formatDA(totalInflows)}
+                      +{formatDA(operatingInflows)}
                     </td>
                     <td className="py-2.5 px-2 text-right font-mono text-rose-700">
-                      -{formatDA(totalOutflows)}
+                      -{formatDA(operatingOutflows)}
                     </td>
                     <td className="py-2.5 px-2 text-right font-mono text-sm font-black text-slate-900">
                       {formatDA(theoreticalFinalBalance)}
