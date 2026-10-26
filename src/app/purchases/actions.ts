@@ -8,6 +8,7 @@ import {
   PrismaTransactionClient,
 } from "@/lib/inventory-transaction";
 import { calculateSupplierDebt } from "@/app/suppliers/actions";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
 
 export type PurchaseActionResponse<T = unknown> = {
   success: boolean;
@@ -315,16 +316,17 @@ export async function deleteSupplierAction(supplierId: number): Promise<Purchase
     const supplier = await prisma.supplier.findUnique({
       where: { id: supplierId },
       include: {
-        _count: { select: { purchases: true } },
+        _count: { select: { purchases: true, payments: true, debts: true } },
       },
     });
 
     if (!supplier) return { success: false, error: "Fournisseur introuvable." };
 
-    if (supplier._count.purchases > 0) {
+    const totalRelations = supplier._count.purchases + supplier._count.payments + supplier._count.debts;
+    if (totalRelations > 0) {
       return {
         success: false,
-        error: `Impossible de supprimer "${supplier.name}" : ce fournisseur a ${supplier._count.purchases} commande(s) ou facture(s) rattachée(s). Veuillez plutôt le désactiver pour préserver l'historique comptable.`,
+        error: `Impossible de supprimer "${supplier.name}" : ce fournisseur a ${totalRelations} opération(s) comptable(s) rattachée(s) (${supplier._count.purchases} achat(s), ${supplier._count.payments} paiement(s), ${supplier._count.debts} dette(s)/retour(s)). Veuillez plutôt le désactiver pour préserver l'historique comptable.`,
       };
     }
 
@@ -432,6 +434,8 @@ export async function createPurchaseOrderAction(payload: CreatePurchaseInput): P
       items,
       initialPayment,
     } = payload;
+
+    await assertPeriodNotLocked(purchaseDate, "Création de commande d'achat");
 
     if (!items || items.length === 0) {
       return { success: false, error: "Veuillez ajouter au moins une ligne d'article à la commande." };
@@ -570,6 +574,8 @@ export interface ReceiveGoodsInput {
 export async function receivePurchaseGoodsAction(payload: ReceiveGoodsInput): Promise<PurchaseActionResponse> {
   try {
     const { purchaseId, receiptDate = new Date().toISOString(), notes = null, items } = payload;
+
+    await assertPeriodNotLocked(receiptDate, "Réception de marchandises fournisseur");
 
     if (!items || items.length === 0) {
       return { success: false, error: "Veuillez sélectionner au moins un article et indiquer la quantité à réceptionner." };
@@ -793,6 +799,9 @@ export async function recordSupplierPaymentAction(formData: FormData): Promise<P
       return { success: false, error: "Le montant du règlement doit être un nombre strictement supérieur à 0 DA." };
     }
 
+    const paymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
+    await assertPeriodNotLocked(paymentDate, "Règlement fournisseur");
+
     let purchase = null;
     let targetSupplierId = supplierIdStr ? parseInt(supplierIdStr, 10) : null;
 
@@ -925,6 +934,14 @@ export async function cancelPurchaseOrderAction(purchaseId: number, reason: stri
     if (purchase.status === "cancelled") {
       return { success: false, error: "Cette commande est déjà annulée." };
     }
+
+    const datesToCheck = [
+      purchase.purchaseDate,
+      ...purchase.payments.map((p) => p.paymentDate),
+      ...purchase.receipts.map((r) => r.receiptDate),
+      new Date(),
+    ];
+    await assertDatesNotLocked(datesToCheck, "Annulation de commande fournisseur");
 
     await prisma.$transaction(async (tx) => {
       // 1. Si des marchandises ont été réceptionnées, réintégrer / déduire le stock

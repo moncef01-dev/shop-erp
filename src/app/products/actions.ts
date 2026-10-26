@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { assertPeriodNotLocked } from "@/lib/period-lock";
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────
 
@@ -796,6 +797,9 @@ export async function recordInitialStockAction(formData: FormData): Promise<Acti
     const quantityStr = formData.get("quantity") as string;
     const reason = (formData.get("reason") as string)?.trim() || "Stock initial d'ouverture";
     const ref = (formData.get("reference") as string)?.trim() || generateReference("INIT");
+    const date = formData.get("date") ? new Date(formData.get("date") as string) : new Date();
+
+    await assertPeriodNotLocked(date, "Enregistrement de stock initial");
 
     if (!productIdStr || !locationIdStr || !quantityStr) {
       return { success: false, error: "Veuillez sélectionner le produit, l'emplacement et la quantité." };
@@ -902,6 +906,9 @@ export async function recordStockReceiptAction(formData: FormData): Promise<Acti
     const quantityStr = formData.get("quantity") as string;
     const reason = (formData.get("reason") as string)?.trim();
     const docRef = (formData.get("reference") as string)?.trim() || generateReference("REC");
+    const date = formData.get("date") ? new Date(formData.get("date") as string) : new Date();
+
+    await assertPeriodNotLocked(date, "Réception de stock");
 
     if (!productIdStr || !locationIdStr || !quantityStr) {
       return { success: false, error: "Veuillez renseigner le produit, l'emplacement et la quantité." };
@@ -1003,6 +1010,9 @@ export async function recordStockIssueAction(formData: FormData): Promise<Action
     const quantityStr = formData.get("quantity") as string;
     const reason = (formData.get("reason") as string)?.trim();
     const docRef = (formData.get("reference") as string)?.trim() || generateReference("SRT");
+    const date = formData.get("date") ? new Date(formData.get("date") as string) : new Date();
+
+    await assertPeriodNotLocked(date, "Sortie de stock");
 
     if (!productIdStr || !locationIdStr || !quantityStr) {
       return { success: false, error: "Veuillez renseigner le produit, l'emplacement et la quantité." };
@@ -1104,6 +1114,9 @@ export async function recordStockAdjustmentAction(formData: FormData): Promise<A
     const isSubtraction = formData.get("isSubtraction") === "true";
     const reason = (formData.get("reason") as string)?.trim();
     const docRef = (formData.get("reference") as string)?.trim() || generateReference("AJUST");
+    const date = formData.get("date") ? new Date(formData.get("date") as string) : new Date();
+
+    await assertPeriodNotLocked(date, "Ajustement de stock");
 
     if (!productIdStr || !locationIdStr || !quantityStr) {
       return { success: false, error: "Champs obligatoires manquants." };
@@ -1216,6 +1229,9 @@ export async function recordStockTransferAction(formData: FormData): Promise<Act
     const quantityStr = formData.get("quantity") as string;
     const reason = (formData.get("reason") as string)?.trim();
     const transferRef = (formData.get("reference") as string)?.trim() || generateReference("TRF");
+    const date = formData.get("date") ? new Date(formData.get("date") as string) : new Date();
+
+    await assertPeriodNotLocked(date, "Transfert de stock");
 
     if (!productIdStr || !fromLocationIdStr || !toLocationIdStr || !quantityStr) {
       return { success: false, error: "Veuillez spécifier le meuble, le dépôt source, la destination et la quantité." };

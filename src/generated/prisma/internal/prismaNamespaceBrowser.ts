@@ -73,7 +73,11 @@ export const ModelName = {
   TreasuryTransfer: 'TreasuryTransfer',
   SupplierDebt: 'SupplierDebt',
   Transaction: 'Transaction',
-  ShopSettings: 'ShopSettings'
+  ShopSettings: 'ShopSettings',
+  MonthlyClosingChecklist: 'MonthlyClosingChecklist',
+  MonthlyClosingSnapshot: 'MonthlyClosingSnapshot',
+  MonthlyClosingPeriod: 'MonthlyClosingPeriod',
+  MonthlyClosingAuditLog: 'MonthlyClosingAuditLog'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -489,6 +493,81 @@ export const ShopSettingsScalarFieldEnum = {
 } as const
 
 export type ShopSettingsScalarFieldEnum = (typeof ShopSettingsScalarFieldEnum)[keyof typeof ShopSettingsScalarFieldEnum]
+
+
+export const MonthlyClosingChecklistScalarFieldEnum = {
+  id: 'id',
+  month: 'month',
+  itemKey: 'itemKey',
+  status: 'status',
+  note: 'note',
+  checkedBy: 'checkedBy',
+  checkedAt: 'checkedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MonthlyClosingChecklistScalarFieldEnum = (typeof MonthlyClosingChecklistScalarFieldEnum)[keyof typeof MonthlyClosingChecklistScalarFieldEnum]
+
+
+export const MonthlyClosingSnapshotScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  month: 'month',
+  version: 'version',
+  status: 'status',
+  title: 'title',
+  notes: 'notes',
+  generatedAt: 'generatedAt',
+  generatedBy: 'generatedBy',
+  periodStart: 'periodStart',
+  periodEnd: 'periodEnd',
+  totalsJson: 'totalsJson',
+  checklistJson: 'checklistJson',
+  discrepanciesJson: 'discrepanciesJson',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MonthlyClosingSnapshotScalarFieldEnum = (typeof MonthlyClosingSnapshotScalarFieldEnum)[keyof typeof MonthlyClosingSnapshotScalarFieldEnum]
+
+
+export const MonthlyClosingPeriodScalarFieldEnum = {
+  id: 'id',
+  month: 'month',
+  status: 'status',
+  isLocked: 'isLocked',
+  periodStart: 'periodStart',
+  periodEnd: 'periodEnd',
+  finalSnapshotId: 'finalSnapshotId',
+  finalSnapshotRef: 'finalSnapshotRef',
+  approvedBy: 'approvedBy',
+  approvedAt: 'approvedAt',
+  approvalNotes: 'approvalNotes',
+  backupConfirmedAt: 'backupConfirmedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MonthlyClosingPeriodScalarFieldEnum = (typeof MonthlyClosingPeriodScalarFieldEnum)[keyof typeof MonthlyClosingPeriodScalarFieldEnum]
+
+
+export const MonthlyClosingAuditLogScalarFieldEnum = {
+  id: 'id',
+  periodId: 'periodId',
+  month: 'month',
+  action: 'action',
+  fromStatus: 'fromStatus',
+  toStatus: 'toStatus',
+  operator: 'operator',
+  reason: 'reason',
+  snapshotRef: 'snapshotRef',
+  version: 'version',
+  metadataJson: 'metadataJson',
+  createdAt: 'createdAt'
+} as const
+
+export type MonthlyClosingAuditLogScalarFieldEnum = (typeof MonthlyClosingAuditLogScalarFieldEnum)[keyof typeof MonthlyClosingAuditLogScalarFieldEnum]
 
 
 export const SortOrder = {

@@ -558,3 +558,88 @@ model ShopSettings {
 
   @@map("shop_settings")
 }
+
+// ─── CLÔTURE MENSUELLE (MONTHLY CLOSING & AUDIT) ──────────────────────────────
+
+model MonthlyClosingChecklist {
+  id        Int       @id @default(autoincrement())
+  month     String    // "YYYY-MM"
+  itemKey   String
+  status    String    @default("PENDING") // PENDING, VALIDATED, DISCREPANCY, NOT_APPLICABLE
+  note      String?
+  checkedBy String?   @default("Opérateur")
+  checkedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([month, itemKey])
+  @@index([month])
+  @@map("monthly_closing_checklists")
+}
+
+model MonthlyClosingSnapshot {
+  id                Int       @id @default(autoincrement())
+  reference         String    @unique // e.g. "CLM-202610-0001"
+  month             String    // "YYYY-MM"
+  version           Int       @default(1)
+  status            String    @default("DRAFT") // DRAFT, FINAL, ARCHIVED
+  title             String?
+  notes             String?
+  generatedAt       DateTime  @default(now())
+  generatedBy       String?   @default("Opérateur")
+  periodStart       DateTime
+  periodEnd         DateTime
+  totalsJson        String    // Aggregate totals JSON (immutable)
+  checklistJson     String    // Checklist states JSON at snapshot time
+  discrepanciesJson String?   // Documented discrepancies JSON
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([month])
+  @@index([status])
+  @@map("monthly_closing_snapshots")
+}
+
+model MonthlyClosingPeriod {
+  id                Int       @id @default(autoincrement())
+  month             String    @unique // "YYYY-MM"
+  status            String    @default("DRAFT") // "DRAFT", "READY_FOR_APPROVAL", "FINAL", "REOPENED"
+  isLocked          Boolean   @default(false)
+  periodStart       DateTime
+  periodEnd         DateTime
+  finalSnapshotId   Int?
+  finalSnapshotRef  String?
+  approvedBy        String?
+  approvedAt        DateTime?
+  approvalNotes     String?
+  backupConfirmedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  auditLogs         MonthlyClosingAuditLog[]
+
+  @@index([status])
+  @@map("monthly_closing_periods")
+}
+
+model MonthlyClosingAuditLog {
+  id           Int                   @id @default(autoincrement())
+  periodId     Int?
+  period       MonthlyClosingPeriod? @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  month        String                // "YYYY-MM"
+  action       String                // "STATUS_CHANGE", "READY_FOR_APPROVAL", "APPROVED", "REOPENED", "SNAPSHOT_CREATED"
+  fromStatus   String?
+  toStatus     String
+  operator     String                @default("Opérateur")
+  reason       String?
+  snapshotRef  String?
+  version      Int?
+  metadataJson String?
+  createdAt    DateTime              @default(now())
+
+  @@index([month])
+  @@index([createdAt])
+  @@map("monthly_closing_audit_logs")
+}
+
+

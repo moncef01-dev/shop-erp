@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { PrismaTransactionClient } from "@/lib/inventory-transaction";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
 
 export interface TreasuryAccountData {
   id: number;
@@ -607,6 +608,8 @@ export async function createTreasuryAccountAction(formData: FormData) {
     const code = await generateNextTreasuryAccountCode(type);
     const openingDate = openingDateStr ? new Date(openingDateStr) : new Date();
 
+    await assertPeriodNotLocked(openingDate, "Création de compte de trésorerie");
+
     const account = await prisma.treasuryAccount.create({
       data: {
         code,
@@ -723,6 +726,8 @@ export async function createTreasuryTransferAction(payload: {
         date = new Date(trimmed);
       }
     }
+
+    await assertPeriodNotLocked(date, "Transfert de trésorerie");
 
     if (isNaN(amount) || amount <= 0) {
       return {
@@ -889,6 +894,11 @@ export async function updateTreasuryTransferAction(payload: {
         }
       }
 
+      await assertDatesNotLocked(
+        [existing.date, date, new Date()],
+        "Modification de transfert de trésorerie"
+      );
+
       if (fromAccountId === toAccountId) {
         throw new Error("Le compte source et le compte destination doivent être distincts.");
       }
@@ -998,6 +1008,8 @@ export async function adjustAccountBalanceAction(payload: {
     const reason = payload.reason?.trim();
     const notes = payload.notes?.trim() || null;
     const date = payload.date ? new Date(payload.date) : new Date();
+
+    await assertPeriodNotLocked(date, "Ajustement de solde de compte");
 
     if (!reason || reason.length < 3) {
       return {

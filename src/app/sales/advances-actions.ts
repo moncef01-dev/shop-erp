@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { roundMoney } from "@/lib/formatters";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
 
 export type AdvanceActionResponse<T = unknown> = {
   success: boolean;
@@ -103,6 +104,8 @@ export async function createCustomerAdvanceAction(data: {
     if (!amount || isNaN(amount) || amount <= 0) {
       return { success: false, error: "Le montant de l'avance doit être supérieur à 0 DA." };
     }
+
+    await assertPeriodNotLocked(paymentDate, "Création d'acompte client");
 
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
@@ -227,6 +230,11 @@ export async function allocateCustomerAdvanceAction(data: {
       return { success: false, error: "Facture de vente introuvable." };
     }
 
+    await assertDatesNotLocked(
+      [advance.paymentDate, sale.saleDate, new Date()],
+      "Affectation d'acompte client"
+    );
+
     if (sale.status === "cancelled") {
       return { success: false, error: "Impossible d'affecter une avance à une facture annulée." };
     }
@@ -326,6 +334,11 @@ export async function refundCustomerAdvanceAction(data: {
     if (!advance) {
       return { success: false, error: "Avance introuvable." };
     }
+
+    await assertDatesNotLocked(
+      [advance.paymentDate, new Date()],
+      "Remboursement d'acompte client"
+    );
 
     const maxRefundable = roundMoney(
       Math.max(0, advance.amount - advance.allocatedAmount - advance.refundedAmount)

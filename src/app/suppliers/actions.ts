@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { PrismaTransactionClient } from "@/lib/inventory-transaction";
 import { calculateAccountBalance } from "@/app/cash/treasury-actions";
+import { assertPeriodNotLocked } from "@/lib/period-lock";
 
 export interface SupplierStatementEvent {
   id: string;
@@ -243,6 +244,8 @@ export async function recordSupplierInitialDebtAction(
 
     const date = dateStr ? new Date(dateStr) : new Date();
 
+    await assertPeriodNotLocked(date, "Enregistrement dette initiale fournisseur");
+
     if (isNaN(amount) || amount <= 0) {
       return {
         success: false,
@@ -398,6 +401,9 @@ export async function recordSupplierReturnAction(
     if (isNaN(amount) || amount <= 0) {
       return { success: false, error: "Le montant du retour doit être un nombre strictement supérieur à 0 DA." };
     }
+
+    const returnEffectiveDate = dateStr ? new Date(dateStr) : new Date();
+    await assertPeriodNotLocked(returnEffectiveDate, "Enregistrement retour marchandise fournisseur");
 
     const supplier = await prisma.supplier.findUnique({
       where: { id: supplierId },
@@ -570,6 +576,9 @@ export async function recordSupplierPaymentMultiAccountAction(
         notes,
       });
     }
+
+    const targetEffectiveDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
+    await assertPeriodNotLocked(targetEffectiveDate, "Règlement fournisseur multi-comptes");
 
     const sourceAccountId = parseInt(sourceAccountIdStr, 10);
     const purchaseId = purchaseIdStr ? parseInt(purchaseIdStr, 10) : null;

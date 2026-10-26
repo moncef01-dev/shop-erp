@@ -9,6 +9,7 @@ import {
 } from "@/lib/inventory-transaction";
 import { roundMoney } from "@/lib/formatters";
 import { getCustomerAdvancesData } from "./advances-actions";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
 
 export type SaleActionResponse<T = unknown> = {
   success: boolean;
@@ -209,6 +210,8 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
     if (!items || items.length === 0) {
       return { success: false, error: "Veuillez ajouter au moins une ligne d'article à la vente." };
     }
+
+    await assertDatesNotLocked([saleDate, new Date()], "Création de vente");
 
     // Validation des lignes côté serveur
     for (let i = 0; i < items.length; i++) {
@@ -453,6 +456,7 @@ export async function confirmDraftSaleAction(
     });
 
     if (!sale) return { success: false, error: "Vente introuvable." };
+    await assertDatesNotLocked([sale.saleDate, new Date()], "Confirmation de vente");
     if (sale.status === "confirmed") {
       return { success: false, error: "Cette vente a déjà été confirmée." };
     }
@@ -469,118 +473,143 @@ export async function confirmDraftSaleAction(
       };
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Déduire le stock pour chaque article
-      for (const item of sale.items) {
-        if (!item.locationId) {
-          throw new Error(`L'article ${item.productId} n'a pas de dépôt source spécifié.`);
-        }
-        await deductStockForSaleItem(tx, {
-          saleId: sale.id,
-          saleReference: sale.reference,
-          productId: item.productId,
-          locationId: item.locationId,
-          quantity: item.quantity,
-          customerName: sale.customer?.name,
-        });
-      }
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Pré-chargement optimisé des produits et emplacements pour éliminer les requêtes répétées
+        const uniqueProductIds = Array.from(new Set(sale.items.map((i) => i.productId)));
+        const uniqueLocationIds = Array.from(
+          new Set(sale.items.filter((i) => i.locationId).map((i) => i.locationId!))
+        );
 
-      // 2. Si c'était une référence brouillon DEV-, générer un vrai numéro de facture FAC-
-      let reference = sale.reference;
-      if (reference.startsWith("DEV-")) {
-        reference = await generateNextInvoiceNumber(tx, false);
-      }
+        const [productsList, locationsList] = await Promise.all([
+          tx.product.findMany({
+            where: { id: { in: uniqueProductIds } },
+            select: { id: true, name: true, sku: true, costPrice: true, isActive: true },
+          }),
+          tx.location.findMany({
+            where: { id: { in: uniqueLocationIds } },
+            select: { id: true, name: true, code: true, isActive: true },
+          }),
+        ]);
 
-      let paymentStatus = sale.paymentStatus;
-      let newPaid = sale.paidAmount;
+        const productCache = new Map(productsList.map((p) => [p.id, p]));
+        const locationCache = new Map(locationsList.map((l) => [l.id, l]));
 
-      if (paymentAmount > 0 && initialPayment) {
-        let sessionId: number | null = null;
-        let accountId: number | null = null;
-        const payMethod = initialPayment.method || "cash";
-        if (payMethod === "cash") {
-          const activeSession = await tx.cashSession.findFirst({
-            where: { status: "open" },
-            select: { id: true },
-          });
-          if (activeSession) {
-            sessionId = activeSession.id;
+        // 1. Déduire le stock pour chaque article
+        for (const item of sale.items) {
+          if (!item.locationId) {
+            throw new Error(`L'article ${item.productId} n'a pas de dépôt source spécifié.`);
           }
-          const defaultCaisse = await tx.treasuryAccount.findFirst({
-            where: { isDefault: true, isActive: true },
-            select: { id: true },
-          });
-          if (defaultCaisse) {
-            accountId = defaultCaisse.id;
-          }
-        } else if (payMethod === "transfer" || payMethod === "check" || payMethod === "cib") {
-          const bankAcc = await tx.treasuryAccount.findFirst({
-            where: { code: "ACC-BANQUE", isActive: true },
-            select: { id: true },
-          });
-          if (bankAcc) {
-            accountId = bankAcc.id;
-          }
-        }
-
-        const payRef = await generateNextPaymentReference(tx);
-        await tx.payment.create({
-          data: {
-            reference: payRef,
+          await deductStockForSaleItem(tx, {
             saleId: sale.id,
-            accountId,
-            amount: paymentAmount,
-            method: payMethod,
-            status: "completed",
-            notes: initialPayment.notes?.trim() || `Paiement à la confirmation de facture ${reference}`,
-            paymentDate: new Date(),
-            sessionId,
+            saleReference: sale.reference,
+            productId: item.productId,
+            locationId: item.locationId,
+            quantity: item.quantity,
+            customerName: sale.customer?.name,
+            productCache,
+            locationCache,
+          });
+        }
+
+        // 2. Si c'était une référence brouillon DEV-, générer un vrai numéro de facture FAC-
+        let reference = sale.reference;
+        if (reference.startsWith("DEV-")) {
+          reference = await generateNextInvoiceNumber(tx, false);
+        }
+
+        let paymentStatus = sale.paymentStatus;
+        let newPaid = sale.paidAmount;
+
+        if (paymentAmount > 0 && initialPayment) {
+          let sessionId: number | null = null;
+          let accountId: number | null = null;
+          const payMethod = initialPayment.method || "cash";
+          if (payMethod === "cash") {
+            const activeSession = await tx.cashSession.findFirst({
+              where: { status: "open" },
+              select: { id: true },
+            });
+            if (activeSession) {
+              sessionId = activeSession.id;
+            }
+            const defaultCaisse = await tx.treasuryAccount.findFirst({
+              where: { isDefault: true, isActive: true },
+              select: { id: true },
+            });
+            if (defaultCaisse) {
+              accountId = defaultCaisse.id;
+            }
+          } else if (payMethod === "transfer" || payMethod === "check" || payMethod === "cib") {
+            const bankAcc = await tx.treasuryAccount.findFirst({
+              where: { code: "ACC-BANQUE", isActive: true },
+              select: { id: true },
+            });
+            if (bankAcc) {
+              accountId = bankAcc.id;
+            }
+          }
+
+          const payRef = await generateNextPaymentReference(tx);
+          await tx.payment.create({
+            data: {
+              reference: payRef,
+              saleId: sale.id,
+              accountId,
+              amount: paymentAmount,
+              method: payMethod,
+              status: "completed",
+              notes: initialPayment.notes?.trim() || `Paiement à la confirmation de facture ${reference}`,
+              paymentDate: new Date(),
+              sessionId,
+            },
+          });
+          newPaid = roundMoney(newPaid + paymentAmount);
+          paymentStatus = newPaid >= sale.totalAmount ? "paid" : "partial";
+        }
+
+        // 3. Mettre à jour la vente
+        const updated = await tx.sales.update({
+          where: { id: sale.id },
+          data: {
+            reference,
+            status: "confirmed",
+            paidAmount: newPaid,
+            paymentStatus,
           },
         });
-        newPaid = roundMoney(newPaid + paymentAmount);
-        paymentStatus = newPaid >= sale.totalAmount ? "paid" : "partial";
-      }
 
-      // 3. Mettre à jour la vente
-      const updated = await tx.sales.update({
-        where: { id: sale.id },
-        data: {
-          reference,
-          status: "confirmed",
-          paidAmount: newPaid,
-          paymentStatus,
-        },
-      });
-
-      const fullSale = await tx.sales.findUnique({
-        where: { id: sale.id },
-        include: {
-          customer: true,
-          items: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  sku: true,
-                  name: true,
-                  model: true,
-                  color: true,
-                  sellingPrice: true,
+        const fullSale = await tx.sales.findUnique({
+          where: { id: sale.id },
+          include: {
+            customer: true,
+            items: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    sku: true,
+                    name: true,
+                    model: true,
+                    color: true,
+                    sellingPrice: true,
+                  },
+                },
+                location: {
+                  select: { id: true, code: true, name: true },
                 },
               },
-              location: {
-                select: { id: true, code: true, name: true },
-              },
+            },
+            payments: {
+              orderBy: { paymentDate: "desc" },
             },
           },
-          payments: {
-            orderBy: { paymentDate: "desc" },
-          },
-        },
-      });
+        });
 
-      return fullSale || updated;
-    });
+        return fullSale || updated;
+      },
+      { maxWait: 10000, timeout: 20000 }
+    );
 
     safeRevalidate("/sales");
     safeRevalidate("/products");
@@ -708,6 +737,16 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
       if (!existingSale) {
         throw new Error("Facture introuvable.");
       }
+      await assertDatesNotLocked(
+        [
+          existingSale.saleDate,
+          saleDate ? new Date(saleDate) : null,
+          ...existingSale.payments.map((p) => p.paymentDate),
+          new Date(),
+        ],
+        "Modification de facture",
+        tx
+      );
       if (existingSale.status === "cancelled") {
         throw new Error("Impossible de modifier une facture ou vente annulée.");
       }
@@ -750,6 +789,35 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
 
         const allStockKeys = new Set([...oldStockMap.keys(), ...newStockMap.keys()]);
 
+        // Optimisation : pré-chargement en lot des produits, emplacements et stocks pour éliminer les requêtes répétées
+        const uniqueProductIds = Array.from(
+          new Set(Array.from(allStockKeys).map((k) => (oldStockMap.get(k) || newStockMap.get(k))!.productId))
+        );
+        const uniqueLocationIds = Array.from(
+          new Set(Array.from(allStockKeys).map((k) => (oldStockMap.get(k) || newStockMap.get(k))!.locationId))
+        );
+
+        const [productsList, locationsList, stockRecordsList] = await Promise.all([
+          tx.product.findMany({
+            where: { id: { in: uniqueProductIds } },
+            select: { id: true, name: true, sku: true, costPrice: true, isActive: true },
+          }),
+          tx.location.findMany({
+            where: { id: { in: uniqueLocationIds } },
+            select: { id: true, name: true, code: true, isActive: true },
+          }),
+          tx.productStock.findMany({
+            where: {
+              productId: { in: uniqueProductIds },
+              locationId: { in: uniqueLocationIds },
+            },
+          }),
+        ]);
+
+        const productCache = new Map(productsList.map((p) => [p.id, p]));
+        const locationCache = new Map(locationsList.map((l) => [l.id, l]));
+        const stockCache = new Map(stockRecordsList.map((s) => [`${s.productId}_${s.locationId}`, s.quantity]));
+
         for (const key of allStockKeys) {
           const oldEntry = oldStockMap.get(key);
           const newEntry = newStockMap.get(key);
@@ -762,22 +830,13 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
 
           if (delta === 0) continue;
 
-          const product = await tx.product.findUnique({
-            where: { id: productId },
-            select: { id: true, name: true, sku: true, costPrice: true, isActive: true },
-          });
+          const product = productCache.get(productId);
           if (!product) throw new Error(`Produit introuvable (ID: ${productId}).`);
 
-          const location = await tx.location.findUnique({
-            where: { id: locationId },
-            select: { id: true, name: true, code: true, isActive: true },
-          });
+          const location = locationCache.get(locationId);
           if (!location) throw new Error(`Emplacement introuvable (ID: ${locationId}).`);
 
-          const currentStockRecord = await tx.productStock.findUnique({
-            where: { productId_locationId: { productId, locationId } },
-          });
-          const availableStock = currentStockRecord?.quantity ?? 0;
+          const availableStock = stockCache.get(key) ?? 0;
 
           if (delta > 0) {
             // Prélèvement supplémentaire
@@ -1119,7 +1178,9 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
         newTotal: newTotalAmount,
         totalPaid,
       };
-    });
+    },
+    { maxWait: 10000, timeout: 20000 }
+  );
 
     safeRevalidate("/sales");
     safeRevalidate("/products");
@@ -1159,6 +1220,10 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
     });
 
     if (!sale) return { success: false, error: "Vente introuvable." };
+    await assertDatesNotLocked(
+      [sale.saleDate, ...sale.payments.map((p) => p.paymentDate), new Date()],
+      "Annulation de vente"
+    );
     if (sale.status === "cancelled") {
       return { success: false, error: "Cette vente est déjà annulée." };
     }
@@ -1236,6 +1301,9 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
     if (sale.status === "cancelled") {
       return { success: false, error: "Impossible d'enregistrer un règlement sur une vente ou commande annulée." };
     }
+
+    const paymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
+    await assertPeriodNotLocked(paymentDate, "Règlement de facture");
 
     const remainingBalance = roundMoney(Math.max(0, sale.totalAmount - sale.paidAmount));
     if (amount > remainingBalance) {

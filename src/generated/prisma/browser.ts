@@ -132,3 +132,23 @@ export type Transaction = Prisma.TransactionModel
  * 
  */
 export type ShopSettings = Prisma.ShopSettingsModel
+/**
+ * Model MonthlyClosingChecklist
+ * 
+ */
+export type MonthlyClosingChecklist = Prisma.MonthlyClosingChecklistModel
+/**
+ * Model MonthlyClosingSnapshot
+ * 
+ */
+export type MonthlyClosingSnapshot = Prisma.MonthlyClosingSnapshotModel
+/**
+ * Model MonthlyClosingPeriod
+ * 
+ */
+export type MonthlyClosingPeriod = Prisma.MonthlyClosingPeriodModel
+/**
+ * Model MonthlyClosingAuditLog
+ * 
+ */
+export type MonthlyClosingAuditLog = Prisma.MonthlyClosingAuditLogModel

@@ -419,7 +419,11 @@ export const ModelName = {
   TreasuryTransfer: 'TreasuryTransfer',
   SupplierDebt: 'SupplierDebt',
   Transaction: 'Transaction',
-  ShopSettings: 'ShopSettings'
+  ShopSettings: 'ShopSettings',
+  MonthlyClosingChecklist: 'MonthlyClosingChecklist',
+  MonthlyClosingSnapshot: 'MonthlyClosingSnapshot',
+  MonthlyClosingPeriod: 'MonthlyClosingPeriod',
+  MonthlyClosingAuditLog: 'MonthlyClosingAuditLog'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -435,7 +439,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "location" | "productStock" | "stockMovement" | "customer" | "supplier" | "sales" | "saleItem" | "payment" | "customerAdvance" | "customerAdvanceAllocation" | "purchase" | "purchaseItem" | "purchaseReceipt" | "purchaseReceiptItem" | "cashSession" | "expense" | "treasuryAccount" | "treasuryTransfer" | "supplierDebt" | "transaction" | "shopSettings"
+    modelProps: "category" | "product" | "location" | "productStock" | "stockMovement" | "customer" | "supplier" | "sales" | "saleItem" | "payment" | "customerAdvance" | "customerAdvanceAllocation" | "purchase" | "purchaseItem" | "purchaseReceipt" | "purchaseReceiptItem" | "cashSession" | "expense" | "treasuryAccount" | "treasuryTransfer" | "supplierDebt" | "transaction" | "shopSettings" | "monthlyClosingChecklist" | "monthlyClosingSnapshot" | "monthlyClosingPeriod" | "monthlyClosingAuditLog"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2141,6 +2145,302 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    MonthlyClosingChecklist: {
+      payload: Prisma.$MonthlyClosingChecklistPayload<ExtArgs>
+      fields: Prisma.MonthlyClosingChecklistFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.MonthlyClosingChecklistFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.MonthlyClosingChecklistFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload>
+        }
+        findFirst: {
+          args: Prisma.MonthlyClosingChecklistFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.MonthlyClosingChecklistFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload>
+        }
+        findMany: {
+          args: Prisma.MonthlyClosingChecklistFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload>[]
+        }
+        create: {
+          args: Prisma.MonthlyClosingChecklistCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload>
+        }
+        createMany: {
+          args: Prisma.MonthlyClosingChecklistCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.MonthlyClosingChecklistCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload>[]
+        }
+        delete: {
+          args: Prisma.MonthlyClosingChecklistDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload>
+        }
+        update: {
+          args: Prisma.MonthlyClosingChecklistUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload>
+        }
+        deleteMany: {
+          args: Prisma.MonthlyClosingChecklistDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.MonthlyClosingChecklistUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.MonthlyClosingChecklistUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload>[]
+        }
+        upsert: {
+          args: Prisma.MonthlyClosingChecklistUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingChecklistPayload>
+        }
+        aggregate: {
+          args: Prisma.MonthlyClosingChecklistAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMonthlyClosingChecklist>
+        }
+        groupBy: {
+          args: Prisma.MonthlyClosingChecklistGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MonthlyClosingChecklistGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.MonthlyClosingChecklistCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MonthlyClosingChecklistCountAggregateOutputType> | number
+        }
+      }
+    }
+    MonthlyClosingSnapshot: {
+      payload: Prisma.$MonthlyClosingSnapshotPayload<ExtArgs>
+      fields: Prisma.MonthlyClosingSnapshotFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.MonthlyClosingSnapshotFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.MonthlyClosingSnapshotFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload>
+        }
+        findFirst: {
+          args: Prisma.MonthlyClosingSnapshotFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.MonthlyClosingSnapshotFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload>
+        }
+        findMany: {
+          args: Prisma.MonthlyClosingSnapshotFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload>[]
+        }
+        create: {
+          args: Prisma.MonthlyClosingSnapshotCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload>
+        }
+        createMany: {
+          args: Prisma.MonthlyClosingSnapshotCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.MonthlyClosingSnapshotCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload>[]
+        }
+        delete: {
+          args: Prisma.MonthlyClosingSnapshotDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload>
+        }
+        update: {
+          args: Prisma.MonthlyClosingSnapshotUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload>
+        }
+        deleteMany: {
+          args: Prisma.MonthlyClosingSnapshotDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.MonthlyClosingSnapshotUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.MonthlyClosingSnapshotUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload>[]
+        }
+        upsert: {
+          args: Prisma.MonthlyClosingSnapshotUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingSnapshotPayload>
+        }
+        aggregate: {
+          args: Prisma.MonthlyClosingSnapshotAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMonthlyClosingSnapshot>
+        }
+        groupBy: {
+          args: Prisma.MonthlyClosingSnapshotGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MonthlyClosingSnapshotGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.MonthlyClosingSnapshotCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MonthlyClosingSnapshotCountAggregateOutputType> | number
+        }
+      }
+    }
+    MonthlyClosingPeriod: {
+      payload: Prisma.$MonthlyClosingPeriodPayload<ExtArgs>
+      fields: Prisma.MonthlyClosingPeriodFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.MonthlyClosingPeriodFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.MonthlyClosingPeriodFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload>
+        }
+        findFirst: {
+          args: Prisma.MonthlyClosingPeriodFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.MonthlyClosingPeriodFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload>
+        }
+        findMany: {
+          args: Prisma.MonthlyClosingPeriodFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload>[]
+        }
+        create: {
+          args: Prisma.MonthlyClosingPeriodCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload>
+        }
+        createMany: {
+          args: Prisma.MonthlyClosingPeriodCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.MonthlyClosingPeriodCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload>[]
+        }
+        delete: {
+          args: Prisma.MonthlyClosingPeriodDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload>
+        }
+        update: {
+          args: Prisma.MonthlyClosingPeriodUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload>
+        }
+        deleteMany: {
+          args: Prisma.MonthlyClosingPeriodDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.MonthlyClosingPeriodUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.MonthlyClosingPeriodUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload>[]
+        }
+        upsert: {
+          args: Prisma.MonthlyClosingPeriodUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingPeriodPayload>
+        }
+        aggregate: {
+          args: Prisma.MonthlyClosingPeriodAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMonthlyClosingPeriod>
+        }
+        groupBy: {
+          args: Prisma.MonthlyClosingPeriodGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MonthlyClosingPeriodGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.MonthlyClosingPeriodCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MonthlyClosingPeriodCountAggregateOutputType> | number
+        }
+      }
+    }
+    MonthlyClosingAuditLog: {
+      payload: Prisma.$MonthlyClosingAuditLogPayload<ExtArgs>
+      fields: Prisma.MonthlyClosingAuditLogFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.MonthlyClosingAuditLogFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.MonthlyClosingAuditLogFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload>
+        }
+        findFirst: {
+          args: Prisma.MonthlyClosingAuditLogFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.MonthlyClosingAuditLogFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload>
+        }
+        findMany: {
+          args: Prisma.MonthlyClosingAuditLogFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload>[]
+        }
+        create: {
+          args: Prisma.MonthlyClosingAuditLogCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload>
+        }
+        createMany: {
+          args: Prisma.MonthlyClosingAuditLogCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.MonthlyClosingAuditLogCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload>[]
+        }
+        delete: {
+          args: Prisma.MonthlyClosingAuditLogDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload>
+        }
+        update: {
+          args: Prisma.MonthlyClosingAuditLogUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload>
+        }
+        deleteMany: {
+          args: Prisma.MonthlyClosingAuditLogDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.MonthlyClosingAuditLogUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.MonthlyClosingAuditLogUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload>[]
+        }
+        upsert: {
+          args: Prisma.MonthlyClosingAuditLogUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MonthlyClosingAuditLogPayload>
+        }
+        aggregate: {
+          args: Prisma.MonthlyClosingAuditLogAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMonthlyClosingAuditLog>
+        }
+        groupBy: {
+          args: Prisma.MonthlyClosingAuditLogGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MonthlyClosingAuditLogGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.MonthlyClosingAuditLogCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MonthlyClosingAuditLogCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -2579,6 +2879,81 @@ export const ShopSettingsScalarFieldEnum = {
 export type ShopSettingsScalarFieldEnum = (typeof ShopSettingsScalarFieldEnum)[keyof typeof ShopSettingsScalarFieldEnum]
 
 
+export const MonthlyClosingChecklistScalarFieldEnum = {
+  id: 'id',
+  month: 'month',
+  itemKey: 'itemKey',
+  status: 'status',
+  note: 'note',
+  checkedBy: 'checkedBy',
+  checkedAt: 'checkedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MonthlyClosingChecklistScalarFieldEnum = (typeof MonthlyClosingChecklistScalarFieldEnum)[keyof typeof MonthlyClosingChecklistScalarFieldEnum]
+
+
+export const MonthlyClosingSnapshotScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  month: 'month',
+  version: 'version',
+  status: 'status',
+  title: 'title',
+  notes: 'notes',
+  generatedAt: 'generatedAt',
+  generatedBy: 'generatedBy',
+  periodStart: 'periodStart',
+  periodEnd: 'periodEnd',
+  totalsJson: 'totalsJson',
+  checklistJson: 'checklistJson',
+  discrepanciesJson: 'discrepanciesJson',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MonthlyClosingSnapshotScalarFieldEnum = (typeof MonthlyClosingSnapshotScalarFieldEnum)[keyof typeof MonthlyClosingSnapshotScalarFieldEnum]
+
+
+export const MonthlyClosingPeriodScalarFieldEnum = {
+  id: 'id',
+  month: 'month',
+  status: 'status',
+  isLocked: 'isLocked',
+  periodStart: 'periodStart',
+  periodEnd: 'periodEnd',
+  finalSnapshotId: 'finalSnapshotId',
+  finalSnapshotRef: 'finalSnapshotRef',
+  approvedBy: 'approvedBy',
+  approvedAt: 'approvedAt',
+  approvalNotes: 'approvalNotes',
+  backupConfirmedAt: 'backupConfirmedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MonthlyClosingPeriodScalarFieldEnum = (typeof MonthlyClosingPeriodScalarFieldEnum)[keyof typeof MonthlyClosingPeriodScalarFieldEnum]
+
+
+export const MonthlyClosingAuditLogScalarFieldEnum = {
+  id: 'id',
+  periodId: 'periodId',
+  month: 'month',
+  action: 'action',
+  fromStatus: 'fromStatus',
+  toStatus: 'toStatus',
+  operator: 'operator',
+  reason: 'reason',
+  snapshotRef: 'snapshotRef',
+  version: 'version',
+  metadataJson: 'metadataJson',
+  createdAt: 'createdAt'
+} as const
+
+export type MonthlyClosingAuditLogScalarFieldEnum = (typeof MonthlyClosingAuditLogScalarFieldEnum)[keyof typeof MonthlyClosingAuditLogScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -2809,6 +3184,10 @@ export type GlobalOmitConfig = {
   supplierDebt?: Prisma.SupplierDebtOmit
   transaction?: Prisma.TransactionOmit
   shopSettings?: Prisma.ShopSettingsOmit
+  monthlyClosingChecklist?: Prisma.MonthlyClosingChecklistOmit
+  monthlyClosingSnapshot?: Prisma.MonthlyClosingSnapshotOmit
+  monthlyClosingPeriod?: Prisma.MonthlyClosingPeriodOmit
+  monthlyClosingAuditLog?: Prisma.MonthlyClosingAuditLogOmit
 }
 
 /* Types for Logging */

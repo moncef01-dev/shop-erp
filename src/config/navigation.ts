@@ -20,6 +20,7 @@ import {
   Coins,
   Lock,
   BookOpen,
+  CalendarCheck2,
 } from "lucide-react";
 
 export interface SubNavItem {
@@ -92,6 +93,11 @@ export const treasurySubItems: SubNavItem[] = [
     href: "/cash/closing",
     icon: Lock,
   },
+  {
+    label: "Clôture mensuelle",
+    href: "/closing/monthly",
+    icon: CalendarCheck2,
+  },
 ];
 
 export const navItems: NavItem[] = [
@@ -137,6 +143,12 @@ export const navItems: NavItem[] = [
     icon: Wallet,
     description: "Comptes, mouvements, règlements, charges et clôture",
     subItems: treasurySubItems,
+  },
+  {
+    label: "Clôture mensuelle",
+    href: "/closing/monthly",
+    icon: CalendarCheck2,
+    description: "Consolidation, pointage et audit financier de fin de mois",
   },
   {
     label: "Documents",

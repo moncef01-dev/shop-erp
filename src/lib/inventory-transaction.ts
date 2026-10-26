@@ -21,19 +21,38 @@ export async function deductStockForSaleItem(
     locationId: number;
     quantity: number;
     customerName?: string | null;
+    productCache?: Map<number, { id: number; name: string; sku: string; costPrice: number | null; isActive: boolean }>;
+    locationCache?: Map<number, { id: number; name: string; code: string; isActive: boolean }>;
   }
 ) {
-  const { saleId, saleReference, productId, locationId, quantity, customerName } = params;
+  const { saleId, saleReference, productId, locationId, quantity, customerName, productCache, locationCache } = params;
 
   if (!Number.isInteger(quantity) || quantity <= 0) {
     throw new Error(`La quantité vendue doit être un entier strictement positif (reçu: ${quantity}).`);
   }
 
-  // 1. Vérification produit
-  const product = await tx.product.findUnique({
-    where: { id: productId },
-    select: { id: true, name: true, sku: true, costPrice: true, isActive: true },
-  });
+  // 1 & 2 & 3. Vérification produit, emplacement et stock disponible (en parallèle ou via cache)
+  const cachedProduct = productCache?.get(productId);
+  const cachedLocation = locationCache?.get(locationId);
+
+  const [product, location, productStock] = await Promise.all([
+    cachedProduct
+      ? Promise.resolve(cachedProduct)
+      : tx.product.findUnique({
+          where: { id: productId },
+          select: { id: true, name: true, sku: true, costPrice: true, isActive: true },
+        }),
+    cachedLocation
+      ? Promise.resolve(cachedLocation)
+      : tx.location.findUnique({
+          where: { id: locationId },
+          select: { id: true, name: true, code: true, isActive: true },
+        }),
+    tx.productStock.findUnique({
+      where: { productId_locationId: { productId, locationId } },
+    }),
+  ]);
+
   if (!product) {
     throw new Error(`Produit introuvable (ID: ${productId}).`);
   }
@@ -41,22 +60,12 @@ export async function deductStockForSaleItem(
     throw new Error(`Le produit "${product.name}" (${product.sku}) est inactif. Vente impossible.`);
   }
 
-  // 2. Vérification emplacement
-  const location = await tx.location.findUnique({
-    where: { id: locationId },
-    select: { id: true, name: true, code: true, isActive: true },
-  });
   if (!location) {
     throw new Error(`Emplacement introuvable (ID: ${locationId}).`);
   }
   if (!location.isActive) {
     throw new Error(`L'emplacement "${location.name}" est inactif. Impossible de prélever du stock.`);
   }
-
-  // 3. Contrôle du stock disponible
-  const productStock = await tx.productStock.findUnique({
-    where: { productId_locationId: { productId, locationId } },
-  });
 
   const availableQuantity = productStock?.quantity ?? 0;
   if (availableQuantity < quantity) {

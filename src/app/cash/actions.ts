@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { ShopSettingsData } from "@/app/settings/actions";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
 import {
   generateNextTreasuryTransferReference,
   generateNextTreasuryAccountCode,
@@ -125,6 +126,29 @@ export async function openCashSessionAction(
     const openedAt = isObj && payload.openedAt ? new Date(payload.openedAt) : new Date();
     const includePendingCash = isObj ? Boolean(payload.includePendingCash) : false;
 
+    await assertPeriodNotLocked(openedAt, "Ouverture de session de caisse");
+
+    if (includePendingCash) {
+      const [pendingPayments, pendingExpenses] = await Promise.all([
+        prisma.payment.findMany({
+          where: { sessionId: null, method: "cash", status: { not: "cancelled" } },
+          select: { paymentDate: true },
+        }),
+        prisma.expense.findMany({
+          where: { sessionId: null, method: "cash" },
+          select: { date: true },
+        }),
+      ]);
+      await assertDatesNotLocked(
+        [
+          openedAt,
+          ...pendingPayments.map((p) => p.paymentDate),
+          ...pendingExpenses.map((e) => e.date),
+        ],
+        "Ouverture de session de caisse avec rattachement"
+      );
+    }
+
     if (isNaN(openingAmount) || openingAmount < 0) {
       return {
         success: false,
@@ -214,7 +238,7 @@ export async function reconcileOutOfSessionCashAction(sessionId: number): Promis
         status: { not: "cancelled" },
         OR: [{ accountId: caisseId }, { accountId: null }],
       },
-      select: { id: true, amount: true },
+      select: { id: true, amount: true, paymentDate: true },
     });
 
     const unlinkedExpenses = await prisma.expense.findMany({
@@ -223,12 +247,21 @@ export async function reconcileOutOfSessionCashAction(sessionId: number): Promis
         method: "cash",
         OR: [{ accountId: caisseId }, { accountId: null }],
       },
-      select: { id: true, amount: true, type: true },
+      select: { id: true, amount: true, type: true, date: true },
     });
 
     if (unlinkedPayments.length === 0 && unlinkedExpenses.length === 0) {
       return { success: false, error: "Aucun mouvement en espèces hors session en attente de réconciliation." };
     }
+
+    await assertDatesNotLocked(
+      [
+        session.openedAt,
+        ...unlinkedPayments.map((p) => p.paymentDate),
+        ...unlinkedExpenses.map((e) => e.date),
+      ],
+      "Rattachement hors session de caisse"
+    );
 
     const paymentIds = unlinkedPayments.map((p) => p.id);
     const expenseIds = unlinkedExpenses.map((e) => e.id);
@@ -338,6 +371,8 @@ export async function closeCashSessionAction(
     }
 
     const now = new Date();
+
+    await assertDatesNotLocked([session.openedAt, now], "Clôture de session de caisse");
 
     const defaultCaisse =
       (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
@@ -690,6 +725,12 @@ export async function editClosedCashSessionAction(payload: {
       };
     }
 
+    const now = new Date();
+    await assertDatesNotLocked(
+      [session.openedAt, session.closedAt ?? session.openedAt, now],
+      "Modification d'une session de caisse clôturée"
+    );
+
     const origClosing = session.originalClosingAmount ?? session.closingAmount ?? 0;
     const origTheoretical = session.originalTheoreticalAmount ?? session.theoreticalAmount ?? 0;
     const origDiff = session.originalDifference ?? session.difference ?? 0;
@@ -697,8 +738,6 @@ export async function editClosedCashSessionAction(payload: {
     const theoreticalAmount = session.theoreticalAmount ?? 0;
     const newDifference = newClosingAmount - theoreticalAmount;
     const newRetainedAmount = Math.max(0, newClosingAmount - newTransferAmount);
-
-    const now = new Date();
 
     const auditRecord = {
       editedAt: now.toISOString(),
@@ -830,6 +869,9 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
       };
     }
 
+    const date = dateStr ? new Date(dateStr) : new Date();
+    await assertPeriodNotLocked(date, type === "income" ? "Enregistrement d'un encaissement" : "Enregistrement d'une dépense");
+
     if (!description || description.length < 3) {
       return {
         success: false,
@@ -891,7 +933,6 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
     }
 
     const reference = await generateNextExpenseReference(type === "income" ? "income" : "expense");
-    const date = dateStr ? new Date(dateStr) : new Date();
 
     const expense = await prisma.expense.create({
       data: {
@@ -946,6 +987,8 @@ export async function deleteExpenseAction(expenseId: number): Promise<CashAction
         error: "Impossible de supprimer une dépense rattachée à une session de caisse déjà clôturée.",
       };
     }
+
+    await assertPeriodNotLocked(expense.date, "Suppression de dépense / encaissement");
 
     await prisma.expense.delete({ where: { id: expenseId } });
 
