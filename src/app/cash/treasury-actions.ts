@@ -714,7 +714,15 @@ export async function createTreasuryTransferAction(payload: {
     const paymentMethod = payload.paymentMethod || "cash";
     const motif = (payload.motif || (payload as any).observation || payload.notes)?.trim();
     const notes = payload.notes?.trim() || null;
-    const date = payload.date ? new Date(payload.date) : new Date();
+    let date = new Date();
+    if (payload.date) {
+      const trimmed = payload.date.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        date = new Date(`${trimmed}T00:00:00.000Z`);
+      } else {
+        date = new Date(trimmed);
+      }
+    }
 
     if (isNaN(amount) || amount <= 0) {
       return {
@@ -871,7 +879,15 @@ export async function updateTreasuryTransferAction(payload: {
       const paymentMethod = payload.paymentMethod || existing.paymentMethod || "cash";
       const motif = (payload.motif || payload.observation || existing.motif)?.trim();
       const notes = payload.notes !== undefined ? (payload.notes?.trim() || null) : existing.notes;
-      const date = payload.date ? new Date(payload.date) : existing.date;
+      let date = existing.date;
+      if (payload.date) {
+        const trimmed = payload.date.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+          date = new Date(`${trimmed}T00:00:00.000Z`);
+        } else {
+          date = new Date(trimmed);
+        }
+      }
 
       if (fromAccountId === toAccountId) {
         throw new Error("Le compte source et le compte destination doivent être distincts.");

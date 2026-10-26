@@ -1801,11 +1801,13 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0) {
       return d.toISOString().slice(0, 10);
     }
-    // Sinon, on extrait la date dans le fuseau horaire local du magasin
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
+    // Sinon, on extrait la date dans le fuseau horaire local d'Algérie (Africa/Algiers)
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Algiers",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
   };
 
   const dateSet = new Set<string>();

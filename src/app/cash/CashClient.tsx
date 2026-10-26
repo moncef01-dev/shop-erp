@@ -2191,14 +2191,18 @@ export function CashClient({ initialData }: CashClientProps) {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Date du Virement
+                    Date du mouvement *
                   </label>
                   <input
                     type="date"
+                    required
                     value={transferDate}
                     onChange={(e) => setTransferDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
                   />
+                  <span className="block text-[10px] text-slate-400 mt-0.5">
+                    Date d&apos;effet comptable
+                  </span>
                 </div>
               </div>
 

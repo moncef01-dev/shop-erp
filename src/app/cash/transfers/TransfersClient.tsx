@@ -23,7 +23,26 @@ import {
   type TreasuryTransferData,
 } from "../treasury-actions";
 import { TreasuryNavigationTabs } from "@/components/cash/TreasuryNavigationTabs";
-import { formatDA } from "@/components/cash/PrintableCashDocuments";
+import { formatDA, formatDateTime } from "@/components/cash/PrintableCashDocuments";
+
+export function getEffectiveDateYMD(dInput: string | Date): string {
+  const d = typeof dInput === "string" ? new Date(dInput) : dInput;
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0) {
+    return d.toISOString().slice(0, 10);
+  }
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Algiers",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+export function formatEffectiveDateDZ(dInput: string | Date): string {
+  const ymd = getEffectiveDateYMD(dInput);
+  const [y, m, d] = ymd.split("-");
+  return `${d}/${m}/${y}`;
+}
 
 interface TransfersClientProps {
   initialTransfers: TreasuryTransferData[];
@@ -62,7 +81,7 @@ export function TransfersClient({
   const [transferAmount, setTransferAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [transferMotif, setTransferMotif] = useState("");
-  const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
+  const [transferDate, setTransferDate] = useState(() => getEffectiveDateYMD(new Date()));
   const [transferNotes, setTransferNotes] = useState("");
 
   // Edit Transfer Form
@@ -102,11 +121,12 @@ export function TransfersClient({
         methodFilter === "all" || (t.paymentMethod || "cash") === methodFilter;
 
       let matchesDate = true;
+      const tYmd = getEffectiveDateYMD(t.date);
       if (startDate) {
-        matchesDate = matchesDate && new Date(t.date).getTime() >= new Date(startDate).setHours(0, 0, 0, 0);
+        matchesDate = matchesDate && tYmd >= startDate;
       }
       if (endDate) {
-        matchesDate = matchesDate && new Date(t.date).getTime() <= new Date(endDate).setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && tYmd <= endDate;
       }
 
       return matchesSearch && matchesAccount && matchesMethod && matchesDate;
@@ -125,6 +145,10 @@ export function TransfersClient({
     const amountNum = parseFloat(transferAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
       showNotification("error", "Le montant doit être un nombre strictement positif en DA.");
+      return;
+    }
+    if (!transferDate) {
+      showNotification("error", "La date du mouvement est obligatoire.");
       return;
     }
 
@@ -159,7 +183,7 @@ export function TransfersClient({
     setEditAmount(t.amount.toString());
     setEditMethod(t.paymentMethod || "cash");
     setEditMotif(t.motif);
-    setEditDate(new Date(t.date).toISOString().split("T")[0]);
+    setEditDate(getEffectiveDateYMD(t.date));
     setEditNotes(t.notes || "");
     setEditReason("");
   };
@@ -170,6 +194,10 @@ export function TransfersClient({
     const amountNum = parseFloat(editAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
       showNotification("error", "Le montant doit être un nombre strictement supérieur à zéro.");
+      return;
+    }
+    if (!editDate) {
+      showNotification("error", "La date du mouvement est obligatoire.");
       return;
     }
 
@@ -309,7 +337,7 @@ export function TransfersClient({
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wider">
               <tr>
                 <th className="py-3 px-4">Référence</th>
-                <th className="py-3 px-4">Date</th>
+                <th className="py-3 px-4">Date du mouvement</th>
                 <th className="py-3 px-4">Flux Directionnel</th>
                 <th className="py-3 px-4 text-right">Montant</th>
                 <th className="py-3 px-4">Mode</th>
@@ -335,8 +363,13 @@ export function TransfersClient({
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-500 text-xs">
-                      {new Date(t.date).toLocaleDateString("fr-DZ")}
+                    <td className="py-3.5 px-4 text-slate-600 text-xs">
+                      <span className="font-semibold text-slate-900 block">
+                        {formatEffectiveDateDZ(t.date)}
+                      </span>
+                      <span className="block text-[10px] text-slate-400 font-normal">
+                        Saisi le : {formatDateTime(t.createdAt)}
+                      </span>
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-2">
@@ -523,14 +556,18 @@ export function TransfersClient({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Date du virement
+                    Date du mouvement <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="date"
+                    required
                     value={transferDate}
                     onChange={(e) => setTransferDate(e.target.value)}
                     className="w-full text-xs bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
+                  <span className="block text-[10px] text-slate-400 mt-0.5">
+                    Date d&apos;effet comptable du mouvement
+                  </span>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -599,9 +636,15 @@ export function TransfersClient({
 
             <div className="mt-4 space-y-3 text-xs text-slate-700">
               <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-400">Date de l&apos;opération :</span>
-                <span className="font-semibold text-slate-900">
-                  {new Date(viewingTransfer.date).toLocaleDateString("fr-DZ")}
+                <span className="text-slate-500">Date d&apos;effet (mouvement) :</span>
+                <span className="font-bold text-slate-900">
+                  {formatEffectiveDateDZ(viewingTransfer.date)}
+                </span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-slate-100">
+                <span className="text-slate-400">Date de saisie (système) :</span>
+                <span className="text-slate-500 font-mono text-[11px]">
+                  {formatDateTime(viewingTransfer.createdAt)}
                 </span>
               </div>
               <div className="flex justify-between py-2 border-b border-slate-100">
@@ -731,13 +774,19 @@ export function TransfersClient({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Date</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Date du mouvement <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="date"
+                    required
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
                     className="w-full text-xs bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800"
                   />
+                  <span className="block text-[10px] text-slate-400 mt-0.5">
+                    Date d&apos;effet comptable du mouvement
+                  </span>
                 </div>
               </div>
 
