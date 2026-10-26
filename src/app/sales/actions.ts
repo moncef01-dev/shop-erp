@@ -818,6 +818,8 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
         const locationCache = new Map(locationsList.map((l) => [l.id, l]));
         const stockCache = new Map(stockRecordsList.map((s) => [`${s.productId}_${s.locationId}`, s.quantity]));
 
+        const modifiedProductIds = new Set<number>();
+
         for (const key of allStockKeys) {
           const oldEntry = oldStockMap.get(key);
           const newEntry = newStockMap.get(key);
@@ -837,6 +839,7 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
           if (!location) throw new Error(`Emplacement introuvable (ID: ${locationId}).`);
 
           const availableStock = stockCache.get(key) ?? 0;
+          modifiedProductIds.add(productId);
 
           if (delta > 0) {
             // Prélèvement supplémentaire
@@ -861,16 +864,6 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
               data: { quantity: stockAfter },
             });
 
-            const allStocks = await tx.productStock.findMany({
-              where: { productId },
-              select: { quantity: true },
-            });
-            const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
-            await tx.product.update({
-              where: { id: productId },
-              data: { stock: newTotal },
-            });
-
             await tx.stockMovement.create({
               data: {
                 reference: `MVT-MOD-${existingSale.reference}-${product.sku}`,
@@ -887,6 +880,8 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
                 saleId: existingSale.id,
               },
             });
+
+            stockCache.set(key, stockAfter);
           } else {
             // delta < 0 : Réintégration de stock (annulation partielle / retour)
             const restoreQty = Math.abs(delta);
@@ -905,16 +900,6 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
               },
             });
 
-            const allStocks = await tx.productStock.findMany({
-              where: { productId },
-              select: { quantity: true },
-            });
-            const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
-            await tx.product.update({
-              where: { id: productId },
-              data: { stock: newTotal },
-            });
-
             await tx.stockMovement.create({
               data: {
                 reference: `RET-MOD-${existingSale.reference}-${product.sku}`,
@@ -931,18 +916,33 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
                 saleId: existingSale.id,
               },
             });
+
+            stockCache.set(key, stockAfter);
           }
+        }
+
+        // Recalculer le stock total consolidé pour chaque produit modifié
+        for (const prodId of modifiedProductIds) {
+          const allStocks = await tx.productStock.findMany({
+            where: { productId: prodId },
+            select: { quantity: true },
+          });
+          const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
+          await tx.product.update({
+            where: { id: prodId },
+            data: { stock: newTotal },
+          });
         }
       }
 
-      // 5. Remplacement des lignes de vente
+      // 5. Remplacement des lignes de vente en une seule requête groupée
       await tx.saleItem.deleteMany({
         where: { saleId },
       });
 
-      for (const item of validatedItems) {
-        await tx.saleItem.create({
-          data: {
+      if (validatedItems.length > 0) {
+        await tx.saleItem.createMany({
+          data: validatedItems.map((item) => ({
             saleId: existingSale.id,
             productId: item.productId,
             locationId: item.locationId,
@@ -950,7 +950,7 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
             unitPrice: item.unitPrice,
             discount: item.discount,
             subtotal: item.subtotal,
-          },
+          })),
         });
       }
 
@@ -958,7 +958,11 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
       const realPayments = existingSale.payments;
       const realPaymentsSum = realPayments.reduce((sum, p) => sum + p.amount, 0);
       const advanceAllocationsSum = existingSale.advanceAllocations.reduce((sum, a) => sum + a.amount, 0);
-      const originalTotalPaid = roundMoney(realPaymentsSum + advanceAllocationsSum);
+      const recordedPaid = roundMoney(realPaymentsSum + advanceAllocationsSum);
+      const originalTotalPaid =
+        realPayments.length > 0 || existingSale.advanceAllocations.length > 0
+          ? recordedPaid
+          : existingSale.paidAmount;
 
       let targetPaidAmount = originalTotalPaid;
       if (revisedPaidAmount !== undefined) {
@@ -1179,7 +1183,7 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
         totalPaid,
       };
     },
-    { maxWait: 10000, timeout: 20000 }
+    { maxWait: 5000, timeout: 15000 }
   );
 
     safeRevalidate("/sales");
