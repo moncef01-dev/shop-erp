@@ -382,105 +382,100 @@ export async function calculateAccountBalance(
   // 1. Solde initial standard
   let balance = account.openingBalance;
 
-  // 2. Transferts reçus (entrées)
-  const transfersIn = await db.treasuryTransfer.aggregate({
-    where: { toAccountId: accountId },
-    _sum: { amount: true },
-  });
-  balance += transfersIn._sum.amount ?? 0;
+  // 2 à 8 : Exécution parallèle optimisée des flux de trésorerie
+  const [
+    transfersIn,
+    transfersOut,
+    salePaymentsIn,
+    advancesIn,
+    incomes,
+    supplierPaymentsOut,
+    expensesOut,
+  ] = await Promise.all([
+    db.treasuryTransfer.aggregate({
+      where: { toAccountId: accountId },
+      _sum: { amount: true },
+    }),
+    db.treasuryTransfer.aggregate({
+      where: { fromAccountId: accountId },
+      _sum: { amount: true },
+    }),
+    db.payment.aggregate({
+      where: {
+        status: { not: "cancelled" },
+        purchaseId: null,
+        supplierId: null,
+        OR: [
+          { accountId: accountId },
+          ...(account.isDefault
+            ? [{ accountId: null, method: "cash" }]
+            : []),
+        ],
+      },
+      _sum: { amount: true },
+    }),
+    db.customerAdvance.aggregate({
+      where: {
+        status: { not: "cancelled" },
+        OR: [
+          { accountId: accountId },
+          ...(account.isDefault
+            ? [{ accountId: null, method: "cash" }]
+            : []),
+        ],
+      },
+      _sum: { amount: true },
+    }),
+    db.expense.aggregate({
+      where: {
+        type: "income",
+        OR: [
+          { accountId: accountId },
+          ...(account.isDefault
+            ? [{ accountId: null, method: "cash" }]
+            : []),
+        ],
+      },
+      _sum: { amount: true },
+    }),
+    db.payment.aggregate({
+      where: {
+        status: { not: "cancelled" },
+        AND: [
+          {
+            OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }],
+          },
+          {
+            OR: [
+              { accountId: accountId },
+              ...(account.isDefault
+                ? [{ accountId: null, method: "cash" }]
+                : []),
+            ],
+          },
+        ],
+      },
+      _sum: { amount: true },
+    }),
+    db.expense.aggregate({
+      where: {
+        type: "expense",
+        OR: [
+          { accountId: accountId },
+          ...(account.isDefault
+            ? [{ accountId: null, method: "cash" }]
+            : account.code === "ACC-BANQUE"
+            ? [{ accountId: null, method: "transfer" }]
+            : []),
+        ],
+      },
+      _sum: { amount: true },
+    }),
+  ]);
 
-  // 3. Transferts émis (sorties)
-  const transfersOut = await db.treasuryTransfer.aggregate({
-    where: { fromAccountId: accountId },
-    _sum: { amount: true },
-  });
-  balance -= transfersOut._sum.amount ?? 0;
-
-  // 4. Encaissements clients (Ventes et encaissements directs)
-  const salePaymentsIn = await db.payment.aggregate({
-    where: {
-      status: { not: "cancelled" },
-      purchaseId: null,
-      supplierId: null,
-      OR: [
-        { accountId: accountId },
-        ...(account.isDefault
-          ? [{ accountId: null, method: "cash" }]
-          : []),
-      ],
-    },
-    _sum: { amount: true },
-  });
-  balance += salePaymentsIn._sum.amount ?? 0;
-
-  // 5. Acomptes clients reçus
-  const advancesIn = await db.customerAdvance.aggregate({
-    where: {
-      status: { not: "cancelled" },
-      OR: [
-        { accountId: accountId },
-        ...(account.isDefault
-          ? [{ accountId: null, method: "cash" }]
-          : []),
-      ],
-    },
-    _sum: { amount: true },
-  });
-  balance += advancesIn._sum.amount ?? 0;
-
-  // 6. Recettes exceptionnelles / apports (Expenses de type income)
-  const incomes = await db.expense.aggregate({
-    where: {
-      type: "income",
-      OR: [
-        { accountId: accountId },
-        ...(account.isDefault
-          ? [{ accountId: null, method: "cash" }]
-          : []),
-      ],
-    },
-    _sum: { amount: true },
-  });
-  balance += incomes._sum.amount ?? 0;
-
-  // 7. Règlements Fournisseurs (Sorties)
-  const supplierPaymentsOut = await db.payment.aggregate({
-    where: {
-      status: { not: "cancelled" },
-      AND: [
-        {
-          OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }],
-        },
-        {
-          OR: [
-            { accountId: accountId },
-            ...(account.isDefault
-              ? [{ accountId: null, method: "cash" }]
-              : []),
-          ],
-        },
-      ],
-    },
-    _sum: { amount: true },
-  });
-  balance -= supplierPaymentsOut._sum.amount ?? 0;
-
-  // 8. Dépenses d'exploitation (Expenses de type expense)
-  const expensesOut = await db.expense.aggregate({
-    where: {
-      type: "expense",
-      OR: [
-        { accountId: accountId },
-        ...(account.isDefault
-          ? [{ accountId: null, method: "cash" }]
-          : account.code === "ACC-BANQUE"
-          ? [{ accountId: null, method: "transfer" }]
-          : []),
-      ],
-    },
-    _sum: { amount: true },
-  });
-  balance -= expensesOut._sum.amount ?? 0;
+  balance += (transfersIn._sum.amount ?? 0) - (transfersOut._sum.amount ?? 0);
+  balance += (salePaymentsIn._sum.amount ?? 0) + (advancesIn._sum.amount ?? 0) + (incomes._sum.amount ?? 0);
+  balance -= (supplierPaymentsOut._sum.amount ?? 0) + (expensesOut._sum.amount ?? 0);
 
   return Math.round(balance * 100) / 100;
 }
@@ -751,7 +746,8 @@ export async function createTreasuryTransferAction(payload: {
     }
 
     // Exécution transactionnelle atomique avec vérification stricte des fonds
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(
+      async (tx) => {
       const fromAcc = await tx.treasuryAccount.findUnique({
         where: { id: fromAccountId },
       });
@@ -819,6 +815,9 @@ export async function createTreasuryTransferAction(payload: {
       });
 
       return transfer;
+    }, {
+      maxWait: 5000,
+      timeout: 15000,
     });
 
     safeRevalidate();
@@ -870,7 +869,8 @@ export async function updateTreasuryTransferAction(payload: {
       };
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(
+      async (tx) => {
       const existing = await tx.treasuryTransfer.findUnique({
         where: { id: transferId },
         include: { fromAccount: true, toAccount: true },
@@ -896,7 +896,8 @@ export async function updateTreasuryTransferAction(payload: {
 
       await assertDatesNotLocked(
         [existing.date, date, new Date()],
-        "Modification de transfert de trésorerie"
+        "Modification de transfert de trésorerie",
+        tx
       );
 
       if (fromAccountId === toAccountId) {
@@ -975,6 +976,9 @@ export async function updateTreasuryTransferAction(payload: {
       });
 
       return res;
+    }, {
+      maxWait: 5000,
+      timeout: 15000,
     });
 
     safeRevalidate();

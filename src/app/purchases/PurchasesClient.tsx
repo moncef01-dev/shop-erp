@@ -566,14 +566,6 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
       return;
     }
 
-    if (parsedAmount > balance) {
-      showNotification(
-        "error",
-        `Le montant (${formatDA(parsedAmount)}) ne peut pas excéder le solde restant dû (${formatDA(balance)}).`
-      );
-      return;
-    }
-
     const fd = new FormData();
     fd.set("purchaseId", payingPurchase.id.toString());
     fd.set("amount", parsedAmount.toString());

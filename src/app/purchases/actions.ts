@@ -821,12 +821,6 @@ export async function recordSupplierPaymentAction(formData: FormData): Promise<P
       }
 
       const remainingBalance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
-      if (amount > remainingBalance) {
-        return {
-          success: false,
-          error: `Le montant saisi (${amount.toLocaleString("fr-DZ")} DA) dépasse le solde restant dû (${remainingBalance.toLocaleString("fr-DZ")} DA). Les trop-perçus ne sont pas autorisés.`,
-        };
-      }
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -848,6 +842,30 @@ export async function recordSupplierPaymentAction(formData: FormData): Promise<P
         if (sourceAccount) sourceAccountId = sourceAccount.id;
       }
 
+      // Évaluation de l'excédent sur facture et sur dette totale fournisseur
+      let excessOverInvoice = 0;
+      if (purchase) {
+        const invBalance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
+        if (amount > invBalance) {
+          excessOverInvoice = amount - invBalance;
+        }
+      }
+
+      let excessOverDebt = 0;
+      if (targetSupplierId) {
+        const debtInfo = await calculateSupplierDebt(targetSupplierId, tx);
+        if (amount > debtInfo.outstandingDebt) {
+          excessOverDebt = amount - debtInfo.outstandingDebt;
+        }
+      }
+
+      let creditNote = "";
+      if (excessOverDebt > 0) {
+        creditNote = ` [Crédit fournisseur : ${excessOverDebt.toLocaleString("fr-DZ")} DA — le fournisseur nous doit ce montant (we owe them / the supplier owes us this amount)]`;
+      } else if (excessOverInvoice > 0) {
+        creditNote = ` [Excédent sur facture : ${excessOverInvoice.toLocaleString("fr-DZ")} DA — imputation sur compte fournisseur (we owe them / the supplier owes us this amount)]`;
+      }
+
       const payRef = await generateNextSupplierPaymentReference(tx);
       const paymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
 
@@ -858,6 +876,9 @@ export async function recordSupplierPaymentAction(formData: FormData): Promise<P
         if (activeSession) sessionId = activeSession.id;
       }
 
+      const baseNotes = notes?.trim() || (purchase ? `Règlement commande fournisseur ${purchase.reference}` : "Règlement fournisseur");
+      const finalNotes = creditNote ? `${baseNotes}${creditNote}` : baseNotes;
+
       const payment = await tx.payment.create({
         data: {
           reference: payRef,
@@ -867,7 +888,7 @@ export async function recordSupplierPaymentAction(formData: FormData): Promise<P
           amount,
           method,
           status: "completed",
-          notes: notes || (purchase ? `Règlement commande fournisseur ${purchase.reference}` : "Règlement fournisseur"),
+          notes: finalNotes,
           paymentDate,
           sessionId,
         },
@@ -898,11 +919,19 @@ export async function recordSupplierPaymentAction(formData: FormData): Promise<P
     const newBalance = result.purchase ? Math.max(0, result.purchase.totalAmount - result.newPaid) : 0;
     const accountNotice = result.sourceAccount ? ` depuis "${result.sourceAccount.name}"` : "";
 
+    let balanceNotice = "";
+    if (result.purchase) {
+      if (result.newPaid > result.purchase.totalAmount) {
+        const excess = result.newPaid - result.purchase.totalAmount;
+        balanceNotice = ` Facture soldée (Excédent en crédit fournisseur : ${excess.toLocaleString("fr-DZ")} DA — le fournisseur nous doit ce montant).`;
+      } else {
+        balanceNotice = ` Reste à régler : ${newBalance.toLocaleString("fr-DZ")} DA.`;
+      }
+    }
+
     return {
       success: true,
-      message: `Paiement fournisseur de ${amount.toLocaleString("fr-DZ")} DA validé${accountNotice} (Réf: ${result.payment.reference}).${
-        result.purchase ? ` Reste à régler : ${newBalance.toLocaleString("fr-DZ")} DA.` : ""
-      }`,
+      message: `Paiement fournisseur de ${amount.toLocaleString("fr-DZ")} DA validé${accountNotice} (Réf: ${result.payment.reference}).${balanceNotice}`,
       data: result.payment,
     };
   } catch (err: unknown) {

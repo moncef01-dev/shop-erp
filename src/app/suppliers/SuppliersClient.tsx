@@ -563,6 +563,13 @@ export function SuppliersClient({
                         <span className="inline-block font-black text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md shadow-2xs">
                           {formatDA(s.outstandingDebt)}
                         </span>
+                      ) : (s.outstandingCredit ?? 0) > 0 ? (
+                        <span
+                          className="inline-block font-black text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md shadow-2xs"
+                          title="Le fournisseur nous doit ce montant (crédit fournisseur / trop-perçu)"
+                        >
+                          +{formatDA(s.outstandingCredit!)} (Crédit)
+                        </span>
                       ) : (
                         <span className="inline-block font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
                           0 DA (Soldé)
@@ -582,21 +589,23 @@ export function SuppliersClient({
                           <Landmark className="h-3 w-3 text-slate-500" />
                           Compte
                         </button>
-                        {s.outstandingDebt > 0 && (
-                          <button
-                            onClick={() => {
-                              setPreselectedSupplierId(s.id);
-                              setPaymentAmount(s.outstandingDebt.toString());
-                              setPaymentNotes("");
-                              setIsPaymentOpen(true);
-                            }}
-                            title="Régler la dette en cours"
-                            className="px-2.5 py-1 text-[11px] font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded transition cursor-pointer flex items-center gap-1"
-                          >
-                            <CreditCard className="h-3 w-3" />
-                            Payer
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            setPreselectedSupplierId(s.id);
+                            setPaymentAmount(s.outstandingDebt > 0 ? s.outstandingDebt.toString() : "");
+                            setPaymentNotes("");
+                            setIsPaymentOpen(true);
+                          }}
+                          title={s.outstandingDebt > 0 ? "Régler la dette en cours" : "Enregistrer un règlement / acompte fournisseur"}
+                          className={`px-2.5 py-1 text-[11px] font-bold text-white rounded transition cursor-pointer flex items-center gap-1 ${
+                            s.outstandingDebt > 0
+                              ? "bg-emerald-700 hover:bg-emerald-800"
+                              : "bg-blue-600 hover:bg-blue-700"
+                          }`}
+                        >
+                          <CreditCard className="h-3 w-3" />
+                          {s.outstandingDebt > 0 ? "Payer" : "Payer / Avance"}
+                        </button>
                         <button
                           onClick={() => {
                             setPreselectedSupplierId(s.id);
@@ -741,12 +750,28 @@ export function SuppliersClient({
                       {formatDA(statementData.summary.totalPaid)}
                     </span>
                   </div>
-                  <div className="bg-rose-50/90 p-3 rounded-xl border border-rose-300 shadow-2xs">
-                    <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider block">Reste Dû / Solde Fournisseur</span>
-                    <span className="font-mono font-black text-lg text-rose-800 mt-1 block">
-                      {formatDA(statementData.summary.outstandingDebt)}
-                    </span>
-                  </div>
+                  {statementData.summary.outstandingDebt > 0 ? (
+                    <div className="bg-rose-50/90 p-3 rounded-xl border border-rose-300 shadow-2xs">
+                      <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider block">Reste Dû au Fournisseur</span>
+                      <span className="font-mono font-black text-lg text-rose-800 mt-1 block">
+                        {formatDA(statementData.summary.outstandingDebt)}
+                      </span>
+                    </div>
+                  ) : (statementData.summary.outstandingCredit ?? 0) > 0 ? (
+                    <div className="bg-blue-50/90 p-3 rounded-xl border border-blue-300 shadow-2xs">
+                      <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider block">Crédit Fournisseur (Il nous doit ce montant)</span>
+                      <span className="font-mono font-black text-lg text-blue-800 mt-1 block">
+                        +{formatDA(statementData.summary.outstandingCredit!)}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50/90 p-3 rounded-xl border border-emerald-300 shadow-2xs">
+                      <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Solde Fournisseur</span>
+                      <span className="font-mono font-black text-lg text-emerald-800 mt-1 block">
+                        0 DA (Soldé)
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Filtre de date pour l'historique */}
@@ -864,8 +889,18 @@ export function SuppliersClient({
                             <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
                               {ev.credit > 0 ? `+${formatDA(ev.credit)}` : "—"}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-black text-rose-800">
-                              {formatDA(ev.runningBalance)}
+                            <td className="py-2.5 px-3 text-right font-mono font-black">
+                              {ev.runningBalance < 0 ? (
+                                <span className="text-blue-700 font-bold" title="Crédit en notre faveur (le fournisseur nous doit ce montant)">
+                                  +{formatDA(Math.abs(ev.runningBalance))} (Crédit)
+                                </span>
+                              ) : ev.runningBalance > 0 ? (
+                                <span className="text-rose-800">
+                                  {formatDA(ev.runningBalance)}
+                                </span>
+                              ) : (
+                                <span className="text-emerald-700 font-bold">0 DA</span>
+                              )}
                             </td>
                           </tr>
                         ))
@@ -1057,15 +1092,31 @@ export function SuppliersClient({
                   <option value="">Sélectionnez un fournisseur...</option>
                   {initialSuppliers.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} — Dette restante : {formatDA(s.outstandingDebt)}
+                      {s.name} — {s.outstandingDebt > 0 ? `Dette : ${formatDA(s.outstandingDebt)}` : (s.outstandingCredit ?? 0) > 0 ? `Crédit : +${formatDA(s.outstandingCredit!)}` : "Soldé (0 DA)"}
                     </option>
                   ))}
                 </select>
                 {selectedSupplierObj && (
-                  <div className="mt-2 p-2.5 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between text-xs">
-                    <span className="text-rose-800 font-semibold">Dette restante à régler :</span>
-                    <span className="font-mono font-black text-rose-900 text-sm">
-                      {formatDA(selectedSupplierObj.outstandingDebt)}
+                  <div className={`mt-2 p-2.5 rounded-lg flex items-center justify-between text-xs border ${
+                    selectedSupplierObj.outstandingDebt > 0
+                      ? "bg-rose-50 border-rose-200 text-rose-800"
+                      : (selectedSupplierObj.outstandingCredit ?? 0) > 0
+                      ? "bg-blue-50 border-blue-200 text-blue-800"
+                      : "bg-emerald-50 border-emerald-200 text-emerald-800"
+                  }`}>
+                    <span className="font-semibold">
+                      {selectedSupplierObj.outstandingDebt > 0
+                        ? "Dette restante à régler :"
+                        : (selectedSupplierObj.outstandingCredit ?? 0) > 0
+                        ? "Crédit existant (le fournisseur nous doit ce montant) :"
+                        : "Situation du compte :"}
+                    </span>
+                    <span className="font-mono font-black text-sm">
+                      {selectedSupplierObj.outstandingDebt > 0
+                        ? formatDA(selectedSupplierObj.outstandingDebt)
+                        : (selectedSupplierObj.outstandingCredit ?? 0) > 0
+                        ? `+${formatDA(selectedSupplierObj.outstandingCredit!)} (Crédit)`
+                        : "0 DA (Soldé)"}
                     </span>
                   </div>
                 )}

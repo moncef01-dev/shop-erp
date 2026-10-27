@@ -106,15 +106,6 @@ export function SupplierPaymentsClient({
       return;
     }
 
-    if (selectedSupplier && amountNum > selectedSupplier.outstandingDebt) {
-      showNotification(
-        "error",
-        `Le montant (${formatDA(amountNum)}) dépasse la dette totale du fournisseur (${formatDA(
-          selectedSupplier.outstandingDebt
-        )}). Les trop-perçus ne sont pas autorisés.`
-      );
-      return;
-    }
 
     startTransition(async () => {
       const res = await recordSupplierPaymentMultiAccountAction({
@@ -346,10 +337,26 @@ export function SupplierPaymentsClient({
                 </select>
                 {selectedSupplier && (
                   <p className="text-[11px] text-slate-500 mt-1">
-                    Dette restant due :{" "}
-                    <strong className="text-rose-600 font-mono">
-                      {formatDA(selectedSupplier.outstandingDebt)}
-                    </strong>
+                    {selectedSupplier.outstandingDebt > 0 ? (
+                      <>
+                        Dette restant due :{" "}
+                        <strong className="text-rose-600 font-mono">
+                          {formatDA(selectedSupplier.outstandingDebt)}
+                        </strong>
+                      </>
+                    ) : (selectedSupplier.outstandingCredit ?? 0) > 0 ? (
+                      <>
+                        Crédit fournisseur en notre faveur :{" "}
+                        <strong className="text-blue-600 font-mono">
+                          +{formatDA(selectedSupplier.outstandingCredit!)}
+                        </strong>
+                      </>
+                    ) : (
+                      <>
+                        Situation du compte :{" "}
+                        <strong className="text-emerald-600 font-mono">0 DA (Soldé)</strong>
+                      </>
+                    )}
                   </p>
                 )}
               </div>

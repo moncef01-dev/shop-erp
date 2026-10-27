@@ -35,6 +35,7 @@ export interface SupplierDetailsWithBalance {
   totalPaid: number;
   totalReturns?: number;
   outstandingDebt: number;
+  outstandingCredit?: number;
   purchasesCount: number;
   paymentsCount: number;
   lastPaymentDate: string | null;
@@ -51,6 +52,7 @@ export interface SupplierStatementData {
     totalPaid: number;
     totalReturns?: number;
     outstandingDebt: number;
+    outstandingCredit?: number;
   };
 }
 
@@ -152,6 +154,7 @@ export async function calculateSupplierDebt(
   totalPaid: number;
   totalReturns: number;
   outstandingDebt: number;
+  outstandingCredit: number;
 }> {
   const db = txClient || prisma;
 
@@ -192,7 +195,9 @@ export async function calculateSupplierDebt(
   });
   const totalPaid = paymentsAgg._sum.amount ?? 0;
 
-  const outstandingDebt = Math.max(0, initialDebt + totalPurchases - totalPaid - totalReturns);
+  const netBalance = initialDebt + totalPurchases - totalPaid - totalReturns;
+  const outstandingDebt = Math.max(0, netBalance);
+  const outstandingCredit = Math.max(0, -netBalance);
 
   return {
     initialDebt: Math.round(initialDebt * 100) / 100,
@@ -200,6 +205,7 @@ export async function calculateSupplierDebt(
     totalPaid: Math.round(totalPaid * 100) / 100,
     totalReturns: Math.round(totalReturns * 100) / 100,
     outstandingDebt: Math.round(outstandingDebt * 100) / 100,
+    outstandingCredit: Math.round(outstandingCredit * 100) / 100,
   };
 }
 
@@ -618,16 +624,27 @@ export async function recordSupplierPaymentMultiAccountAction(
         );
       }
 
-      // 2. Vérification de la dette du fournisseur (anti trop-perçu)
+      // 2. Évaluation de la dette et calcul d'un éventuel crédit / trop-perçu
       const debtInfo = await calculateSupplierDebt(supplier.id, tx);
-      if (amount > debtInfo.outstandingDebt) {
-        throw new Error(
-          `Le montant du règlement (${amount.toLocaleString(
-            "fr-DZ"
-          )} DA) dépasse la dette totale du fournisseur (${debtInfo.outstandingDebt.toLocaleString(
-            "fr-DZ"
-          )} DA). Les trop-perçus ne sont pas autorisés.`
-        );
+      const excessOverDebt = Math.max(0, amount - debtInfo.outstandingDebt);
+
+      let excessOverInvoice = 0;
+      if (purchaseId) {
+        const p = await tx.purchase.findUnique({ where: { id: purchaseId } });
+        if (p) {
+          const invBalance = Math.max(0, p.totalAmount - p.paidAmount);
+          if (amount > invBalance) {
+            excessOverInvoice = amount - invBalance;
+          }
+        }
+      }
+
+      // Construction de la mention explicite de crédit fournisseur le cas échéant
+      let creditNote = "";
+      if (excessOverDebt > 0) {
+        creditNote = `[Crédit fournisseur : ${excessOverDebt.toLocaleString("fr-DZ")} DA — le fournisseur nous doit ce montant (we owe them / the supplier owes us this amount)]`;
+      } else if (excessOverInvoice > 0) {
+        creditNote = `[Excédent facture : ${excessOverInvoice.toLocaleString("fr-DZ")} DA imputé sur compte fournisseur — le fournisseur nous doit ce montant (we owe them / the supplier owes us this amount)]`;
       }
 
       // Protection anti-double soumission rapide (15 secondes)
@@ -662,6 +679,9 @@ export async function recordSupplierPaymentMultiAccountAction(
       const reference = await generateNextSupplierPaymentRef(tx);
       const paymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
 
+      const baseNote = notes?.trim() || `Règlement fournisseur ${supplier.name} depuis ${sourceAccount.name}`;
+      const finalNotes = creditNote ? `${baseNote} ${creditNote}`.trim() : baseNote;
+
       const payment = await tx.payment.create({
         data: {
           reference,
@@ -671,7 +691,7 @@ export async function recordSupplierPaymentMultiAccountAction(
           amount,
           method,
           status: "completed",
-          notes: notes || `Règlement fournisseur ${supplier.name} depuis ${sourceAccount.name}`,
+          notes: finalNotes,
           paymentDate,
           sessionId,
         },
@@ -727,13 +747,18 @@ export async function recordSupplierPaymentMultiAccountAction(
 
     const remaining = await calculateSupplierDebt(supplier.id);
 
+    let balanceNotice = "";
+    if (remaining.outstandingCredit > 0) {
+      balanceNotice = `Crédit fournisseur en notre faveur : ${remaining.outstandingCredit.toLocaleString("fr-DZ")} DA (le fournisseur nous doit ce montant).`;
+    } else {
+      balanceNotice = `Reste dû à ${supplier.name} : ${remaining.outstandingDebt.toLocaleString("fr-DZ")} DA.`;
+    }
+
     return {
       success: true,
       message: `Règlement ${result.payment.reference} de ${amount.toLocaleString(
         "fr-DZ"
-      )} DA validé depuis "${result.sourceAccount.name}". Reste dû à ${supplier.name} : ${remaining.outstandingDebt.toLocaleString(
-        "fr-DZ"
-      )} DA.`,
+      )} DA validé depuis "${result.sourceAccount.name}". ${balanceNotice}`,
       data: result.payment,
     };
   } catch (err: unknown) {
@@ -907,7 +932,9 @@ export async function getSupplierStatement(
   const returnsTotal = returnDebts.reduce((sum, d) => sum + d.amount, 0);
   const purchasesTotal = purchases.reduce((sum, p) => sum + p.totalAmount, 0);
   const paymentsTotal = payments.reduce((sum, p) => sum + p.amount, 0);
-  const outstandingDebt = Math.max(0, debtsTotal + purchasesTotal - paymentsTotal - returnsTotal);
+  const netBalance = debtsTotal + purchasesTotal - paymentsTotal - returnsTotal;
+  const outstandingDebt = Math.max(0, netBalance);
+  const outstandingCredit = Math.max(0, -netBalance);
 
   const lastPay = payments.length > 0 ? payments[payments.length - 1].paymentDate.toISOString() : null;
   const lastPur = purchases.length > 0 ? purchases[purchases.length - 1].purchaseDate.toISOString() : null;
@@ -927,6 +954,7 @@ export async function getSupplierStatement(
       totalPaid: paymentsTotal,
       totalReturns: returnsTotal,
       outstandingDebt,
+      outstandingCredit,
       purchasesCount: purchases.length,
       paymentsCount: payments.length,
       lastPaymentDate: lastPay,
@@ -940,6 +968,7 @@ export async function getSupplierStatement(
       totalInvoiced: debtsTotal + purchasesTotal,
       totalPaid: paymentsTotal,
       outstandingDebt,
+      outstandingCredit,
     },
   };
 }
@@ -952,6 +981,7 @@ export async function getAllSuppliersWithDebts(searchQuery?: string): Promise<{
     totalSuppliersCount: number;
     activeSuppliersCount: number;
     totalOutstandingDebt: number;
+    totalOutstandingCredit?: number;
     totalPurchasesAmount: number;
     totalPaidAmount: number;
   };
@@ -975,6 +1005,7 @@ export async function getAllSuppliersWithDebts(searchQuery?: string): Promise<{
 
   const list: SupplierDetailsWithBalance[] = [];
   let totalOutstandingDebt = 0;
+  let totalOutstandingCredit = 0;
   let totalPurchasesAmount = 0;
   let totalPaidAmount = 0;
 
@@ -1006,6 +1037,7 @@ export async function getAllSuppliersWithDebts(searchQuery?: string): Promise<{
     });
 
     totalOutstandingDebt += debtInfo.outstandingDebt;
+    totalOutstandingCredit += debtInfo.outstandingCredit;
     totalPurchasesAmount += debtInfo.totalPurchases;
     totalPaidAmount += debtInfo.totalPaid;
 
@@ -1022,6 +1054,7 @@ export async function getAllSuppliersWithDebts(searchQuery?: string): Promise<{
       totalPurchases: debtInfo.totalPurchases,
       totalPaid: debtInfo.totalPaid,
       outstandingDebt: debtInfo.outstandingDebt,
+      outstandingCredit: debtInfo.outstandingCredit,
       purchasesCount,
       paymentsCount,
       lastPaymentDate: lastPayment ? lastPayment.paymentDate.toISOString() : null,
@@ -1035,6 +1068,7 @@ export async function getAllSuppliersWithDebts(searchQuery?: string): Promise<{
       totalSuppliersCount: suppliers.length,
       activeSuppliersCount: suppliers.filter((s) => s.isActive).length,
       totalOutstandingDebt: Math.round(totalOutstandingDebt * 100) / 100,
+      totalOutstandingCredit: Math.round(totalOutstandingCredit * 100) / 100,
       totalPurchasesAmount: Math.round(totalPurchasesAmount * 100) / 100,
       totalPaidAmount: Math.round(totalPaidAmount * 100) / 100,
     },
