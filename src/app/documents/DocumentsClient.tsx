@@ -28,6 +28,7 @@ import {
   getInventorySheetData,
   getAccountStatementData,
   getPartiesForStatement,
+  getUnifiedDocumentById,
 } from "./actions";
 import { downloadInventoryPdf } from "@/lib/pdf/inventoryPdf";
 import {
@@ -62,6 +63,7 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<DocumentTypeFilter>("all");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
+  const [shouldAutoPrint, setShouldAutoPrint] = useState(false);
 
   // Modal print targets
   const [activeSaleModal, setActiveSaleModal] = useState<PrintableSale | null>(null);
@@ -152,48 +154,67 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
     return result;
   }, [data.documents, activeTab, dateFilter, search]);
 
-  // Handler to open print modal based on doc type
-  const handleOpenPrint = (doc: UnifiedDocumentItem) => {
-    switch (doc.type) {
+  // Handler to open print modal based on doc type with autoPrint support
+  const handleOpenPrint = async (doc: UnifiedDocumentItem, auto: boolean = true) => {
+    setShouldAutoPrint(auto);
+
+    let targetDoc = doc;
+    const needsFetch =
+      (doc.type === "invoice" && !doc.salePayload) ||
+      (doc.type === "quote" && !doc.salePayload) ||
+      (doc.type === "purchase" && !doc.purchasePayload) ||
+      (doc.type === "receipt" && (!doc.receiptPayload || !doc.purchasePayload)) ||
+      (doc.type === "payment_client" && (!doc.paymentPayload || !doc.salePayload)) ||
+      (doc.type === "payment_supplier" && (!doc.supplierPaymentPayload || !doc.purchasePayload)) ||
+      (doc.type === "cash_session" && !doc.cashSessionPayload) ||
+      (doc.type === "expense" && !doc.expensePayload) ||
+      (doc.type === "transfer" && !doc.transferPayload);
+
+    if (needsFetch) {
+      const fetched = await getUnifiedDocumentById(doc.type, doc.rawId);
+      if (fetched) targetDoc = fetched;
+    }
+
+    switch (targetDoc.type) {
       case "invoice":
       case "quote":
-        if (doc.salePayload) setActiveSaleModal(doc.salePayload);
+        if (targetDoc.salePayload) setActiveSaleModal(targetDoc.salePayload);
         break;
       case "purchase":
-        if (doc.purchasePayload) setActivePurchaseModal(doc.purchasePayload);
+        if (targetDoc.purchasePayload) setActivePurchaseModal(targetDoc.purchasePayload);
         break;
       case "receipt":
-        if (doc.receiptPayload && doc.purchasePayload) {
+        if (targetDoc.receiptPayload && targetDoc.purchasePayload) {
           setActiveReceiptModal({
-            receipt: doc.receiptPayload,
-            purchase: doc.purchasePayload,
+            receipt: targetDoc.receiptPayload,
+            purchase: targetDoc.purchasePayload,
           });
         }
         break;
       case "payment_client":
-        if (doc.paymentPayload && doc.salePayload) {
+        if (targetDoc.paymentPayload && targetDoc.salePayload) {
           setActiveClientPaymentModal({
-            payment: doc.paymentPayload,
-            sale: doc.salePayload,
+            payment: targetDoc.paymentPayload,
+            sale: targetDoc.salePayload,
           });
         }
         break;
       case "payment_supplier":
-        if (doc.supplierPaymentPayload && doc.purchasePayload) {
+        if (targetDoc.supplierPaymentPayload && targetDoc.purchasePayload) {
           setActiveSupplierPaymentModal({
-            payment: doc.supplierPaymentPayload,
-            purchase: doc.purchasePayload,
+            payment: targetDoc.supplierPaymentPayload,
+            purchase: targetDoc.purchasePayload,
           });
         }
         break;
       case "cash_session":
-        if (doc.cashSessionPayload) setActiveCashSessionModal(doc.cashSessionPayload);
+        if (targetDoc.cashSessionPayload) setActiveCashSessionModal(targetDoc.cashSessionPayload);
         break;
       case "expense":
-        if (doc.expensePayload) setActiveExpenseModal(doc.expensePayload);
+        if (targetDoc.expensePayload) setActiveExpenseModal(targetDoc.expensePayload);
         break;
       case "transfer":
-        if (doc.transferPayload) setActiveTransferModal(doc.transferPayload);
+        if (targetDoc.transferPayload) setActiveTransferModal(targetDoc.transferPayload);
         break;
       default:
         break;
@@ -567,7 +588,7 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
-                          onClick={() => handleOpenPrint(doc)}
+                          onClick={() => handleOpenPrint(doc, true)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
                         >
                           <Printer className="h-3.5 w-3.5 text-slate-600" />
@@ -590,18 +611,24 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
         <PrintableInvoice
           sale={activeSaleModal}
           settings={data.settings}
-          onClose={() => setActiveSaleModal(null)}
+          onClose={() => {
+            setActiveSaleModal(null);
+            setShouldAutoPrint(false);
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
-
-
 
       {/* 3. Commande Fournisseur */}
       {activePurchaseModal && (
         <PrintablePurchaseOrder
           purchase={activePurchaseModal}
           settings={data.settings}
-          onClose={() => setActivePurchaseModal(null)}
+          onClose={() => {
+            setActivePurchaseModal(null);
+            setShouldAutoPrint(false);
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -611,7 +638,11 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
           receipt={activeReceiptModal.receipt}
           purchase={activeReceiptModal.purchase}
           settings={data.settings}
-          onClose={() => setActiveReceiptModal(null)}
+          onClose={() => {
+            setActiveReceiptModal(null);
+            setShouldAutoPrint(false);
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -621,7 +652,11 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
           payment={activeClientPaymentModal.payment}
           sale={activeClientPaymentModal.sale}
           settings={data.settings}
-          onClose={() => setActiveClientPaymentModal(null)}
+          onClose={() => {
+            setActiveClientPaymentModal(null);
+            setShouldAutoPrint(false);
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -631,7 +666,11 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
           payment={activeSupplierPaymentModal.payment}
           purchase={activeSupplierPaymentModal.purchase}
           settings={data.settings}
-          onClose={() => setActiveSupplierPaymentModal(null)}
+          onClose={() => {
+            setActiveSupplierPaymentModal(null);
+            setShouldAutoPrint(false);
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -640,7 +679,11 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
         <PrintableCashClosingReport
           session={activeCashSessionModal}
           settings={data.settings}
-          onClose={() => setActiveCashSessionModal(null)}
+          onClose={() => {
+            setActiveCashSessionModal(null);
+            setShouldAutoPrint(false);
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -649,7 +692,11 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
         <PrintableExpenseVoucher
           expense={activeExpenseModal}
           settings={data.settings}
-          onClose={() => setActiveExpenseModal(null)}
+          onClose={() => {
+            setActiveExpenseModal(null);
+            setShouldAutoPrint(false);
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -658,7 +705,11 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
         <PrintableStockTransfer
           transfer={activeTransferModal}
           settings={data.settings}
-          onClose={() => setActiveTransferModal(null)}
+          onClose={() => {
+            setActiveTransferModal(null);
+            setShouldAutoPrint(false);
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -669,7 +720,11 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
           locationCode={activeInventorySheet.locationCode}
           items={activeInventorySheet.items}
           settings={data.settings}
-          onClose={() => setActiveInventorySheet(null)}
+          onClose={() => {
+            setActiveInventorySheet(null);
+            setShouldAutoPrint(false);
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 
@@ -678,7 +733,11 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
         <PrintableAccountStatement
           statement={activeStatementSheet}
           settings={data.settings}
-          onClose={() => setActiveStatementSheet(null)}
+          onClose={() => {
+            setActiveStatementSheet(null);
+            setShouldAutoPrint(false);
+          }}
+          autoPrint={shouldAutoPrint}
         />
       )}
 

@@ -4,6 +4,7 @@ import React from "react";
 import { Printer, X } from "lucide-react";
 import type { CashLedgerItem } from "@/app/cash/actions";
 import type { ShopSettingsData } from "@/app/settings/actions";
+import { PrintPortal } from "@/components/common/PrintPortal";
 
 // ─── UTILITAIRES DE FORMATAGE ────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ export function PrintableDailyCashJournal({
   items,
   settings,
   onClose,
+  autoPrint,
 }: {
   sessionRef?: string;
   date: string | Date;
@@ -60,7 +62,19 @@ export function PrintableDailyCashJournal({
   items: CashLedgerItem[];
   settings?: ShopSettingsData | null;
   onClose: () => void;
+  autoPrint?: boolean;
 }) {
+  const hasAutoPrinted = React.useRef(false);
+  React.useEffect(() => {
+    if (autoPrint && !hasAutoPrinted.current) {
+      hasAutoPrinted.current = true;
+      const timer = setTimeout(() => {
+        window.print();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
+
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -91,13 +105,14 @@ export function PrintableDailyCashJournal({
     .reduce((acc, i) => acc + i.amount, 0);
 
   return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0"
-    >
-      <div className="relative w-full max-w-5xl bg-white rounded-xl shadow-2xl p-8 print:p-6 print:shadow-none print:w-full print:max-w-none print:rounded-none">
+    <PrintPortal>
+      <div
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+        className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:static print:inset-auto print:block print:p-0 print:bg-white print:w-full print:overflow-visible"
+      >
+      <div className="relative w-full max-w-5xl bg-white rounded-xl shadow-2xl p-8 print:p-0 print:shadow-none print:w-full print:max-w-none print:rounded-none">
         {/* Navigation Modal TopBar */}
         <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-200 print:hidden">
           <div className="flex items-center gap-2">
@@ -126,9 +141,9 @@ export function PrintableDailyCashJournal({
         </div>
 
         {/* Corps Imprimable */}
-        <div className="text-slate-900 leading-relaxed font-sans text-xs">
+        <div className="text-slate-900 leading-relaxed font-sans text-xs print:text-black">
           {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-slate-900 pb-5">
+          <div className="flex justify-between items-start border-b-2 border-slate-900 print:border-black pb-5">
             <div className="flex items-start gap-4">
               {settings?.logoUrl && (
                 <img
@@ -138,86 +153,86 @@ export function PrintableDailyCashJournal({
                 />
               )}
               <div>
-                <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
+                <h1 className="text-2xl font-black tracking-tight text-slate-900 print:text-black uppercase">
                   {settings?.shopName || "Shop ERP Mobilier"}
                 </h1>
-                <p className="text-slate-500 text-xs mt-0.5 font-medium">
+                <p className="text-slate-500 print:text-black text-xs mt-0.5 font-semibold">
                   {settings?.activity || "Magasin d'Ameublement & Salons • Journal Quotidien de Trésorerie"}
                 </p>
-                <p className="text-slate-400 text-[11px] mt-1">
+                <p className="text-slate-400 print:text-black text-[11px] mt-1">
                   {settings?.address || "Zone Commerciale & Exposition — Alger, Algérie"}
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <div className="inline-block bg-slate-900 text-white px-3 py-1 font-mono font-bold text-xs tracking-wide rounded-sm uppercase">
+              <div className="inline-block bg-slate-900 text-white px-3 py-1 font-mono font-black text-xs tracking-wide rounded-sm uppercase print:bg-white print:text-black print:border-2 print:border-black">
                 Journal de Caisse
               </div>
               {sessionRef && (
-                <p className="font-mono font-bold text-sm mt-2 text-slate-900">
+                <p className="font-mono font-black text-sm mt-2 text-slate-900 print:text-black">
                   Réf: {sessionRef}
                 </p>
               )}
-              <p className="text-slate-600 text-xs mt-1">
-                Date : <span className="font-semibold text-slate-900">{formatDate(date)}</span>
+              <p className="text-slate-600 print:text-black text-xs mt-1 font-medium">
+                Date : <span className="font-bold text-slate-900 print:text-black">{formatDate(date)}</span>
               </p>
             </div>
           </div>
 
           {/* Synthèse Fond de Caisse & Soldes */}
           <div className="grid grid-cols-4 gap-4 my-5">
-            <div className="bg-slate-50 p-3 rounded border border-slate-200">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">
+            <div className="bg-slate-50 p-3 rounded border border-slate-200 print:bg-white print:border-2 print:border-black">
+              <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 print:text-black mb-0.5">
                 Solde Ouverture (Fond)
               </span>
-              <p className="font-mono font-bold text-sm text-slate-900">
+              <p className="font-mono font-black text-sm text-slate-900 print:text-black">
                 {formatDA(openingAmount)}
               </p>
             </div>
-            <div className="bg-emerald-50/60 p-3 rounded border border-emerald-200">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-800 mb-0.5">
-                Encaissements Espèces
+            <div className="bg-emerald-50/60 p-3 rounded border border-emerald-200 print:bg-white print:border-2 print:border-black">
+              <span className="block text-[10px] font-black uppercase tracking-wider text-emerald-800 print:text-black mb-0.5">
+                Encaissements Espèces (+)
               </span>
-              <p className="font-mono font-bold text-sm text-emerald-700">
+              <p className="font-mono font-black text-sm text-emerald-700 print:text-black">
                 +{formatDA(totalCashIn)}
               </p>
             </div>
-            <div className="bg-rose-50/60 p-3 rounded border border-rose-200">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-rose-800 mb-0.5">
-                Décaissements Espèces
+            <div className="bg-rose-50/60 p-3 rounded border border-rose-200 print:bg-white print:border-2 print:border-black">
+              <span className="block text-[10px] font-black uppercase tracking-wider text-rose-800 print:text-black mb-0.5">
+                Décaissements Espèces (−)
               </span>
-              <p className="font-mono font-bold text-sm text-rose-700">
+              <p className="font-mono font-black text-sm text-rose-700 print:text-black">
                 -{formatDA(totalCashOut)}
               </p>
             </div>
-            <div className="bg-amber-50 p-3 rounded border border-amber-300">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-900 mb-0.5">
+            <div className="bg-amber-50 p-3 rounded border border-amber-300 print:bg-white print:border-2 print:border-black">
+              <span className="block text-[10px] font-black uppercase tracking-wider text-amber-900 print:text-black mb-0.5">
                 Solde Théorique Caisse
               </span>
-              <p className="font-mono font-bold text-sm text-amber-900">
+              <p className="font-mono font-black text-sm text-amber-900 print:text-black">
                 {formatDA(theoreticalCash)}
               </p>
             </div>
           </div>
 
           {/* Tableau des mouvements */}
-          <div className="border border-slate-300 rounded mb-6 print:border-slate-400 overflow-x-auto print:overflow-visible">
+          <div className="border border-slate-300 rounded mb-6 print:border-2 print:border-black overflow-x-auto print:overflow-visible">
             <table className="w-full text-left border-collapse text-xs print:text-[11px]">
-              <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300 print:table-header-group">
+              <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300 print:bg-white print:text-black print:border-b-2 print:border-black print:table-header-group">
                 <tr>
-                  <th className="py-2 px-2.5 w-16">Heure</th>
-                  <th className="py-2 px-2.5">Réf. Pièce</th>
-                  <th className="py-2 px-2.5">Type &amp; Catégorie</th>
-                  <th className="py-2 px-2.5">Description &amp; Tiers</th>
-                  <th className="py-2 px-2.5">Règlement</th>
-                  <th className="py-2 px-2.5 text-right">Encaissement</th>
-                  <th className="py-2 px-2.5 text-right">Décaissement</th>
+                  <th className="py-2 px-2.5 w-16 print:border-r print:border-black font-bold print:text-black">Heure</th>
+                  <th className="py-2 px-2.5 print:border-r print:border-black font-bold print:text-black">Réf. Pièce</th>
+                  <th className="py-2 px-2.5 print:border-r print:border-black font-bold print:text-black">Type &amp; Catégorie</th>
+                  <th className="py-2 px-2.5 print:border-r print:border-black font-bold print:text-black">Description &amp; Tiers</th>
+                  <th className="py-2 px-2.5 print:border-r print:border-black font-bold print:text-black">Règlement</th>
+                  <th className="py-2 px-2.5 text-right print:border-r print:border-black font-bold print:text-black">Encaissement</th>
+                  <th className="py-2 px-2.5 text-right font-bold print:text-black">Décaissement</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 print:table-row-group">
+              <tbody className="divide-y divide-slate-200 print:divide-black print:table-row-group">
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500 italic bg-slate-50/50">
+                    <td colSpan={7} className="py-8 text-center text-slate-500 print:text-black italic bg-slate-50/50 print:bg-white">
                       Aucune opération enregistrée pour cette période.
                     </td>
                   </tr>
@@ -226,42 +241,42 @@ export function PrintableDailyCashJournal({
                     const isIncome = it.type === "encaissement";
                     return (
                       <tr key={it.id} className="break-inside-avoid print:break-inside-avoid">
-                        <td className="py-2 px-2.5 font-mono text-slate-500 text-[11px]">
+                        <td className="py-2 px-2.5 font-mono text-slate-500 print:text-black text-[11px] print:border-r print:border-black font-medium">
                           {new Date(it.date).toLocaleTimeString("fr-DZ", {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}
                         </td>
-                        <td className="py-2 px-2.5 font-mono font-semibold text-slate-800">
+                        <td className="py-2 px-2.5 font-mono font-bold text-slate-800 print:text-black print:border-r print:border-black">
                           {it.reference}
                         </td>
-                        <td className="py-2 px-2.5">
+                        <td className="py-2 px-2.5 print:border-r print:border-black">
                           <span
-                            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase mr-1.5 ${
+                            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-black uppercase mr-1.5 print:bg-white print:border print:border-black print:text-black ${
                               isIncome ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
                             }`}
                           >
-                            {isIncome ? "Entrée" : "Sortie"}
+                            {isIncome ? "[ENTRÉE]" : "[SORTIE]"}
                           </span>
-                          <span className="text-slate-600 font-medium">{it.category}</span>
+                          <span className="text-slate-600 print:text-black font-medium">{it.category}</span>
                         </td>
-                        <td className="py-2 px-2.5">
-                          <span className="text-slate-900 font-medium block">{it.description}</span>
-                          <span className="text-slate-500 text-[11px] block">{it.partyName}</span>
+                        <td className="py-2 px-2.5 print:border-r print:border-black">
+                          <span className="text-slate-900 print:text-black font-bold block">{it.description}</span>
+                          <span className="text-slate-500 print:text-black text-[11px] block">{it.partyName}</span>
                         </td>
-                        <td className="py-2 px-2.5">
+                        <td className="py-2 px-2.5 print:border-r print:border-black">
                           <span
-                            className={`text-xs font-medium ${
-                              it.affectsCash ? "text-amber-800 font-semibold" : "text-blue-700"
+                            className={`text-xs font-semibold ${
+                              it.affectsCash ? "text-amber-800 print:text-black" : "text-blue-700 print:text-black"
                             }`}
                           >
                             {formatMethodLabel(it.method)}
                           </span>
                         </td>
-                        <td className="py-2 px-2.5 text-right font-mono font-semibold text-emerald-700">
+                        <td className="py-2 px-2.5 text-right font-mono font-bold text-emerald-700 print:text-black print:border-r print:border-black">
                           {isIncome ? formatDA(it.amount) : "—"}
                         </td>
-                        <td className="py-2 px-2.5 text-right font-mono font-semibold text-rose-700">
+                        <td className="py-2 px-2.5 text-right font-mono font-bold text-rose-700 print:text-black">
                           {!isIncome ? formatDA(it.amount) : "—"}
                         </td>
                       </tr>
@@ -269,15 +284,15 @@ export function PrintableDailyCashJournal({
                   })
                 )}
               </tbody>
-              <tfoot className="print:table-footer-group bg-slate-50 border-t-2 border-slate-300 font-bold text-slate-900">
+              <tfoot className="print:table-footer-group bg-slate-50 print:bg-white border-t-2 border-slate-300 print:border-t-2 print:border-b-2 print:border-black font-bold text-slate-900 print:text-black">
                 <tr>
-                  <td colSpan={5} className="py-2.5 px-3 text-right uppercase text-[11px]">
+                  <td colSpan={5} className="py-2.5 px-3 text-right uppercase text-[11px] font-black">
                     Total Flux de la Période :
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-emerald-800">
+                  <td className="py-2.5 px-3 text-right font-mono text-emerald-800 print:text-black font-black print:border-r print:border-black">
                     +{formatDA(totalCashIn + nonCashIn)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-rose-800">
+                  <td className="py-2.5 px-3 text-right font-mono text-rose-800 print:text-black font-black">
                     -{formatDA(totalCashOut + nonCashOut)}
                   </td>
                 </tr>
@@ -286,44 +301,47 @@ export function PrintableDailyCashJournal({
           </div>
 
           {/* Trésorerie Hors Espèces (Bancaire & CIB) */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded mb-8 text-xs">
-            <span className="font-bold text-slate-800 block mb-1">
-              Synthèse des flux hors espèces (Non imputés au tiroir-caisse physique) :
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded mb-8 text-xs print:bg-white print:border-2 print:border-black">
+            <span className="font-black text-slate-800 print:text-black block mb-1 uppercase text-[10px]">
+              [ Synthèse des flux hors espèces (Non imputés au tiroir-caisse physique) ] :
             </span>
-            <div className="flex gap-8 text-slate-600">
+            <div className="flex gap-8 text-slate-600 print:text-black font-medium">
               <div>
                 Virements / Chèques / CIB Reçus :{" "}
-                <span className="font-mono font-semibold text-emerald-700">+{formatDA(nonCashIn)}</span>
+                <span className="font-mono font-bold text-emerald-700 print:text-black">+{formatDA(nonCashIn)}</span>
               </div>
               <div>
                 Règlements Bancaires Émis :{" "}
-                <span className="font-mono font-semibold text-rose-700">-{formatDA(nonCashOut)}</span>
+                <span className="font-mono font-bold text-rose-700 print:text-black">-{formatDA(nonCashOut)}</span>
               </div>
               <div>
                 Solde Net Bancaire / Carte :{" "}
-                <span className="font-mono font-bold text-slate-900">{formatDA(nonCashIn - nonCashOut)}</span>
+                <span className="font-mono font-black text-slate-900 print:text-black">{formatDA(nonCashIn - nonCashOut)}</span>
               </div>
             </div>
           </div>
 
           {/* Signatures */}
-          <div className="grid grid-cols-2 gap-12 pt-6 border-t border-slate-300 text-center">
+          <div className="grid grid-cols-2 gap-12 pt-6 border-t-2 border-slate-300 print:border-black text-center">
             <div>
-              <p className="font-bold text-slate-800 mb-16 uppercase text-[11px]">
+              <p className="font-black text-slate-800 print:text-black uppercase text-[11px]">
                 Le Caissier / Vendeur Responsable
               </p>
-              <p className="text-[10px] text-slate-400 italic">Visa et signature de service</p>
+              <p className="text-[10px] text-slate-400 print:text-black italic mb-14">Visa et signature de service</p>
+              <div className="w-48 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
             </div>
             <div>
-              <p className="font-bold text-slate-800 mb-16 uppercase text-[11px]">
+              <p className="font-black text-slate-800 print:text-black uppercase text-[11px]">
                 Pour la Direction Shop ERP
               </p>
-              <p className="text-[10px] text-slate-400 italic">Visa de contrôle et validation</p>
+              <p className="text-[10px] text-slate-400 print:text-black italic mb-14">Visa de contrôle et validation</p>
+              <div className="w-48 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
             </div>
           </div>
         </div>
       </div>
     </div>
+    </PrintPortal>
   );
 }
 
@@ -380,13 +398,14 @@ export function PrintableCashClosingReport({
   const isSurplus = diff > 0;
 
   return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0"
-    >
-      <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl p-8 print:p-6 print:shadow-none print:w-full print:max-w-none print:rounded-none">
+    <PrintPortal>
+      <div
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+        className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:static print:inset-auto print:block print:p-0 print:bg-white print:w-full print:overflow-visible"
+      >
+      <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl p-8 print:p-0 print:shadow-none print:w-full print:max-w-none print:rounded-none">
         {/* Top bar */}
         <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-200 print:hidden">
           <div className="flex items-center gap-2">
@@ -413,9 +432,9 @@ export function PrintableCashClosingReport({
         </div>
 
         {/* Corps Imprimable */}
-        <div className="text-slate-900 leading-relaxed font-sans text-xs">
+        <div className="text-slate-900 leading-relaxed font-sans text-xs print:text-black">
           {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-slate-900 pb-5">
+          <div className="flex justify-between items-start border-b-2 border-slate-900 print:border-black pb-5">
             <div className="flex items-start gap-4">
               {settings?.logoUrl && (
                 <img
@@ -425,74 +444,74 @@ export function PrintableCashClosingReport({
                 />
               )}
               <div>
-                <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
+                <h1 className="text-2xl font-black tracking-tight text-slate-900 print:text-black uppercase">
                   {settings?.shopName || "Shop ERP Mobilier"}
                 </h1>
-                <p className="text-slate-500 text-xs mt-0.5 font-medium">
+                <p className="text-slate-500 print:text-black text-xs mt-0.5 font-semibold">
                   {settings?.activity || "Procès-Verbal de Réconciliation & Clôture Journalière"}
                 </p>
-                <p className="text-slate-400 text-[11px] mt-1">
+                <p className="text-slate-400 print:text-black text-[11px] mt-1">
                   {settings?.address || "Zone Commerciale & Exposition — Alger, Algérie"}
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <div className="inline-block bg-slate-900 text-white px-3 py-1 font-mono font-bold text-xs tracking-wide rounded-sm uppercase">
+              <div className="inline-block bg-slate-900 text-white px-3 py-1 font-mono font-black text-xs tracking-wide rounded-sm uppercase print:bg-white print:text-black print:border-2 print:border-black">
                 Fiche de Clôture
               </div>
-              <p className="font-mono font-bold text-base mt-2 text-slate-900">
+              <p className="font-mono font-black text-base mt-2 text-slate-900 print:text-black">
                 N° {session.reference}
               </p>
             </div>
           </div>
 
           {/* Horaires et Période */}
-          <div className="grid grid-cols-2 gap-6 my-6 bg-slate-50 p-4 rounded border border-slate-200">
+          <div className="grid grid-cols-2 gap-6 my-6 bg-slate-50 p-4 rounded border border-slate-200 print:bg-white print:border-2 print:border-black">
             <div>
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 print:text-black mb-1">
                 Ouverture de Session :
               </span>
-              <p className="font-semibold text-slate-800">
+              <p className="font-bold text-slate-800 print:text-black">
                 {formatDateTime(session.openedAt)}
               </p>
               {session.openingNotes && (
-                <p className="text-slate-500 text-xs italic mt-0.5">« {session.openingNotes} »</p>
+                <p className="text-slate-500 print:text-black text-xs italic mt-0.5">« {session.openingNotes} »</p>
               )}
             </div>
             <div>
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 print:text-black mb-1">
                 Clôture de Session :
               </span>
-              <p className="font-semibold text-slate-800">
+              <p className="font-bold text-slate-800 print:text-black">
                 {session.closedAt ? formatDateTime(session.closedAt) : "Session en cours"}
               </p>
               {session.closingNotes && (
-                <p className="text-slate-500 text-xs italic mt-0.5">« {session.closingNotes} »</p>
+                <p className="text-slate-500 print:text-black text-xs italic mt-0.5">« {session.closingNotes} »</p>
               )}
             </div>
           </div>
 
           {/* Décomposition comptable */}
-          <div className="border border-slate-300 rounded overflow-hidden mb-6">
-            <div className="bg-slate-100 px-4 py-2.5 font-bold text-slate-800 border-b border-slate-300 uppercase tracking-wide text-[11px]">
+          <div className="border border-slate-300 rounded overflow-hidden mb-6 print:border-2 print:border-black">
+            <div className="bg-slate-100 px-4 py-2.5 font-black text-slate-800 print:bg-white print:text-black border-b-2 border-slate-300 print:border-black uppercase tracking-wide text-[11px]">
               Décomposition des Flux Physiques (Espèces)
             </div>
             <div className="p-4 space-y-2 text-xs">
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-700">1. Fond de caisse initial (Solde d&apos;ouverture) :</span>
-                <span className="font-mono font-semibold text-slate-900">{formatDA(session.openingAmount)}</span>
+              <div className="flex justify-between py-1 border-b border-slate-100 print:border-b print:border-slate-300">
+                <span className="text-slate-700 print:text-black">1. Fond de caisse initial (Solde d&apos;ouverture) :</span>
+                <span className="font-mono font-bold text-slate-900 print:text-black">{formatDA(session.openingAmount)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-100 text-emerald-700">
+              <div className="flex justify-between py-1 border-b border-slate-100 print:border-b print:border-slate-300 text-emerald-700 print:text-black">
                 <span>2. Total des encaissements physiques perçus :</span>
-                <span className="font-mono font-semibold">+{formatDA(session.totalCashIn)}</span>
+                <span className="font-mono font-bold print:text-black">+{formatDA(session.totalCashIn)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-100 text-rose-700">
+              <div className="flex justify-between py-1 border-b border-slate-100 print:border-b print:border-slate-300 text-rose-700 print:text-black">
                 <span>3. Total des décaissements physiques réalisés :</span>
-                <span className="font-mono font-semibold">-{formatDA(session.totalCashOut)}</span>
+                <span className="font-mono font-bold print:text-black">-{formatDA(session.totalCashOut)}</span>
               </div>
-              <div className="flex justify-between py-2 border-t-2 border-slate-300 text-slate-900 font-bold bg-slate-50 px-2 rounded">
-                <span>SOLDE THÉORIQUE ATTENDU EN CAISSE :</span>
-                <span className="font-mono text-sm text-slate-900">
+              <div className="flex justify-between py-2 border-t-2 border-slate-300 print:border-t-2 print:border-black text-slate-900 print:text-black font-black bg-slate-50 print:bg-white px-2 rounded">
+                <span className="uppercase">SOLDE THÉORIQUE ATTENDU EN CAISSE :</span>
+                <span className="font-mono text-sm text-slate-900 print:text-black font-black">
                   {formatDA(session.theoreticalAmount ?? 0)}
                 </span>
               </div>
@@ -500,20 +519,20 @@ export function PrintableCashClosingReport({
           </div>
 
           {/* Rapprochement physique & Écart */}
-          <div className="border border-slate-300 rounded overflow-hidden mb-8">
-            <div className="bg-slate-100 px-4 py-2.5 font-bold text-slate-800 border-b border-slate-300 uppercase tracking-wide text-[11px]">
+          <div className="border border-slate-300 rounded overflow-hidden mb-8 print:border-2 print:border-black">
+            <div className="bg-slate-100 px-4 py-2.5 font-black text-slate-800 print:bg-white print:text-black border-b-2 border-slate-300 print:border-black uppercase tracking-wide text-[11px]">
               Résultat du Comptage Physique &amp; Audit d&apos;Écart
             </div>
             <div className="p-4 space-y-3">
-              <div className="flex justify-between items-center text-sm font-bold text-slate-900">
-                <span>MONTANT PHYSIQUE RÉELLEMENT COMPTÉ :</span>
-                <span className="font-mono text-base text-slate-900 bg-slate-100 px-3 py-1 rounded border border-slate-300">
+              <div className="flex justify-between items-center text-sm font-black text-slate-900 print:text-black">
+                <span className="uppercase">MONTANT PHYSIQUE RÉELLEMENT COMPTÉ :</span>
+                <span className="font-mono text-base text-slate-900 print:text-black bg-slate-100 print:bg-white px-3 py-1 rounded border border-slate-300 print:border-2 print:border-black font-black">
                   {formatDA(session.closingAmount ?? 0)}
                 </span>
               </div>
 
               <div
-                className={`p-3 rounded border flex justify-between items-center ${
+                className={`p-3 rounded border flex justify-between items-center print:bg-white print:border-2 print:border-black print:text-black ${
                   isExact
                     ? "bg-emerald-50 border-emerald-200 text-emerald-900"
                     : isSurplus
@@ -522,14 +541,14 @@ export function PrintableCashClosingReport({
                 }`}
               >
                 <div>
-                  <span className="font-bold block">
+                  <span className="font-black block uppercase text-xs text-slate-900 print:text-black">
                     {isExact
-                      ? "CAISSE EXACTEMENT ÉQUILIBRÉE"
+                      ? "[ CAISSE EXACTEMENT ÉQUILIBRÉE — CONFORME ]"
                       : isSurplus
-                      ? "EXCÉDENT DE CAISSE CONSTATÉ"
-                      : "DÉFICIT / MANQUANT DE CAISSE CONSTATÉ"}
+                      ? "[ EXCÉDENT DE CAISSE CONSTATÉ ]"
+                      : "[ DÉFICIT / MANQUANT DE CAISSE CONSTATÉ ]"}
                   </span>
-                  <span className="text-[11px] opacity-80">
+                  <span className="text-[11px] opacity-90 text-slate-700 print:text-black font-medium">
                     {isExact
                       ? "Le montant physique compté correspond rigoureusement au solde théorique du grand livre."
                       : isSurplus
@@ -537,7 +556,7 @@ export function PrintableCashClosingReport({
                       : "Le tiroir-caisse présente un montant inférieur aux écritures théoriques."}
                   </span>
                 </div>
-                <div className="font-mono font-bold text-base">
+                <div className="font-mono font-black text-base text-slate-900 print:text-black">
                   {isSurplus ? `+${formatDA(diff)}` : formatDA(diff)}
                 </div>
               </div>
@@ -545,23 +564,26 @@ export function PrintableCashClosingReport({
           </div>
 
           {/* Signatures */}
-          <div className="grid grid-cols-2 gap-12 pt-6 border-t border-slate-300 text-center">
+          <div className="grid grid-cols-2 gap-12 pt-6 border-t-2 border-slate-300 print:border-black text-center">
             <div>
-              <p className="font-bold text-slate-800 mb-16 uppercase text-[11px]">
+              <p className="font-black text-slate-800 print:text-black uppercase text-[11px]">
                 Le Caissier / Comptable
               </p>
-              <p className="text-[10px] text-slate-400 italic">Nom, date et signature</p>
+              <p className="text-[10px] text-slate-400 print:text-black italic mb-14">Nom, date et signature</p>
+              <div className="w-48 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
             </div>
             <div>
-              <p className="font-bold text-slate-800 mb-16 uppercase text-[11px]">
+              <p className="font-black text-slate-800 print:text-black uppercase text-[11px]">
                 Pour la Direction Générale
               </p>
-              <p className="text-[10px] text-slate-400 italic">Approbation du procès-verbal de caisse</p>
+              <p className="text-[10px] text-slate-400 print:text-black italic mb-14">Approbation du procès-verbal de caisse</p>
+              <div className="w-48 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
             </div>
           </div>
         </div>
       </div>
     </div>
+    </PrintPortal>
   );
 }
 
@@ -614,13 +636,14 @@ export function PrintableExpenseVoucher({
   const isIncome = expense.type === "income";
 
   return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0"
-    >
-      <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl p-8 print:p-6 print:shadow-none print:w-full print:max-w-none print:rounded-none">
+    <PrintPortal>
+      <div
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+        className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:static print:inset-auto print:block print:p-0 print:bg-white print:w-full print:overflow-visible"
+      >
+      <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl p-8 print:p-0 print:shadow-none print:w-full print:max-w-none print:rounded-none">
         {/* Top Bar */}
         <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-200 print:hidden">
           <div className="flex items-center gap-2">
@@ -649,9 +672,9 @@ export function PrintableExpenseVoucher({
         </div>
 
         {/* Corps Imprimable */}
-        <div className="text-slate-900 leading-relaxed font-sans text-xs">
+        <div className="text-slate-900 leading-relaxed font-sans text-xs print:text-black">
           {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-slate-900 pb-5">
+          <div className="flex justify-between items-start border-b-2 border-slate-900 print:border-black pb-5">
             <div className="flex items-start gap-3">
               {settings?.logoUrl && (
                 <img
@@ -661,108 +684,111 @@ export function PrintableExpenseVoucher({
                 />
               )}
               <div>
-                <h1 className="text-xl font-black tracking-tight text-slate-900 uppercase">
+                <h1 className="text-xl font-black tracking-tight text-slate-900 print:text-black uppercase">
                   {settings?.shopName || "Shop ERP Mobilier"}
                 </h1>
-                <p className="text-slate-500 text-xs mt-0.5">
+                <p className="text-slate-500 print:text-black text-xs mt-0.5 font-semibold">
                   {settings?.activity || "Pièce Comptable de Trésorerie Interne"}
                 </p>
               </div>
             </div>
             <div className="text-right">
               <div
-                className={`inline-block text-white px-3 py-1 font-mono font-bold text-xs tracking-wide rounded-sm uppercase ${
+                className={`inline-block text-white px-3 py-1 font-mono font-black text-xs tracking-wide rounded-sm uppercase print:bg-white print:text-black print:border-2 print:border-black ${
                   isIncome ? "bg-emerald-700" : "bg-rose-800"
                 }`}
               >
                 {isIncome ? "Reçu d'Entrée Caisse" : "Bon de Décaissement"}
               </div>
-              <p className="font-mono font-bold text-sm mt-1.5 text-slate-900">
+              <p className="font-mono font-black text-sm mt-1.5 text-slate-900 print:text-black">
                 N° {expense.reference}
               </p>
-              <p className="text-slate-600 text-xs mt-0.5">
-                Date : <span className="font-semibold">{formatDate(expense.date)}</span>
+              <p className="text-slate-600 print:text-black text-xs mt-0.5 font-medium">
+                Date : <span className="font-bold">{formatDate(expense.date)}</span>
               </p>
             </div>
           </div>
 
           {/* Détails de la pièce */}
-          <div className="my-6 bg-slate-50 p-4 rounded border border-slate-200 space-y-3">
+          <div className="my-6 bg-slate-50 p-4 rounded border border-slate-200 print:bg-white print:border-2 print:border-black space-y-3">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">
+                <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 print:text-black mb-0.5">
                   {isIncome ? "Payeur / Provenance :" : "Bénéficiaire / Destinataire :"}
                 </span>
-                <p className="font-bold text-sm text-slate-900">
+                <p className="font-black text-sm text-slate-900 print:text-black uppercase">
                   {expense.beneficiary || "Interne Magasin"}
                 </p>
               </div>
               <div>
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">
+                <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 print:text-black mb-0.5">
                   Catégorie Comptable :
                 </span>
-                <p className="font-semibold text-slate-800">{expense.category}</p>
+                <p className="font-bold text-slate-800 print:text-black">{expense.category}</p>
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-200">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">
+            <div className="pt-2 border-t border-slate-200 print:border-black">
+              <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 print:text-black mb-0.5">
                 Motif &amp; Description :
               </span>
-              <p className="text-slate-800 font-medium">{expense.description}</p>
+              <p className="text-slate-800 print:text-black font-semibold text-sm">{expense.description}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200">
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200 print:border-black">
               <div>
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">
+                <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 print:text-black mb-0.5">
                   Mode de Paiement :
                 </span>
-                <p className="font-semibold text-slate-900">{formatMethodLabel(expense.method)}</p>
+                <p className="font-bold text-slate-900 print:text-black">{formatMethodLabel(expense.method)}</p>
               </div>
               <div>
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">
+                <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 print:text-black mb-0.5">
                   Réf. Pièce Justificative Externe :
                 </span>
-                <p className="font-mono text-slate-700">{expense.receiptNumber || "—"}</p>
+                <p className="font-mono text-slate-700 print:text-black font-bold">{expense.receiptNumber || "—"}</p>
               </div>
             </div>
           </div>
 
           {/* Montant */}
-          <div className="p-4 bg-slate-100 rounded border border-slate-300 flex justify-between items-center mb-8">
-            <span className="font-bold text-slate-800 uppercase tracking-wide text-xs">
-              {isIncome ? "MONTANT TOTAL ENCAISSÉ :" : "MONTANT TOTAL DÉCAISSÉ :"}
+          <div className="p-4 bg-slate-100 print:bg-white rounded border border-slate-300 print:border-2 print:border-black flex justify-between items-center mb-8">
+            <span className="font-black text-slate-800 print:text-black uppercase tracking-wide text-xs">
+              {isIncome ? "MONTANT TOTAL ENCAISSÉ (+) :" : "MONTANT TOTAL DÉCAISSÉ (−) :"}
             </span>
-            <span className="font-mono text-lg font-black text-slate-900">
+            <span className="font-mono text-xl font-black text-slate-900 print:text-black">
               {formatDA(expense.amount)}
             </span>
           </div>
 
           {expense.notes && (
-            <div className="p-3 bg-white border border-slate-200 rounded mb-8 text-xs text-slate-600">
-              <span className="font-bold text-slate-700 block mb-0.5">Notes complémentaires :</span>
+            <div className="p-3 bg-white border border-slate-200 print:border-black rounded mb-8 text-xs text-slate-600 print:text-black">
+              <span className="font-bold text-slate-700 print:text-black block mb-0.5">Notes complémentaires :</span>
               <p>{expense.notes}</p>
             </div>
           )}
 
           {/* Signatures */}
-          <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-300 text-center">
+          <div className="grid grid-cols-2 gap-8 pt-6 border-t-2 border-slate-300 print:border-black text-center">
             <div>
-              <p className="font-bold text-slate-800 mb-16 uppercase text-[11px]">
+              <p className="font-black text-slate-800 print:text-black uppercase text-[11px]">
                 {isIncome ? "Le Déposant" : "Le Bénéficiaire (Pour acquit)"}
               </p>
-              <p className="text-[10px] text-slate-400 italic">Signature</p>
+              <p className="text-[10px] text-slate-400 print:text-black italic mb-14">Signature</p>
+              <div className="w-40 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
             </div>
             <div>
-              <p className="font-bold text-slate-800 mb-16 uppercase text-[11px]">
+              <p className="font-black text-slate-800 print:text-black uppercase text-[11px]">
                 Le Caissier / Direction (Bon à payer)
               </p>
-              <p className="text-[10px] text-slate-400 italic">Cachet &amp; Visa</p>
+              <p className="text-[10px] text-slate-400 print:text-black italic mb-14">Cachet &amp; Visa</p>
+              <div className="w-40 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
             </div>
           </div>
         </div>
       </div>
     </div>
+    </PrintPortal>
   );
 }
 
@@ -802,10 +828,11 @@ export function PrintableTreasuryAccountStatement({
   const totalOutflows = items.reduce((acc, i) => acc + i.outflow, 0);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="relative w-full max-w-4xl bg-white rounded-xl shadow-2xl overflow-hidden print-card">
+    <PrintPortal>
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 print:static print:inset-auto print:block print:p-0 print:bg-white print:w-full print:overflow-visible">
+      <div className="relative w-full max-w-4xl bg-white rounded-xl shadow-2xl overflow-hidden print-card print:p-0 print:shadow-none print:w-full print:max-w-none print:rounded-none">
         {/* Actions bar (non imprimée) */}
-        <div className="no-print bg-slate-900 text-white px-6 py-3 flex items-center justify-between">
+        <div className="no-print bg-slate-900 text-white px-6 py-3 flex items-center justify-between print:hidden">
           <span className="text-sm font-semibold flex items-center gap-2">
             <Printer className="h-4 w-4" />
             Aperçu avant impression &bull; Relevé de Trésorerie
@@ -813,13 +840,13 @@ export function PrintableTreasuryAccountStatement({
           <div className="flex items-center gap-2">
             <button
               onClick={() => window.print()}
-              className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-slate-950 rounded hover:bg-amber-400 transition"
+              className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-slate-950 rounded hover:bg-amber-400 transition cursor-pointer"
             >
               Imprimer (A4)
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded transition"
+              className="p-1.5 text-slate-400 hover:text-white rounded transition cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
@@ -827,87 +854,87 @@ export function PrintableTreasuryAccountStatement({
         </div>
 
         {/* Contenu A4 */}
-        <div className="p-8 text-slate-900">
+        <div className="p-8 text-slate-900 print:p-0 print:text-black">
           {/* En-tête officiel */}
-          <div className="border-b border-slate-300 pb-4 mb-6 flex justify-between items-start">
+          <div className="border-b-2 border-slate-900 print:border-black pb-4 mb-6 flex justify-between items-start">
             <div>
-              <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+              <h1 className="text-xl font-black text-slate-900 print:text-black uppercase tracking-tight">
                 {settings?.shopName || "SHOP ERP MOBILIER"}
               </h1>
-              <p className="text-xs text-slate-600 mt-0.5">{settings?.activity || "Commerce de Meubles & Décoration"}</p>
-              <p className="text-xs text-slate-500">{settings?.address}</p>
-              <p className="text-xs text-slate-500">Tél : {settings?.phone}</p>
+              <p className="text-xs text-slate-600 print:text-black mt-0.5 font-semibold">{settings?.activity || "Commerce de Meubles & Décoration"}</p>
+              <p className="text-xs text-slate-500 print:text-black">{settings?.address}</p>
+              <p className="text-xs text-slate-500 print:text-black">Tél : {settings?.phone}</p>
             </div>
             <div className="text-right">
-              <span className="inline-block px-3 py-1 rounded bg-slate-100 border border-slate-300 font-bold text-xs uppercase tracking-wider">
+              <span className="inline-block px-3 py-1 rounded bg-slate-100 border border-slate-300 print:bg-white print:text-black print:border-2 print:border-black font-black text-xs uppercase tracking-wider">
                 Relevé de Compte
               </span>
-              <p className="font-mono font-bold text-sm text-slate-900 mt-2">{account.name}</p>
-              <p className="text-xs text-slate-500 font-mono">Code : {account.code}</p>
-              <p className="text-xs text-slate-400 mt-1">Édité le {formatDateTime(new Date().toISOString())}</p>
+              <p className="font-mono font-black text-base text-slate-900 print:text-black mt-2">{account.name}</p>
+              <p className="text-xs text-slate-500 print:text-black font-mono font-bold">Code : {account.code}</p>
+              <p className="text-xs text-slate-400 print:text-black mt-1 font-medium">Édité le {formatDateTime(new Date().toISOString())}</p>
             </div>
           </div>
 
           {/* Synthèse soldes */}
-          <div className="grid grid-cols-4 gap-3 mb-6 bg-slate-50 p-3.5 rounded border border-slate-200 text-xs">
+          <div className="grid grid-cols-4 gap-3 mb-6 bg-slate-50 p-3.5 rounded border border-slate-200 print:bg-white print:border-2 print:border-black text-xs">
             <div>
-              <span className="text-slate-500 block">Solde d&apos;ouverture :</span>
-              <span className="font-mono font-bold text-slate-900">{formatDA(account.openingBalance)}</span>
+              <span className="text-slate-500 print:text-black font-bold uppercase text-[10px] block">Solde d&apos;ouverture :</span>
+              <span className="font-mono font-black text-slate-900 print:text-black text-sm">{formatDA(account.openingBalance)}</span>
             </div>
             <div>
-              <span className="text-slate-500 block">Total Entrées :</span>
-              <span className="font-mono font-bold text-emerald-700">+{formatDA(totalInflows)}</span>
+              <span className="text-slate-500 print:text-black font-bold uppercase text-[10px] block">Total Entrées (+) :</span>
+              <span className="font-mono font-black text-emerald-700 print:text-black text-sm">+{formatDA(totalInflows)}</span>
             </div>
             <div>
-              <span className="text-slate-500 block">Total Sorties :</span>
-              <span className="font-mono font-bold text-rose-700">-{formatDA(totalOutflows)}</span>
+              <span className="text-slate-500 print:text-black font-bold uppercase text-[10px] block">Total Sorties (−) :</span>
+              <span className="font-mono font-black text-rose-700 print:text-black text-sm">-{formatDA(totalOutflows)}</span>
             </div>
             <div>
-              <span className="text-slate-500 block">Solde Actuel :</span>
-              <span className="font-mono font-black text-slate-900 text-sm">{formatDA(account.currentBalance)}</span>
+              <span className="text-slate-500 print:text-black font-bold uppercase text-[10px] block">Solde Actuel :</span>
+              <span className="font-mono font-black text-slate-900 print:text-black text-base">{formatDA(account.currentBalance)}</span>
             </div>
           </div>
 
           {/* Table des mouvements */}
-          <div className="border border-slate-200 rounded mb-6 overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200">
+          <div className="border border-slate-200 print:border-2 print:border-black rounded mb-6 overflow-hidden">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-100 text-slate-700 print:bg-white print:text-black print:border-b-2 print:border-black font-bold uppercase border-b border-slate-200">
                 <tr>
-                  <th className="py-2.5 px-3">Date</th>
-                  <th className="py-2.5 px-3">Réf</th>
-                  <th className="py-2.5 px-3">Type &amp; Description</th>
-                  <th className="py-2.5 px-3">Tiers / Info</th>
-                  <th className="py-2.5 px-3 text-right">Entrée (+)</th>
-                  <th className="py-2.5 px-3 text-right">Sortie (-)</th>
-                  <th className="py-2.5 px-3 text-right">Solde</th>
+                  <th className="py-2.5 px-3 print:border-r print:border-black font-bold print:text-black">Date</th>
+                  <th className="py-2.5 px-3 print:border-r print:border-black font-mono font-bold print:text-black">Réf</th>
+                  <th className="py-2.5 px-3 print:border-r print:border-black font-bold print:text-black">Type &amp; Description</th>
+                  <th className="py-2.5 px-3 print:border-r print:border-black font-bold print:text-black">Tiers / Info</th>
+                  <th className="py-2.5 px-3 text-right print:border-r print:border-black font-bold print:text-black">Entrée (+)</th>
+                  <th className="py-2.5 px-3 text-right print:border-r print:border-black font-bold print:text-black">Sortie (-)</th>
+                  <th className="py-2.5 px-3 text-right font-bold print:text-black">Solde</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 font-sans">
+              <tbody className="divide-y divide-slate-100 print:divide-black font-sans">
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-slate-500">
+                    <td colSpan={7} className="py-6 text-center text-slate-500 print:text-black italic">
                       Aucun mouvement sur ce compte.
                     </td>
                   </tr>
                 ) : (
                   items.map((it) => (
-                    <tr key={it.id}>
-                      <td className="py-2 px-3 font-mono text-slate-600">
+                    <tr key={it.id} className="print:border-b print:border-black">
+                      <td className="py-2 px-3 font-mono text-slate-600 print:text-black print:border-r print:border-black font-medium">
                         {new Date(it.date).toLocaleDateString("fr-DZ")}
                       </td>
-                      <td className="py-2 px-3 font-mono font-bold text-slate-800">{it.reference}</td>
-                      <td className="py-2 px-3">
-                        <span className="font-semibold block">{it.typeLabel}</span>
-                        <span className="text-[11px] text-slate-500">{it.description}</span>
+                      <td className="py-2 px-3 font-mono font-bold text-slate-800 print:text-black print:border-r print:border-black">{it.reference}</td>
+                      <td className="py-2 px-3 print:border-r print:border-black">
+                        <span className="font-bold text-slate-900 print:text-black block">{it.typeLabel}</span>
+                        <span className="text-[11px] text-slate-500 print:text-black">{it.description}</span>
                       </td>
-                      <td className="py-2 px-3 text-slate-600">{it.party}</td>
-                      <td className="py-2 px-3 text-right font-mono text-emerald-700">
+                      <td className="py-2 px-3 text-slate-600 print:text-black print:border-r print:border-black">{it.party}</td>
+                      <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700 print:text-black print:border-r print:border-black">
                         {it.inflow > 0 ? `+${formatDA(it.inflow)}` : "—"}
                       </td>
-                      <td className="py-2 px-3 text-right font-mono text-rose-700">
+                      <td className="py-2 px-3 text-right font-mono font-bold text-rose-700 print:text-black print:border-r print:border-black">
                         {it.outflow > 0 ? `-${formatDA(it.outflow)}` : "—"}
                       </td>
-                      <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                      <td className="py-2 px-3 text-right font-mono font-black text-slate-900 print:text-black">
                         {formatDA(it.runningBalance)}
                       </td>
                     </tr>
@@ -918,18 +945,21 @@ export function PrintableTreasuryAccountStatement({
           </div>
 
           {/* Signatures */}
-          <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-300 text-center">
+          <div className="grid grid-cols-2 gap-8 pt-6 border-t-2 border-slate-300 print:border-black text-center">
             <div>
-              <p className="font-bold text-slate-800 mb-14 uppercase text-[11px]">Le Responsable Trésorerie</p>
-              <p className="text-[10px] text-slate-400 italic">Signature</p>
+              <p className="font-black text-slate-800 print:text-black uppercase text-[11px]">Le Responsable Trésorerie</p>
+              <p className="text-[10px] text-slate-400 print:text-black italic mb-14">Signature</p>
+              <div className="w-40 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
             </div>
             <div>
-              <p className="font-bold text-slate-800 mb-14 uppercase text-[11px]">La Direction Générale</p>
-              <p className="text-[10px] text-slate-400 italic">Cachet &amp; Visa</p>
+              <p className="font-black text-slate-800 print:text-black uppercase text-[11px]">La Direction Générale</p>
+              <p className="text-[10px] text-slate-400 print:text-black italic mb-14">Cachet &amp; Visa</p>
+              <div className="w-40 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
             </div>
           </div>
         </div>
       </div>
     </div>
+    </PrintPortal>
   );
 }

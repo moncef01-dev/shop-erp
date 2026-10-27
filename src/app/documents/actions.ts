@@ -600,6 +600,440 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
   };
 }
 
+// ─── CHARGEMENT D'UN DOCUMENT UNIQUE PAR TYPE ET IDENTIFIANT ─────────────────
+
+export async function getUnifiedDocumentById(
+  type: DocumentTypeFilter,
+  id: number | string
+): Promise<UnifiedDocumentItem | null> {
+  const numId = typeof id === "number" ? id : parseInt(String(id).replace(/^[a-z_]+-/, ""), 10);
+  if (isNaN(numId)) return null;
+
+  try {
+    switch (type) {
+      case "invoice":
+      case "quote": {
+        const s = await prisma.sales.findUnique({
+          where: { id: numId },
+          include: {
+            customer: true,
+            items: {
+              include: {
+                product: { select: { sku: true, name: true, model: true, color: true } },
+                location: { select: { name: true } },
+              },
+            },
+            payments: true,
+          },
+        });
+        if (!s) return null;
+        const isQuote = s.status === "draft";
+        return {
+          id: `sale-${s.id}`,
+          rawId: s.id,
+          type: isQuote ? "quote" : "invoice",
+          typeLabel: isQuote ? "Devis / Bon de commande" : "Facture de Vente",
+          reference: s.reference,
+          date: s.saleDate.toISOString(),
+          partyName: s.customer?.name || "Client Passager",
+          partyType: "customer",
+          amount: s.totalAmount,
+          status: s.status,
+          statusLabel:
+            s.status === "confirmed"
+              ? s.paymentStatus === "paid"
+                ? "Payée"
+                : s.paymentStatus === "partial"
+                ? "Partiel"
+                : "Non payée"
+              : isQuote
+              ? "Brouillon / Devis"
+              : "Annulée",
+          notes: s.notes,
+          salePayload: {
+            id: s.id,
+            reference: s.reference,
+            status: s.status,
+            paymentStatus: s.paymentStatus,
+            saleDate: s.saleDate.toISOString(),
+            totalAmount: s.totalAmount,
+            paidAmount: s.paidAmount,
+            deliveryFee: s.deliveryFee,
+            notes: s.notes,
+            customer: s.customer,
+            items: s.items.map((it) => ({
+              id: it.id,
+              product: it.product,
+              location: it.location,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+              discount: it.discount,
+              subtotal: it.subtotal,
+            })),
+            payments: s.payments.map((p) => ({
+              id: p.id,
+              reference: p.reference,
+              amount: p.amount,
+              method: p.method,
+              paymentDate: p.paymentDate.toISOString(),
+              notes: p.notes,
+            })),
+            deliveries: [],
+          },
+        };
+      }
+      case "purchase": {
+        const p = await prisma.purchase.findUnique({
+          where: { id: numId },
+          include: {
+            supplier: true,
+            items: {
+              include: {
+                product: { select: { sku: true, name: true, model: true, color: true, costPrice: true } },
+                location: { select: { name: true, code: true } },
+              },
+            },
+            receipts: {
+              include: {
+                items: {
+                  include: {
+                    product: { select: { id: true, sku: true, name: true, model: true, color: true, costPrice: true } },
+                    location: { select: { id: true, name: true, code: true } },
+                    purchaseItem: { select: { id: true, quantity: true, unitCost: true } },
+                  },
+                },
+              },
+            },
+            payments: true,
+          },
+        });
+        if (!p) return null;
+        return {
+          id: `purchase-${p.id}`,
+          rawId: p.id,
+          type: "purchase",
+          typeLabel: "Bon de Commande Fournisseur",
+          reference: p.reference,
+          date: p.purchaseDate.toISOString(),
+          partyName: p.supplier?.name || "Fournisseur",
+          partyType: "supplier",
+          amount: p.totalAmount,
+          status: p.status,
+          statusLabel:
+            p.status === "received"
+              ? "Reçu intégral"
+              : p.status === "partially_received"
+              ? "Réception partielle"
+              : p.status === "ordered"
+              ? "Commandé"
+              : p.status === "cancelled"
+              ? "Annulé"
+              : "Brouillon",
+          notes: p.notes,
+          purchasePayload: {
+            id: p.id,
+            reference: p.reference,
+            status: p.status,
+            receiptStatus: p.receiptStatus,
+            paymentStatus: p.paymentStatus,
+            purchaseDate: p.purchaseDate.toISOString(),
+            expectedDeliveryDate: p.expectedDeliveryDate ? p.expectedDeliveryDate.toISOString() : null,
+            subtotal: p.subtotal,
+            discount: p.discount,
+            totalAmount: p.totalAmount,
+            paidAmount: p.paidAmount,
+            notes: p.notes,
+            supplierId: p.supplierId,
+            supplier: p.supplier,
+            items: p.items.map((it) => ({
+              id: it.id,
+              productId: it.productId,
+              product: it.product,
+              location: it.location,
+              quantity: it.quantity,
+              receivedQuantity: it.receivedQuantity,
+              unitCost: it.unitCost,
+              subtotal: it.subtotal,
+            })),
+            receipts: p.receipts.map((r) => ({
+              id: r.id,
+              reference: r.reference,
+              receiptDate: r.receiptDate.toISOString(),
+              notes: r.notes,
+              items: r.items,
+            })),
+            payments: p.payments.map((py) => ({
+              id: py.id,
+              reference: py.reference,
+              amount: py.amount,
+              method: py.method,
+              paymentDate: py.paymentDate.toISOString(),
+              notes: py.notes,
+            })),
+          },
+        };
+      }
+      case "receipt": {
+        const r = await prisma.purchaseReceipt.findUnique({
+          where: { id: numId },
+          include: {
+            purchase: { include: { supplier: true } },
+            items: {
+              include: {
+                product: { select: { id: true, sku: true, name: true, model: true, color: true, costPrice: true } },
+                location: { select: { id: true, name: true, code: true } },
+                purchaseItem: { select: { id: true, quantity: true, unitCost: true } },
+              },
+            },
+          },
+        });
+        if (!r) return null;
+        const totalReceiptValue = r.items.reduce((acc, it) => {
+          const cost = it.unitCost ?? it.purchaseItem?.unitCost ?? it.product?.costPrice ?? 0;
+          return acc + (it.quantity || 0) * cost;
+        }, 0);
+        return {
+          id: `receipt-${r.id}`,
+          rawId: r.id,
+          type: "receipt",
+          typeLabel: "Bon de Réception Marchandises",
+          reference: r.reference,
+          date: r.receiptDate.toISOString(),
+          partyName: r.purchase?.supplier?.name || "Fournisseur",
+          partyType: "supplier",
+          amount: totalReceiptValue,
+          status: "received",
+          statusLabel: "Réceptionné",
+          notes: r.notes,
+          receiptPayload: {
+            id: r.id,
+            reference: r.reference,
+            receiptDate: r.receiptDate.toISOString(),
+            notes: r.notes,
+            items: r.items.map((it) => ({
+              id: it.id,
+              productId: it.productId,
+              quantity: it.quantity,
+              unitCost: it.unitCost,
+              product: it.product,
+              location: it.location,
+              purchaseItem: it.purchaseItem,
+            })),
+          },
+          purchasePayload: {
+            id: r.purchase.id,
+            reference: r.purchase.reference,
+            status: r.purchase.status,
+            receiptStatus: r.purchase.receiptStatus,
+            paymentStatus: r.purchase.paymentStatus,
+            purchaseDate: r.purchase.purchaseDate.toISOString(),
+            subtotal: r.purchase.subtotal,
+            discount: r.purchase.discount,
+            totalAmount: r.purchase.totalAmount,
+            paidAmount: r.purchase.paidAmount,
+            supplier: r.purchase.supplier,
+          },
+        };
+      }
+      case "payment_client":
+      case "payment_supplier": {
+        const py = await prisma.payment.findUnique({
+          where: { id: numId },
+          include: {
+            sale: { include: { customer: true } },
+            purchase: { include: { supplier: true } },
+          },
+        });
+        if (!py) return null;
+        if (py.saleId && py.sale) {
+          return {
+            id: `payment-sale-${py.id}`,
+            rawId: py.id,
+            type: "payment_client",
+            typeLabel: "Reçu de Versement Client",
+            reference: py.reference || `REC-${py.id}`,
+            date: py.paymentDate.toISOString(),
+            partyName: py.sale.customer?.name || "Client Passager",
+            partyType: "customer",
+            amount: py.amount,
+            status: py.status,
+            statusLabel: "Encaissé",
+            notes: py.notes,
+            paymentPayload: {
+              id: py.id,
+              reference: py.reference,
+              amount: py.amount,
+              method: py.method,
+              paymentDate: py.paymentDate.toISOString(),
+              notes: py.notes,
+            },
+            salePayload: {
+              id: py.sale.id,
+              reference: py.sale.reference,
+              status: py.sale.status,
+              paymentStatus: py.sale.paymentStatus,
+              saleDate: py.sale.saleDate.toISOString(),
+              totalAmount: py.sale.totalAmount,
+              paidAmount: py.sale.paidAmount,
+              deliveryFee: py.sale.deliveryFee,
+              customer: py.sale.customer,
+            },
+          };
+        } else if (py.purchaseId && py.purchase) {
+          return {
+            id: `payment-purchase-${py.id}`,
+            rawId: py.id,
+            type: "payment_supplier",
+            typeLabel: "Reçu de Règlement Fournisseur",
+            reference: py.reference || `PAYF-${py.id}`,
+            date: py.paymentDate.toISOString(),
+            partyName: py.purchase.supplier?.name || "Fournisseur",
+            partyType: "supplier",
+            amount: py.amount,
+            status: py.status,
+            statusLabel: "Réglé",
+            notes: py.notes,
+            supplierPaymentPayload: {
+              id: py.id,
+              reference: py.reference,
+              amount: py.amount,
+              method: py.method,
+              paymentDate: py.paymentDate.toISOString(),
+              notes: py.notes,
+            },
+            purchasePayload: {
+              id: py.purchase.id,
+              reference: py.purchase.reference,
+              status: py.purchase.status,
+              receiptStatus: py.purchase.receiptStatus,
+              paymentStatus: py.purchase.paymentStatus,
+              purchaseDate: py.purchase.purchaseDate.toISOString(),
+              subtotal: py.purchase.subtotal,
+              discount: py.purchase.discount,
+              totalAmount: py.purchase.totalAmount,
+              paidAmount: py.purchase.paidAmount,
+              supplier: py.purchase.supplier,
+            },
+          };
+        }
+        return null;
+      }
+      case "cash_session": {
+        const cs = await prisma.cashSession.findUnique({
+          where: { id: numId },
+        });
+        if (!cs) return null;
+        return {
+          id: `cash-session-${cs.id}`,
+          rawId: cs.id,
+          type: "cash_session",
+          typeLabel: "Fiche de Clôture de Caisse",
+          reference: cs.reference,
+          date: (cs.closedAt || cs.openedAt).toISOString(),
+          partyName: `Session Caisse (${cs.status === "closed" ? "Clôturée" : "Ouverte"})`,
+          partyType: "internal",
+          amount: cs.closingAmount ?? cs.theoreticalAmount ?? cs.openingAmount,
+          status: cs.status,
+          statusLabel: cs.status === "closed" ? "Clôturée" : "En cours",
+          notes: cs.closingNotes || cs.openingNotes,
+          cashSessionPayload: {
+            reference: cs.reference,
+            openedAt: cs.openedAt.toISOString(),
+            closedAt: cs.closedAt ? cs.closedAt.toISOString() : null,
+            status: cs.status,
+            openingAmount: cs.openingAmount,
+            totalCashIn: cs.totalCashIn,
+            totalCashOut: cs.totalCashOut,
+            theoreticalAmount: cs.theoreticalAmount,
+            closingAmount: cs.closingAmount,
+            difference: cs.difference,
+            openingNotes: cs.openingNotes,
+            closingNotes: cs.closingNotes,
+          },
+        };
+      }
+      case "expense": {
+        const ex = await prisma.expense.findUnique({
+          where: { id: numId },
+        });
+        if (!ex) return null;
+        return {
+          id: `expense-${ex.id}`,
+          rawId: ex.id,
+          type: "expense",
+          typeLabel: ex.type === "income" ? "Reçu d'Encaissement Exceptionnel" : "Bon de Dépense de Caisse",
+          reference: ex.reference,
+          date: ex.date.toISOString(),
+          partyName: ex.beneficiary || "Dépense générale",
+          partyType: "internal",
+          amount: ex.amount,
+          status: "completed",
+          statusLabel: "Comptabilisé",
+          notes: ex.description,
+          expensePayload: {
+            reference: ex.reference,
+            type: ex.type,
+            category: ex.category,
+            description: ex.description,
+            amount: ex.amount,
+            method: ex.method,
+            beneficiary: ex.beneficiary,
+            receiptNumber: ex.receiptNumber,
+            notes: ex.notes,
+            date: ex.date.toISOString(),
+          },
+        };
+      }
+      case "transfer": {
+        const tr = await prisma.stockMovement.findUnique({
+          where: { id: numId },
+          include: {
+            product: { select: { sku: true, name: true, model: true, color: true } },
+            fromLocation: true,
+            toLocation: true,
+          },
+        });
+        if (!tr) return null;
+        const ref = tr.reference || `TRF-${tr.id}`;
+        return {
+          id: `transfer-${tr.id}`,
+          rawId: tr.id,
+          type: "transfer",
+          typeLabel: "Bon de Transfert Inter-Dépôts",
+          reference: ref,
+          date: tr.date.toISOString(),
+          partyName: `${tr.fromLocation?.name || "Origine"} → ${tr.toLocation?.name || "Destination"}`,
+          partyType: "internal",
+          amount: tr.quantity,
+          status: "completed",
+          statusLabel: "Transféré",
+          notes: tr.notes || tr.reason,
+          transferPayload: {
+            reference: ref,
+            date: tr.date.toISOString(),
+            fromLocation: tr.fromLocation,
+            toLocation: tr.toLocation,
+            items: [
+              {
+                product: tr.product ?? undefined,
+                quantity: tr.quantity,
+                unitCost: tr.unitCost,
+              },
+            ],
+            notes: tr.notes,
+            reason: tr.reason,
+          },
+        };
+      }
+      default:
+        return null;
+    }
+  } catch (error) {
+    console.error(`Erreur getUnifiedDocumentById (${type}, ${id}):`, error);
+    return null;
+  }
+}
+
 // ─── GÉNÉRATEUR DE FICHE D'INVENTAIRE PAR DÉPÔT ───────────────────────────────
 
 export async function getInventorySheetData(locationId?: number): Promise<{

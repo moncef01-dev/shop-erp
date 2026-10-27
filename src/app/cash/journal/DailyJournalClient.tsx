@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { PrintPortal } from "@/components/common/PrintPortal";
 import {
   BookOpen,
   Calendar,
@@ -627,7 +628,8 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
 
       {/* 7. Modal d'impression A4 format comptable */}
       {isPrintModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0">
+        <PrintPortal>
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:static print:inset-auto print:block print:p-0 print:bg-white print:w-full print:overflow-visible">
           <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl p-8 print:p-0 print:shadow-none print:w-full print:max-w-none print:rounded-none">
             {/* Barre de contrôle modal (masquée à l'impression) */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 print:hidden mb-6">
@@ -657,27 +659,27 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
             </div>
 
             {/* Contenu imprimable A4 */}
-            <div className="space-y-6">
+            <div className="space-y-6 print:text-black">
               {/* Header Société & Journal */}
-              <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
+              <div className="flex justify-between items-start border-b-2 border-slate-900 print:border-black pb-4">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
+                  <h2 className="text-xl font-black text-slate-900 print:text-black tracking-tight uppercase">
                     JOURNAL DE CAISSE JOURNALIÈRE
                   </h2>
-                  <p className="text-xs text-slate-600 mt-1 capitalize font-medium">
+                  <p className="text-xs text-slate-600 print:text-black mt-1 capitalize font-bold">
                     Date des opérations : {formattedDate}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 print:text-black font-semibold">
                     Compte : {caisseAccount.name} ({caisseAccount.code})
                   </p>
                 </div>
                 <div className="text-right text-xs">
-                  <div className="font-mono text-slate-600">
+                  <div className="font-mono text-slate-600 print:text-black font-medium">
                     Édité le {new Date().toLocaleDateString("fr-DZ")} à{" "}
                     {new Date().toLocaleTimeString("fr-DZ")}
                   </div>
                   {session && (
-                    <div className="mt-1 font-semibold text-slate-800">
+                    <div className="mt-1 font-bold text-slate-800 print:text-black">
                       Réf Session : {session.reference} ({session.status === "open" ? "En cours" : "Clôturée"})
                     </div>
                   )}
@@ -685,36 +687,36 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
               </div>
 
               {/* Synthèse Chiffrée */}
-              <div className="grid grid-cols-5 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+              <div className="grid grid-cols-5 gap-3 p-3 bg-slate-50 print:bg-white border border-slate-200 print:border-2 print:border-black rounded-lg text-xs">
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                  <span className="text-slate-500 print:text-black block text-[10px] uppercase font-bold">
                     Solde d&apos;Ouverture
                   </span>
-                  <span className="font-mono font-bold text-slate-900 text-sm">
+                  <span className="font-mono font-black text-slate-900 print:text-black text-sm">
                     {formatDA(openingBalance)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                  <span className="text-slate-500 print:text-black block text-[10px] uppercase font-bold">
                     Entrées Exploitation (+)
                   </span>
-                  <span className="font-mono font-bold text-emerald-700 text-sm">
+                  <span className="font-mono font-black text-emerald-700 print:text-black text-sm">
                     +{formatDA(operatingInflows)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                  <span className="text-slate-500 print:text-black block text-[10px] uppercase font-bold">
                     Sorties Charges (−)
                   </span>
-                  <span className="font-mono font-bold text-rose-700 text-sm">
+                  <span className="font-mono font-black text-rose-700 print:text-black text-sm">
                     -{formatDA(operatingOutflows)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                  <span className="text-slate-500 print:text-black block text-[10px] uppercase font-bold">
                     Transferts Internes (⇄)
                   </span>
-                  <span className="font-mono font-bold text-purple-700 text-sm">
+                  <span className="font-mono font-black text-purple-700 print:text-black text-sm">
                     {transfersOut > 0
                       ? `-${formatDA(transfersOut)}`
                       : transfersIn > 0
@@ -723,81 +725,81 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                  <span className="text-slate-500 print:text-black block text-[10px] uppercase font-bold">
                     Solde Théorique Final
                   </span>
-                  <span className="font-mono font-black text-slate-900 text-sm">
+                  <span className="font-mono font-black text-slate-900 print:text-black text-sm">
                     {formatDA(theoreticalFinalBalance)}
                   </span>
                 </div>
               </div>
 
               {/* Tableau imprimable */}
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full text-left text-xs border-collapse print:border-2 print:border-black">
                 <thead>
-                  <tr className="bg-slate-100 border-y border-slate-300 font-bold text-[11px]">
-                    <th className="py-2 px-2">Heure</th>
-                    <th className="py-2 px-2">Référence</th>
-                    <th className="py-2 px-2">Opération</th>
-                    <th className="py-2 px-2">Description / Tiers</th>
-                    <th className="py-2 px-2 text-right">Entrée (DA)</th>
-                    <th className="py-2 px-2 text-right">Sortie (DA)</th>
-                    <th className="py-2 px-2 text-right">Solde (DA)</th>
+                  <tr className="bg-slate-100 print:bg-white print:text-black print:border-b-2 print:border-black border-y border-slate-300 font-bold text-[11px]">
+                    <th className="py-2 px-2 print:border-r print:border-black font-bold print:text-black">Heure</th>
+                    <th className="py-2 px-2 print:border-r print:border-black font-bold print:text-black">Référence</th>
+                    <th className="py-2 px-2 print:border-r print:border-black font-bold print:text-black">Opération</th>
+                    <th className="py-2 px-2 print:border-r print:border-black font-bold print:text-black">Description / Tiers</th>
+                    <th className="py-2 px-2 text-right print:border-r print:border-black font-bold print:text-black">Entrée (DA)</th>
+                    <th className="py-2 px-2 text-right print:border-r print:border-black font-bold print:text-black">Sortie (DA)</th>
+                    <th className="py-2 px-2 text-right font-bold print:text-black">Solde (DA)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
-                  <tr className="italic text-slate-500">
-                    <td className="py-1.5 px-2 font-mono">00:00</td>
-                    <td className="py-1.5 px-2">—</td>
-                    <td className="py-1.5 px-2">Solde initial</td>
-                    <td className="py-1.5 px-2">Fond de caisse d&apos;ouverture</td>
-                    <td className="py-1.5 px-2 text-right font-mono">—</td>
-                    <td className="py-1.5 px-2 text-right font-mono">—</td>
-                    <td className="py-1.5 px-2 text-right font-mono font-bold text-slate-900">
+                <tbody className="divide-y divide-slate-200 print:divide-black">
+                  <tr className="italic text-slate-500 print:text-black">
+                    <td className="py-1.5 px-2 font-mono print:border-r print:border-black">00:00</td>
+                    <td className="py-1.5 px-2 print:border-r print:border-black">—</td>
+                    <td className="py-1.5 px-2 print:border-r print:border-black font-bold">Solde initial</td>
+                    <td className="py-1.5 px-2 print:border-r print:border-black">Fond de caisse d&apos;ouverture</td>
+                    <td className="py-1.5 px-2 text-right font-mono print:border-r print:border-black">—</td>
+                    <td className="py-1.5 px-2 text-right font-mono print:border-r print:border-black">—</td>
+                    <td className="py-1.5 px-2 text-right font-mono font-black text-slate-900 print:text-black">
                       {formatDA(openingBalance)}
                     </td>
                   </tr>
                   {items.map((i) => (
-                    <tr key={i.id} className="text-[11px]">
-                      <td className="py-1.5 px-2 font-mono whitespace-nowrap">
+                    <tr key={i.id} className="text-[11px] print:border-b print:border-black">
+                      <td className="py-1.5 px-2 font-mono whitespace-nowrap print:border-r print:border-black">
                         {i.dateFormatted.split(" ")[1] || "—"}
                       </td>
-                      <td className="py-1.5 px-2 font-mono font-semibold whitespace-nowrap">
+                      <td className="py-1.5 px-2 font-mono font-bold whitespace-nowrap print:border-r print:border-black">
                         {i.reference}
                       </td>
-                      <td className="py-1.5 px-2 whitespace-nowrap">{i.operationType}</td>
-                      <td className="py-1.5 px-2">
-                        {i.description}
+                      <td className="py-1.5 px-2 whitespace-nowrap print:border-r print:border-black font-semibold">{i.operationType}</td>
+                      <td className="py-1.5 px-2 print:border-r print:border-black">
+                        <span className="font-bold print:text-black">{i.description}</span>
                         {i.partyName && (
-                          <span className="text-slate-500 block text-[10px]">
+                          <span className="text-slate-500 print:text-black block text-[10px]">
                             {i.partyName}
                           </span>
                         )}
                       </td>
-                      <td className="py-1.5 px-2 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
+                      <td className="py-1.5 px-2 text-right font-mono font-bold text-emerald-700 print:text-black whitespace-nowrap print:border-r print:border-black">
                         {i.inflow > 0 ? `+${formatDA(i.inflow)}` : "—"}
                       </td>
-                      <td className="py-1.5 px-2 text-right font-mono font-bold text-rose-700 whitespace-nowrap">
+                      <td className="py-1.5 px-2 text-right font-mono font-bold text-rose-700 print:text-black whitespace-nowrap print:border-r print:border-black">
                         {i.outflow > 0 ? `-${formatDA(i.outflow)}` : "—"}
                       </td>
-                      <td className="py-1.5 px-2 text-right font-mono font-black text-slate-900 whitespace-nowrap bg-slate-50">
+                      <td className="py-1.5 px-2 text-right font-mono font-black text-slate-900 print:text-black whitespace-nowrap bg-slate-50 print:bg-white">
                         {formatDA(i.runningBalance)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-slate-900 font-bold bg-slate-100 text-xs">
-                    <td colSpan={4} className="py-2.5 px-2 uppercase text-[11px]">
-                      Total ({items.length} opérations) — Entrées d&apos;exploitation: +{formatDA(operatingInflows)} | Charges: -{formatDA(operatingOutflows)} | Transferts internes: {transfersOut > 0 ? `-${formatDA(transfersOut)}` : formatDA(0)}
+                  <tr className="border-t-2 border-slate-900 print:border-t-2 print:border-b-2 print:border-black font-bold bg-slate-100 print:bg-white text-xs print:text-black">
+                    <td colSpan={4} className="py-2.5 px-2 uppercase text-[11px] font-black">
+                      Total ({items.length} opérations) — Entrées: +{formatDA(operatingInflows)} | Charges: -{formatDA(operatingOutflows)} | Transferts: {transfersOut > 0 ? `-${formatDA(transfersOut)}` : formatDA(0)}
                     </td>
-                    <td className="py-2.5 px-2 text-right font-mono text-emerald-700">
+                    <td className="py-2.5 px-2 text-right font-mono text-emerald-700 print:text-black font-black print:border-r print:border-black">
                       +{formatDA(operatingInflows)}
                     </td>
-                    <td className="py-2.5 px-2 text-right font-mono text-rose-700">
+                    <td className="py-2.5 px-2 text-right font-mono text-rose-700 print:text-black font-black print:border-r print:border-black">
                       -{formatDA(operatingOutflows)}
                     </td>
-                    <td className="py-2.5 px-2 text-right font-mono text-sm font-black text-slate-900">
+                    <td className="py-2.5 px-2 text-right font-mono text-sm font-black text-slate-900 print:text-black">
                       {formatDA(theoreticalFinalBalance)}
                     </td>
                   </tr>
@@ -805,22 +807,22 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
               </table>
 
               {/* Signatures */}
-              <div className="grid grid-cols-2 gap-12 pt-8 text-xs border-t border-slate-200 mt-8">
+              <div className="grid grid-cols-2 gap-12 pt-8 text-xs border-t-2 border-slate-300 print:border-black mt-8">
                 <div className="text-center">
-                  <span className="block font-bold text-slate-800 uppercase text-[11px]">
+                  <span className="block font-black text-slate-800 print:text-black uppercase text-[11px]">
                     Signature du Caissier
                   </span>
-                  <div className="h-16 border-b border-dashed border-slate-300 mt-2" />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
+                  <div className="w-48 mx-auto border-b-2 border-dashed border-slate-400 print:border-black mt-12 mb-2" />
+                  <span className="text-[10px] text-slate-400 print:text-black italic block">
                     Bon pour arrêté physique de caisse
                   </span>
                 </div>
                 <div className="text-center">
-                  <span className="block font-bold text-slate-800 uppercase text-[11px]">
+                  <span className="block font-black text-slate-800 print:text-black uppercase text-[11px]">
                     Visa du Responsable / Comptable
                   </span>
-                  <div className="h-16 border-b border-dashed border-slate-300 mt-2" />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
+                  <div className="w-48 mx-auto border-b-2 border-dashed border-slate-400 print:border-black mt-12 mb-2" />
+                  <span className="text-[10px] text-slate-400 print:text-black italic block">
                     Vérifié conforme au grand livre
                   </span>
                 </div>
@@ -828,6 +830,7 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
             </div>
           </div>
         </div>
+        </PrintPortal>
       )}
     </div>
   );

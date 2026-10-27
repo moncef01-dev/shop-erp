@@ -83,12 +83,12 @@ export async function buildInventoryPdf({
   // 2. En-tête gauche : Identité de l'entreprise
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.setTextColor(15, 23, 42); // slate-900
+  doc.setTextColor(0, 0, 0);
   doc.text(shopName, logoOffsetLeft, 15);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139); // slate-500
+  doc.setTextColor(0, 0, 0);
   let headerY = 19.5;
   if (shopActivity) {
     doc.text(shopActivity, logoOffsetLeft, headerY);
@@ -106,12 +106,12 @@ export async function buildInventoryPdf({
   // 3. En-tête droit : Badge & Références d'Inventaire
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.setTextColor(180, 83, 9); // amber-700
+  doc.setTextColor(0, 0, 0);
   doc.text("FICHE D'INVENTAIRE PHYSIQUE", pageWidth - 14, 15, { align: "right" });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.setTextColor(15, 23, 42);
+  doc.setTextColor(0, 0, 0);
   doc.text(
     `Emplacement : ${locationTitle}${data.locationCode && data.locationCode !== "GLOBAL" ? ` (${data.locationCode})` : ""}`,
     pageWidth - 14,
@@ -121,13 +121,13 @@ export async function buildInventoryPdf({
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.setTextColor(71, 85, 105);
+  doc.setTextColor(0, 0, 0);
   doc.text(`Date d'audit : ${dateStr} à ${timeStr}`, pageWidth - 14, 23.5, { align: "right" });
 
   const totalStockCount = data.items.reduce((sum, it) => sum + (it.systemStock || 0), 0);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.setTextColor(15, 23, 42);
+  doc.setTextColor(0, 0, 0);
   doc.text(
     `Articles répertoriés : ${data.items.length}  |  Stock théorique total : ${totalStockCount} ${data.items[0]?.unit || "unités"}`,
     pageWidth - 14,
@@ -136,21 +136,21 @@ export async function buildInventoryPdf({
   );
 
   // 4. Ligne séparatrice
-  doc.setDrawColor(203, 213, 225); // slate-300
-  doc.setLineWidth(0.4);
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
   doc.line(14, 31, pageWidth - 14, 31);
 
   // 5. Encadré consignes pour les auditeurs
-  doc.setFillColor(254, 243, 199); // amber-100
-  doc.setDrawColor(245, 158, 11); // amber-500
-  doc.setLineWidth(0.3);
-  doc.roundedRect(14, 33, pageWidth - 28, 8, 1.2, 1.2, "FD");
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(14, 33, pageWidth - 28, 8, 1, 1, "FD");
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
-  doc.setTextColor(146, 64, 14); // amber-900
+  doc.setTextColor(0, 0, 0);
   doc.text(
-    "Consignes d'inventaire : Dénombrer physiquement chaque article. Inscrire le comptage constaté dans la colonne blanche « Comptage Réel », noter les écarts (+/-) et consigner toute dégradation ou remarque dans la colonne « Observations ».",
+    "Consignes d'inventaire : Dénombrer physiquement chaque article. Inscrire le comptage constaté dans la colonne « Comptage Réel », noter les écarts (+/-) et consigner toute dégradation ou remarque dans la colonne « Observations ».",
     16,
     38
   );
@@ -260,7 +260,7 @@ export async function buildInventoryPdf({
       5: { cellWidth: 16, halign: "center" },
       6: { cellWidth: 16, halign: "center" },
       7: { cellWidth: 16, halign: "center" },
-      8: { cellWidth: 20, halign: "center", fontStyle: "bold", textColor: [180, 83, 9] },
+      8: { cellWidth: 20, halign: "center", fontStyle: "bold", textColor: [0, 0, 0] },
       9: { cellWidth: 22, halign: "center", fillColor: [255, 255, 255] },
       10: { cellWidth: 15, halign: "center" },
       11: { cellWidth: 40 },
@@ -295,7 +295,7 @@ export async function buildInventoryPdf({
 
     tableFoot = [
       [
-        { content: "TOTAL", colSpan: 4, styles: { halign: "right", fontStyle: "bold" } },
+        { content: "TOTAL GÉNÉRAL", colSpan: 4, styles: { halign: "right", fontStyle: "bold" } },
         { content: String(totalStockCount), styles: { halign: "center", fontStyle: "bold" } },
         { content: "", styles: { halign: "center" } },
         { content: "", styles: { halign: "center" } },
@@ -308,7 +308,7 @@ export async function buildInventoryPdf({
       1: { cellWidth: 22, fontStyle: "bold" },
       2: { cellWidth: 50 },
       3: { cellWidth: 26 },
-      4: { cellWidth: 22, halign: "center", fontStyle: "bold", textColor: [180, 83, 9] },
+      4: { cellWidth: 22, halign: "center", fontStyle: "bold", textColor: [0, 0, 0] },
       5: { cellWidth: 20, halign: "center", fillColor: [255, 255, 255] },
       6: { cellWidth: 14, halign: "center" },
       7: { cellWidth: 20 },
@@ -330,26 +330,30 @@ export async function buildInventoryPdf({
       fontSize: 7.5,
       cellPadding: 1.5,
       overflow: "linebreak",
-      textColor: [30, 41, 59],
-      lineColor: [203, 213, 225],
-      lineWidth: 0.15,
+      textColor: [0, 0, 0],
+      lineColor: [0, 0, 0],
+      lineWidth: 0.2,
     },
     headStyles: {
-      fillColor: [30, 41, 59], // slate-800
+      fillColor: [0, 0, 0],
       textColor: [255, 255, 255],
       fontSize: 7.5,
       fontStyle: "bold",
       halign: "center",
       minCellHeight: 6,
+      lineColor: [0, 0, 0],
+      lineWidth: 0.3,
     },
     footStyles: {
-      fillColor: [241, 245, 249], // slate-100
-      textColor: [15, 23, 42],
+      fillColor: [255, 255, 255],
+      textColor: [0, 0, 0],
       fontSize: 7.5,
       fontStyle: "bold",
+      lineColor: [0, 0, 0],
+      lineWidth: 0.3,
     },
     alternateRowStyles: {
-      fillColor: [248, 250, 252], // slate-50
+      fillColor: [255, 255, 255],
     },
     columnStyles,
     didDrawPage: (hookData) => {
@@ -357,7 +361,7 @@ export async function buildInventoryPdf({
       if (hookData.pageNumber > 1) {
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
+        doc.setTextColor(0, 0, 0);
         doc.text(
           `${shopName} — Fiche d'Inventaire Physique (${locationTitle}) — ${dateStr}`,
           14,
@@ -369,7 +373,7 @@ export async function buildInventoryPdf({
       const pageStr = `Page ${hookData.pageNumber} sur {total_pages_count_string}`;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.5);
-      doc.setTextColor(148, 163, 184); // slate-400
+      doc.setTextColor(0, 0, 0);
       doc.text(
         "Shop ERP — Document officiel de contrôle d'inventaire physique",
         14,
@@ -387,8 +391,8 @@ export async function buildInventoryPdf({
     signY = 20;
   }
 
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.3);
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.4);
   doc.line(14, signY, pageWidth - 14, signY);
   signY += 4;
 
@@ -396,33 +400,33 @@ export async function buildInventoryPdf({
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.setTextColor(30, 41, 59);
+  doc.setTextColor(0, 0, 0);
 
   // Colonne 1 : Équipe d'inventaire
   doc.text("L'ÉQUIPE D'INVENTAIRE / COMPTAGE", 14 + colWidth * 0.5, signY + 3, { align: "center" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  doc.setTextColor(100, 116, 139);
+  doc.setTextColor(0, 0, 0);
   doc.text("Nom(s), date et signature(s)", 14 + colWidth * 0.5, signY + 7, { align: "center" });
 
   // Colonne 2 : Responsable Stock
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.setTextColor(30, 41, 59);
+  doc.setTextColor(0, 0, 0);
   doc.text("LE RESPONSABLE DÉPÔT / MAGASIN", 14 + colWidth * 1.5, signY + 3, { align: "center" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  doc.setTextColor(100, 116, 139);
+  doc.setTextColor(0, 0, 0);
   doc.text("Observations, date et visa", 14 + colWidth * 1.5, signY + 7, { align: "center" });
 
   // Colonne 3 : Direction
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.setTextColor(30, 41, 59);
+  doc.setTextColor(0, 0, 0);
   doc.text("VISA DIRECTION GÉNÉRALE", 14 + colWidth * 2.5, signY + 3, { align: "center" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  doc.setTextColor(100, 116, 139);
+  doc.setTextColor(0, 0, 0);
   doc.text("Date, cachet et approbation", 14 + colWidth * 2.5, signY + 7, { align: "center" });
 
   // 9. Remplacement dynamique du nombre total de pages

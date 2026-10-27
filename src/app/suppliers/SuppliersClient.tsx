@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { PrintPortal } from "@/components/common/PrintPortal";
 import {
   Building2,
   Plus,
@@ -631,13 +632,14 @@ export function SuppliersClient({
 
       {/* ─── MODAL COMPTE FOURNISSEUR DÉTAILLÉ (FICHE & HISTORIQUE) ─────────── */}
       {selectedSupplierForStatement && (
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSelectedSupplierForStatement(null);
-          }}
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
-        >
-          <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl p-6 max-h-[92vh] flex flex-col border border-slate-100">
+        <PrintPortal>
+          <div
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setSelectedSupplierForStatement(null);
+            }}
+            className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 print:static print:inset-auto print:block print:p-0 print:bg-white print:w-full print:overflow-visible"
+          >
+          <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl p-6 max-h-[92vh] flex flex-col border border-slate-100 print:p-0 print:shadow-none print:w-full print:max-w-none print:rounded-none print:max-h-none print:border-none print:text-black">
             {isLoadingStatement || !statementData ? (
               <div className="py-24 flex flex-col items-center justify-center gap-3">
                 <div className="w-9 h-9 border-3 border-amber-600 border-t-transparent rounded-full animate-spin" />
@@ -645,47 +647,64 @@ export function SuppliersClient({
               </div>
             ) : (
               <>
+                {/* En-tête imprimable officiel (visible uniquement à l'impression) */}
+                <div className="hidden print:flex justify-between items-start border-b-2 border-black pb-4 mb-4">
+                  <div>
+                    <h2 className="text-xl font-black uppercase tracking-tight">SHOP ERP MOBILIER</h2>
+                    <p className="text-xs font-semibold">Direction Financière &bull; Gestion des Fournisseurs</p>
+                    <p className="text-[11px]">Alger, Algérie</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-block px-3 py-1 bg-black text-white font-black text-xs uppercase tracking-wider">
+                      Relevé Fournisseur
+                    </span>
+                    <p className="font-mono font-bold text-xs mt-1">
+                      Édité le {new Date().toLocaleDateString("fr-DZ")}
+                    </p>
+                  </div>
+                </div>
+
                 {/* En-tête de la fiche fournisseur */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-slate-200 shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-slate-200 print:border-black shrink-0">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                        <Building2 className="h-6 w-6 text-amber-600" />
+                      <h3 className="text-xl font-black text-slate-900 print:text-black uppercase flex items-center gap-2">
+                        <Building2 className="h-6 w-6 text-amber-600 print:hidden" />
                         {statementData.supplier.name}
                       </h3>
-                      <span className="font-mono font-bold text-xs bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                      <span className="font-mono font-bold text-xs bg-slate-100 print:bg-white border border-slate-300 print:border-black px-2 py-0.5 rounded text-slate-800 print:text-black">
                         {statementData.supplier.code || `FOU-${statementData.supplier.id}`}
                       </span>
                       {statementData.supplier.isActive ? (
-                        <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                          Actif
+                        <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 print:bg-white print:border print:border-black print:text-black px-2 py-0.5 rounded-full">
+                          [ACTIF]
                         </span>
                       ) : (
-                        <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                          Inactif
+                        <span className="text-[11px] font-bold bg-slate-100 text-slate-600 print:bg-white print:border print:border-black print:text-black px-2 py-0.5 rounded-full">
+                          [INACTIF]
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-3">
+                    <div className="text-xs text-slate-500 print:text-black mt-1 flex flex-wrap items-center gap-3 font-medium">
                       {statementData.supplier.phone && (
-                        <span className="flex items-center gap-1 font-mono text-slate-700">
-                          <Phone className="h-3.5 w-3.5 text-slate-400" /> {statementData.supplier.phone}
+                        <span className="flex items-center gap-1 font-mono text-slate-700 print:text-black">
+                          <Phone className="h-3.5 w-3.5 text-slate-400 print:hidden" /> Tél : {statementData.supplier.phone}
                         </span>
                       )}
                       {statementData.supplier.address && (
-                        <span className="flex items-center gap-1 text-slate-600">
-                          <MapPin className="h-3.5 w-3.5 text-slate-400" /> {statementData.supplier.address}
+                        <span className="flex items-center gap-1 text-slate-600 print:text-black">
+                          <MapPin className="h-3.5 w-3.5 text-slate-400 print:hidden" /> {statementData.supplier.address}
                         </span>
                       )}
                       {statementData.supplier.notes && (
-                        <span className="text-slate-400 italic">
+                        <span className="text-slate-400 print:text-black italic">
                           &bull; {statementData.supplier.notes}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 print:hidden">
                     <button
                       onClick={() => {
                         setPreselectedSupplierId(statementData.supplier.id);
@@ -732,42 +751,42 @@ export function SuppliersClient({
 
                 {/* Synthèse du compte (Cartes financières) */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4 shrink-0">
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Dette Initiale Antérieure</span>
-                    <span className="font-mono font-bold text-base text-slate-800 mt-1 block">
+                  <div className="bg-slate-50 print:bg-white p-3 rounded-xl border border-slate-200 print:border-2 print:border-black">
+                    <span className="text-[11px] font-black text-slate-500 print:text-black uppercase tracking-wider block">Dette Initiale Antérieure</span>
+                    <span className="font-mono font-bold text-base text-slate-800 print:text-black mt-1 block">
                       {formatDA(statementData.summary.initialDebt)}
                     </span>
                   </div>
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Achats ERP Validés</span>
-                    <span className="font-mono font-bold text-base text-slate-800 mt-1 block">
+                  <div className="bg-slate-50 print:bg-white p-3 rounded-xl border border-slate-200 print:border-2 print:border-black">
+                    <span className="text-[11px] font-black text-slate-500 print:text-black uppercase tracking-wider block">Achats ERP Validés</span>
+                    <span className="font-mono font-bold text-base text-slate-800 print:text-black mt-1 block">
                       {formatDA(statementData.summary.totalPurchases)}
                     </span>
                   </div>
-                  <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200">
-                    <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Règlements Versés</span>
-                    <span className="font-mono font-bold text-base text-emerald-700 mt-1 block">
+                  <div className="bg-emerald-50/70 print:bg-white p-3 rounded-xl border border-emerald-200 print:border-2 print:border-black">
+                    <span className="text-[11px] font-black text-emerald-800 print:text-black uppercase tracking-wider block">Règlements Versés</span>
+                    <span className="font-mono font-bold text-base text-emerald-700 print:text-black mt-1 block">
                       {formatDA(statementData.summary.totalPaid)}
                     </span>
                   </div>
                   {statementData.summary.outstandingDebt > 0 ? (
-                    <div className="bg-rose-50/90 p-3 rounded-xl border border-rose-300 shadow-2xs">
-                      <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider block">Reste Dû au Fournisseur</span>
-                      <span className="font-mono font-black text-lg text-rose-800 mt-1 block">
+                    <div className="bg-rose-50/90 print:bg-white p-3 rounded-xl border border-rose-300 print:border-2 print:border-black shadow-2xs">
+                      <span className="text-[11px] font-black text-rose-800 print:text-black uppercase tracking-wider block">Reste Dû au Fournisseur</span>
+                      <span className="font-mono font-black text-lg text-rose-800 print:text-black mt-1 block">
                         {formatDA(statementData.summary.outstandingDebt)}
                       </span>
                     </div>
                   ) : (statementData.summary.outstandingCredit ?? 0) > 0 ? (
-                    <div className="bg-blue-50/90 p-3 rounded-xl border border-blue-300 shadow-2xs">
-                      <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider block">Crédit Fournisseur (Il nous doit ce montant)</span>
-                      <span className="font-mono font-black text-lg text-blue-800 mt-1 block">
+                    <div className="bg-blue-50/90 print:bg-white p-3 rounded-xl border border-blue-300 print:border-2 print:border-black shadow-2xs">
+                      <span className="text-[11px] font-black text-blue-800 print:text-black uppercase tracking-wider block">Crédit Fournisseur</span>
+                      <span className="font-mono font-black text-lg text-blue-800 print:text-black mt-1 block">
                         +{formatDA(statementData.summary.outstandingCredit!)}
                       </span>
                     </div>
                   ) : (
-                    <div className="bg-emerald-50/90 p-3 rounded-xl border border-emerald-300 shadow-2xs">
-                      <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Solde Fournisseur</span>
-                      <span className="font-mono font-black text-lg text-emerald-800 mt-1 block">
+                    <div className="bg-emerald-50/90 print:bg-white p-3 rounded-xl border border-emerald-300 print:border-2 print:border-black shadow-2xs">
+                      <span className="text-[11px] font-black text-emerald-800 print:text-black uppercase tracking-wider block">Solde Fournisseur</span>
+                      <span className="font-mono font-black text-lg text-emerald-800 print:text-black mt-1 block">
                         0 DA (Soldé)
                       </span>
                     </div>
@@ -776,12 +795,12 @@ export function SuppliersClient({
 
                 {/* Filtre de date pour l'historique */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 mb-2 shrink-0">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <FileText className="h-4 w-4 text-amber-600" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 print:text-black flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-amber-600 print:hidden" />
                     Historique Chronologique des Écritures ({statementData.events.length})
                   </h4>
 
-                  <form onSubmit={handleApplyStatementDateFilter} className="flex items-center gap-2 text-xs">
+                  <form onSubmit={handleApplyStatementDateFilter} className="flex items-center gap-2 text-xs print:hidden">
                     <input
                       type="date"
                       value={statementStartDate}
@@ -815,91 +834,91 @@ export function SuppliersClient({
                 </div>
 
                 {/* Table des écritures chronologiques conforme aux normes comptables */}
-                <div className="overflow-y-auto flex-1 border border-slate-200 rounded-xl">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase sticky top-0 border-b border-slate-200 shadow-2xs">
+                <div className="overflow-y-auto flex-1 border border-slate-200 print:border-2 print:border-black rounded-xl print:rounded-none">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-100 text-slate-700 font-bold uppercase sticky top-0 border-b border-slate-200 print:bg-white print:text-black print:border-b-2 print:border-black shadow-2xs">
                       <tr>
-                        <th className="py-2.5 px-3">Date</th>
-                        <th className="py-2.5 px-3">Référence</th>
-                        <th className="py-2.5 px-3">Type</th>
-                        <th className="py-2.5 px-3">Description</th>
-                        <th className="py-2.5 px-3 text-right text-emerald-800">Débit (-)</th>
-                        <th className="py-2.5 px-3 text-right text-slate-900">Crédit (+)</th>
-                        <th className="py-2.5 px-3 text-right font-black text-rose-900">Reste Dû</th>
+                        <th className="py-2.5 px-3 print:border-r print:border-black font-bold print:text-black">Date</th>
+                        <th className="py-2.5 px-3 print:border-r print:border-black font-mono font-bold print:text-black">Référence</th>
+                        <th className="py-2.5 px-3 print:border-r print:border-black font-bold print:text-black">Type</th>
+                        <th className="py-2.5 px-3 print:border-r print:border-black font-bold print:text-black">Description</th>
+                        <th className="py-2.5 px-3 text-right text-emerald-800 print:text-black print:border-r print:border-black font-bold">Débit (-)</th>
+                        <th className="py-2.5 px-3 text-right text-slate-900 print:text-black print:border-r print:border-black font-bold">Crédit (+)</th>
+                        <th className="py-2.5 px-3 text-right font-black text-rose-900 print:text-black">Reste Dû</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 print:divide-black">
                       {statementData.events.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-12 text-center text-slate-500">
+                          <td colSpan={7} className="py-12 text-center text-slate-500 print:text-black italic">
                             Aucun mouvement enregistré pour ce fournisseur sur cette période.
                           </td>
                         </tr>
                       ) : (
                         statementData.events.map((ev) => (
-                          <tr key={ev.id} className="hover:bg-slate-50/80 transition">
-                            <td className="py-2.5 px-3 font-mono text-slate-600">
+                          <tr key={ev.id} className="hover:bg-slate-50/80 transition print:border-b print:border-black">
+                            <td className="py-2.5 px-3 font-mono text-slate-600 print:text-black print:border-r print:border-black font-medium">
                               {new Date(ev.date).toLocaleDateString("fr-DZ")}
                             </td>
-                            <td className="py-2.5 px-3 font-mono font-bold text-slate-800">
+                            <td className="py-2.5 px-3 font-mono font-bold text-slate-800 print:text-black print:border-r print:border-black">
                               {ev.reference}
                             </td>
-                            <td className="py-2.5 px-3">
+                            <td className="py-2.5 px-3 print:border-r print:border-black">
                               {ev.type === "INITIAL_DEBT" && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-black bg-amber-100 text-amber-900 print:bg-white print:text-black print:border print:border-black">
                                   Dette Antérieure
                                 </span>
                               )}
                               {ev.type === "PURCHASE_INVOICE" && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-100 text-blue-900 border border-blue-200">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-black bg-blue-100 text-blue-900 print:bg-white print:text-black print:border print:border-black">
                                   Achat
                                 </span>
                               )}
                               {ev.type === "PAYMENT" && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-900 border border-emerald-200">
-                                  Règlement Fournisseur
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-black bg-emerald-100 text-emerald-900 print:bg-white print:text-black print:border print:border-black">
+                                  Règlement
                                 </span>
                               )}
                               {ev.type === "ADJUSTMENT" && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-100 text-purple-900 border border-purple-200">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-black bg-purple-100 text-purple-900 print:bg-white print:text-black print:border print:border-black">
                                   Ajustement
                                 </span>
                               )}
                               {ev.type === "RETURN" && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-100 text-rose-900 border border-rose-200">
-                                  Retour Marchandise
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-black bg-rose-100 text-rose-900 print:bg-white print:text-black print:border print:border-black">
+                                  Retour (Avoir)
                                 </span>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-slate-700">
-                              <span className="font-medium text-slate-900 block">{ev.description}</span>
+                            <td className="py-2.5 px-3 text-slate-700 print:text-black print:border-r print:border-black">
+                              <span className="font-bold text-slate-900 print:text-black block">{ev.description}</span>
                               {ev.accountName && (
-                                <span className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                                  <Wallet className="h-3 w-3 text-slate-400" /> Compte : {ev.accountName}
+                                <span className="text-[11px] text-slate-500 print:text-black flex items-center gap-1 mt-0.5 font-medium">
+                                  Compte : {ev.accountName}
                                   {ev.method && ` (${ev.method === "cash" ? "Espèces" : ev.method})`}
                                 </span>
                               )}
                               {ev.notes && (
-                                <span className="text-[11px] text-slate-400 italic block">{ev.notes}</span>
+                                <span className="text-[11px] text-slate-400 print:text-black italic block">{ev.notes}</span>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 print:text-black print:border-r print:border-black">
                               {ev.debit > 0 ? `-${formatDA(ev.debit)}` : "—"}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800 print:text-black print:border-r print:border-black">
                               {ev.credit > 0 ? `+${formatDA(ev.credit)}` : "—"}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-black">
+                            <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900 print:text-black">
                               {ev.runningBalance < 0 ? (
-                                <span className="text-blue-700 font-bold" title="Crédit en notre faveur (le fournisseur nous doit ce montant)">
+                                <span className="text-blue-700 print:text-black font-bold">
                                   +{formatDA(Math.abs(ev.runningBalance))} (Crédit)
                                 </span>
                               ) : ev.runningBalance > 0 ? (
-                                <span className="text-rose-800">
+                                <span className="text-rose-800 print:text-black font-black">
                                   {formatDA(ev.runningBalance)}
                                 </span>
                               ) : (
-                                <span className="text-emerald-700 font-bold">0 DA</span>
+                                <span className="text-emerald-700 print:text-black font-bold">0 DA</span>
                               )}
                             </td>
                           </tr>
@@ -909,7 +928,21 @@ export function SuppliersClient({
                   </table>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 mt-3 border-t border-slate-200 shrink-0">
+                {/* Signatures en bas de page pour impression */}
+                <div className="hidden print:grid grid-cols-2 gap-12 pt-6 border-t-2 border-black text-center text-xs mt-6">
+                  <div>
+                    <p className="font-black uppercase text-[11px]">Visa et Accord du Fournisseur</p>
+                    <p className="text-[10px] italic mb-14">Signature pour rapprochement de compte</p>
+                    <div className="w-48 mx-auto border-b-2 border-dashed border-black"></div>
+                  </div>
+                  <div>
+                    <p className="font-black uppercase text-[11px]">Pour la Direction Shop ERP</p>
+                    <p className="text-[10px] italic mb-14">Cachet et validation comptable</p>
+                    <div className="w-48 mx-auto border-b-2 border-dashed border-black"></div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-4 mt-3 border-t border-slate-200 print:hidden shrink-0">
                   <div className="text-xs text-slate-500">
                     Débit (-) : Règlements réduisant la dette &bull; Crédit (+) : Achats et dettes initiales augmentant la dette.
                   </div>
@@ -926,7 +959,9 @@ export function SuppliersClient({
             )}
           </div>
         </div>
+        </PrintPortal>
       )}
+
 
       {/* ─── MODAL ENREGISTRER UNE DETTE ANTERIEURE ─────────────────────────── */}
       {isInitialDebtOpen && (

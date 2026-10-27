@@ -7,6 +7,7 @@ import {
   DiscrepancyReviewItem,
 } from "@/app/closing/monthly/types";
 import { Printer, X } from "lucide-react";
+import { PrintPortal } from "@/components/common/PrintPortal";
 
 interface PrintableMonthlyReportProps {
   monthLabel: string;
@@ -39,6 +40,7 @@ interface PrintableMonthlyReportProps {
   checklist: MonthlyClosingChecklistItem[];
   discrepancies?: DiscrepancyReviewItem[];
   onClose: () => void;
+  autoPrint?: boolean;
 }
 
 export function PrintableMonthlyReport({
@@ -62,7 +64,19 @@ export function PrintableMonthlyReport({
   checklist,
   discrepancies = [],
   onClose,
+  autoPrint,
 }: PrintableMonthlyReportProps) {
+  const hasAutoPrinted = React.useRef(false);
+  React.useEffect(() => {
+    if (autoPrint && !hasAutoPrinted.current) {
+      hasAutoPrinted.current = true;
+      const timer = setTimeout(() => {
+        window.print();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -79,8 +93,9 @@ export function PrintableMonthlyReport({
   const discrepancyCount = checklist.filter((c) => c.status === "DISCREPANCY").length;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-xs flex justify-center p-2 sm:p-6 print:p-0 print:static print:bg-white print:overflow-visible">
-      <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl flex flex-col print:shadow-none print:rounded-none print:w-full print:max-w-none">
+    <PrintPortal>
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-xs flex justify-center p-2 sm:p-6 print:p-0 print:static print:inset-auto print:block print:bg-white print:w-full print:overflow-visible">
+      <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl flex flex-col print:shadow-none print:rounded-none print:w-full print:max-w-none print:p-0">
         {/* Barre d'action supérieure (masquée à l'impression) */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 rounded-t-2xl print:hidden">
           <div>
@@ -111,16 +126,16 @@ export function PrintableMonthlyReport({
         </div>
 
         {/* CONTENU IMPRIMABLE (A4 officiel) */}
-        <div className="p-8 sm:p-10 space-y-6 text-slate-800 font-sans text-xs print:p-0 print:space-y-4">
+        <div className="p-8 sm:p-10 space-y-6 text-slate-800 font-sans text-xs print:p-0 print:space-y-4 print:text-black">
           {/* En-tête de l'entreprise */}
-          <div className="flex justify-between items-start border-b-2 border-slate-900 pb-5">
+          <div className="flex justify-between items-start border-b-2 border-slate-900 print:border-black pb-5">
             <div>
-              <h1 className="text-xl font-extrabold tracking-tight text-slate-900 uppercase">
+              <h1 className="text-xl font-extrabold tracking-tight text-slate-900 print:text-black uppercase">
                 {shopSettings.shopName}
               </h1>
-              <p className="text-xs text-slate-600 font-medium mt-0.5">{shopSettings.activity}</p>
-              <p className="text-[11px] text-slate-500 mt-1 max-w-md">{shopSettings.address}</p>
-              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-slate-500 mt-1">
+              <p className="text-xs text-slate-600 print:text-black font-semibold mt-0.5">{shopSettings.activity}</p>
+              <p className="text-[11px] text-slate-500 print:text-black mt-1 max-w-md">{shopSettings.address}</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-slate-500 print:text-black mt-1">
                 <span>Tél : {shopSettings.phone}</span>
                 {shopSettings.email && <span>Email : {shopSettings.email}</span>}
                 {shopSettings.nifRc && <span>RC/NIF : {shopSettings.nifRc}</span>}
@@ -129,7 +144,7 @@ export function PrintableMonthlyReport({
 
             <div className="text-right">
               <span
-                className={`inline-block px-3 py-1 text-[11px] font-bold rounded-md uppercase tracking-wider ${
+                className={`inline-block px-3 py-1 text-[11px] font-black rounded-md uppercase tracking-wider print:bg-white print:text-black print:border-2 print:border-black ${
                   status === "FINAL" || isLocked
                     ? "bg-emerald-900 text-emerald-100"
                     : status === "REOPENED"
@@ -147,20 +162,20 @@ export function PrintableMonthlyReport({
                   ? "Prêt pour Approbation"
                   : "Projet de Clôture (Brouillon)"}
               </span>
-              <p className="text-sm font-bold text-slate-900 mt-2">
+              <p className="text-sm font-black text-slate-900 print:text-black mt-2">
                 Réf : {reference || "PROVISOIRE-DIRECT"}
               </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Édité le : {genDateStr}</p>
-              <p className="text-[11px] text-slate-500">Par : {generatedBy || "Opérateur"}</p>
+              <p className="text-[11px] text-slate-500 print:text-black mt-0.5 font-medium">Édité le : {genDateStr}</p>
+              <p className="text-[11px] text-slate-500 print:text-black font-medium">Par : {generatedBy || "Opérateur"}</p>
               {approvedBy && (
-                <div className="mt-1 pt-1 border-t border-slate-200 text-[10px] text-emerald-800">
-                  <span className="font-semibold">Approuvé par :</span> {approvedBy}
+                <div className="mt-1 pt-1 border-t border-slate-200 print:border-black text-[10px] text-emerald-800 print:text-black">
+                  <span className="font-bold">Approuvé par :</span> {approvedBy}
                   {approvedAt && <div>le {new Date(approvedAt).toLocaleString("fr-DZ", { timeZone: "Africa/Algiers" })}</div>}
                 </div>
               )}
               {reopenedBy && (
-                <div className="mt-1 pt-1 border-t border-amber-200 text-[10px] text-amber-800">
-                  <span className="font-semibold">Rouvert par :</span> {reopenedBy}
+                <div className="mt-1 pt-1 border-t border-amber-200 print:border-black text-[10px] text-amber-800 print:text-black">
+                  <span className="font-bold">Rouvert par :</span> {reopenedBy}
                   {reopenReason && <div className="italic">« {reopenReason} »</div>}
                 </div>
               )}
@@ -168,72 +183,72 @@ export function PrintableMonthlyReport({
           </div>
 
           {/* Titre et Période */}
-          <div className="bg-slate-100 rounded-lg p-3 text-center border border-slate-200">
-            <h2 className="text-sm font-black uppercase text-slate-900 tracking-wide">
+          <div className="bg-slate-100 rounded-lg p-3 text-center border border-slate-200 print:bg-white print:border-2 print:border-black">
+            <h2 className="text-sm font-black uppercase text-slate-900 print:text-black tracking-wide">
               Procès-Verbal de Clôture Mensuelle & Rapprochement Financier
             </h2>
-            <p className="text-xs font-semibold text-slate-700 mt-1">
-              Mois : <span className="text-amber-700 font-bold">{monthLabel}</span> | Période : du {periodStartStr} au {periodEndStr}
+            <p className="text-xs font-bold text-slate-700 print:text-black mt-1">
+              Mois : <span className="font-black uppercase">{monthLabel}</span> | Période : du {periodStartStr} au {periodEndStr}
             </p>
-            <p className="text-[10px] text-slate-500 mt-0.5">
+            <p className="text-[10px] text-slate-500 print:text-black mt-0.5 font-medium">
               Fuseau horaire de référence : Afrique / Alger (UTC+1) — Données consolidées de gestion
             </p>
           </div>
 
           {/* TABLEAU 1 : CHIFFRE D'AFFAIRES & ENCAISSEMENTS RÉELS */}
           <div>
-            <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 mb-2 border-b border-slate-300 pb-1 flex justify-between items-center">
-              <span>1. Activité Commerciale & Encaissements Réels</span>
-              <span className="text-[10px] lowercase font-normal text-slate-500">
+            <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 print:text-black mb-2 border-b-2 border-slate-300 print:border-black pb-1 flex justify-between items-center">
+              <span>1. Activité Commerciale &amp; Encaissements Réels</span>
+              <span className="text-[10px] lowercase font-normal text-slate-500 print:text-black">
                 (Distinction rigoureuse : facturation confirmée vs flux réels perçus)
               </span>
             </h3>
-            <table className="w-full border-collapse border border-slate-300 text-[11px]">
+            <table className="w-full border-collapse border border-slate-300 print:border-2 print:border-black text-[11px]">
               <thead>
-                <tr className="bg-slate-100 text-slate-700">
-                  <th className="border border-slate-300 p-1.5 text-left">Rubrique Commerciale</th>
-                  <th className="border border-slate-300 p-1.5 text-right">Montant Facturé</th>
-                  <th className="border border-slate-300 p-1.5 text-left">Mode de Règlement Réel</th>
-                  <th className="border border-slate-300 p-1.5 text-right">Montant Encaissé</th>
+                <tr className="bg-slate-100 text-slate-700 print:bg-white print:text-black print:border-b-2 print:border-black font-bold">
+                  <th className="border border-slate-300 print:border-black p-1.5 text-left">Rubrique Commerciale</th>
+                  <th className="border border-slate-300 print:border-black p-1.5 text-right">Montant Facturé</th>
+                  <th className="border border-slate-300 print:border-black p-1.5 text-left">Mode de Règlement Réel</th>
+                  <th className="border border-slate-300 print:border-black p-1.5 text-right">Montant Encaissé</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td className="border border-slate-300 p-1.5 font-medium">Sous-total articles vendus ({totals.sales.confirmedCount ?? totals.sales.count} factures)</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-mono">{formatMoney(totals.sales.subtotal)}</td>
-                  <td className="border border-slate-300 p-1.5 font-medium">Espèces reçues (Caisse & Coffre)</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-mono">{formatMoney(totals.collections.cash)}</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 font-medium">Sous-total articles vendus ({totals.sales.confirmedCount ?? totals.sales.count} factures)</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-bold">{formatMoney(totals.sales.subtotal)}</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 font-medium">Espèces reçues (Caisse &amp; Coffre)</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-bold">{formatMoney(totals.collections.cash)}</td>
                 </tr>
                 <tr>
-                  <td className="border border-slate-300 p-1.5 text-slate-600">Frais de livraison inclus dans factures</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-mono">+{formatMoney(totals.sales.deliveryFeesIncluded ?? totals.sales.deliveryFees)}</td>
-                  <td className="border border-slate-300 p-1.5 text-slate-600">Chèques encaissés</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-mono">{formatMoney(totals.collections.check)}</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-slate-600 print:text-black">Frais de livraison inclus dans factures</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-medium">+{formatMoney(totals.sales.deliveryFeesIncluded ?? totals.sales.deliveryFees)}</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-slate-600 print:text-black">Chèques encaissés</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-medium">{formatMoney(totals.collections.check)}</td>
                 </tr>
                 <tr>
-                  <td className="border border-slate-300 p-1.5 text-slate-600">Remises commerciales accordées</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-mono">-{formatMoney(totals.sales.discounts)}</td>
-                  <td className="border border-slate-300 p-1.5 text-slate-600">Virements bancaires & CIB</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-mono">{formatMoney(totals.collections.transfer + totals.collections.cib)}</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-slate-600 print:text-black">Remises commerciales accordées</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-medium">-{formatMoney(totals.sales.discounts)}</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-slate-600 print:text-black">Virements bancaires &amp; CIB</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-medium">{formatMoney(totals.collections.transfer + totals.collections.cib)}</td>
                 </tr>
                 <tr>
-                  <td className="border border-slate-300 p-1.5 text-slate-600">Coût d&apos;achat estimé des ventes (COGS)</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-mono">{formatMoney(totals.sales.costOfGoodsSoldEstimated)}</td>
-                  <td className="border border-slate-300 p-1.5 text-slate-600">Acomptes clients reçus dans le mois</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-mono">{formatMoney(totals.collections.customerAdvancesReceived)}</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-slate-600 print:text-black">Coût d&apos;achat estimé des ventes (COGS)</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-medium">{formatMoney(totals.sales.costOfGoodsSoldEstimated)}</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-slate-600 print:text-black">Acomptes clients reçus dans le mois</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-medium">{formatMoney(totals.collections.customerAdvancesReceived)}</td>
                 </tr>
-                <tr className="bg-slate-50 font-bold">
-                  <td className="border border-slate-300 p-1.5 text-slate-900">Total Chiffre d&apos;Affaires Facturé Net</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-mono text-slate-900">{formatMoney(totals.sales.totalInvoiced)}</td>
-                  <td className="border border-slate-300 p-1.5 text-slate-900">Total Encaissements Réels perçus</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-mono text-emerald-700">{formatMoney(totals.collections.totalCollected)}</td>
+                <tr className="bg-slate-50 print:bg-white font-bold border-t-2 border-slate-300 print:border-t-2 print:border-black">
+                  <td className="border border-slate-300 print:border-black p-1.5 text-slate-900 print:text-black uppercase font-black">Total Chiffre d&apos;Affaires Facturé Net</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono text-slate-900 print:text-black font-black">{formatMoney(totals.sales.totalInvoiced)}</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-slate-900 print:text-black uppercase font-black">Total Encaissements Réels perçus</td>
+                  <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono text-emerald-700 print:text-black font-black">{formatMoney(totals.collections.totalCollected)}</td>
                 </tr>
                 {(totals.sales.draftQuotesCount ?? 0) > 0 && (
-                  <tr className="bg-amber-50/40 text-[10.5px]">
-                    <td className="border border-slate-300 p-1 text-slate-600 italic" colSpan={2}>
+                  <tr className="bg-amber-50/40 print:bg-white text-[10.5px]">
+                    <td className="border border-slate-300 print:border-black p-1 text-slate-600 print:text-black italic" colSpan={2}>
                       Note : +{formatMoney(totals.sales.draftQuotesTotal ?? 0)} sur {totals.sales.draftQuotesCount} devis en cours (dont {formatMoney(totals.sales.draftQuotesPaid ?? 0)} perçus en acompte). Volume commercial total : {formatMoney(totals.sales.totalCommercialVolume ?? totals.sales.totalInvoiced)}.
                     </td>
-                    <td className="border border-slate-300 p-1 text-slate-500 italic" colSpan={2}>
+                    <td className="border border-slate-300 print:border-black p-1 text-slate-500 print:text-black italic" colSpan={2}>
                       Frais transporteur non inclus : {formatMoney(totals.sales.deliveryFeesExcluded ?? 0)}
                     </td>
                   </tr>
@@ -245,65 +260,65 @@ export function PrintableMonthlyReport({
           {/* TABLEAU 2 : SITUATION FOURNISSEURS, CHARGES & CRÉANCES */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 mb-2 border-b border-slate-300 pb-1">
-                2. Achats & Situation Fournisseurs
+              <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 print:text-black mb-2 border-b-2 border-slate-300 print:border-black pb-1">
+                2. Achats &amp; Situation Fournisseurs
               </h3>
-              <table className="w-full border-collapse border border-slate-300 text-[11px]">
+              <table className="w-full border-collapse border border-slate-300 print:border-2 print:border-black text-[11px]">
                 <tbody>
                   <tr>
-                    <td className="border border-slate-300 p-1.5">Achats facturés dans le mois ({totals.purchases.count})</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono font-medium">{formatMoney(totals.purchases.totalInvoiced)}</td>
+                    <td className="border border-slate-300 print:border-black p-1.5">Achats facturés dans le mois ({totals.purchases.count})</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-bold">{formatMoney(totals.purchases.totalInvoiced)}</td>
                   </tr>
                   <tr>
-                    <td className="border border-slate-300 p-1.5">Règlements fournisseurs effectués</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono text-amber-700 font-medium">{formatMoney(totals.purchases.supplierPaymentsMade)}</td>
+                    <td className="border border-slate-300 print:border-black p-1.5">Règlements fournisseurs effectués</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono text-amber-700 print:text-black font-bold">{formatMoney(totals.purchases.supplierPaymentsMade)}</td>
                   </tr>
                   <tr>
-                    <td className="border border-slate-300 p-1.5">Retours marchandises / Avoirs ({totals.purchases.supplierReturnsCount})</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono text-emerald-700">-{formatMoney(totals.purchases.supplierReturnsAmount)}</td>
+                    <td className="border border-slate-300 print:border-black p-1.5">Retours marchandises / Avoirs ({totals.purchases.supplierReturnsCount})</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono text-emerald-700 print:text-black font-bold">-{formatMoney(totals.purchases.supplierReturnsAmount)}</td>
                   </tr>
-                  <tr className="bg-slate-50 font-bold">
-                    <td className="border border-slate-300 p-1.5">Dette totale arrêtée ({totals.purchases.creditorsCount} fourn.)</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono text-rose-700">{formatMoney(totals.purchases.totalOutstandingDebtAtEnd)}</td>
+                  <tr className="bg-slate-50 print:bg-white font-bold border-t-2 border-slate-300 print:border-t-2 print:border-black">
+                    <td className="border border-slate-300 print:border-black p-1.5 uppercase font-black">Dette totale arrêtée ({totals.purchases.creditorsCount} fourn.)</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono text-rose-700 print:text-black font-black">{formatMoney(totals.purchases.totalOutstandingDebtAtEnd)}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
             <div>
-              <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 mb-2 border-b border-slate-300 pb-1">
-                3. Charges d&apos;Exploitation & Créances
+              <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 print:text-black mb-2 border-b-2 border-slate-300 print:border-black pb-1">
+                3. Charges d&apos;Exploitation &amp; Créances
               </h3>
-              <table className="w-full border-collapse border border-slate-300 text-[11px]">
+              <table className="w-full border-collapse border border-slate-300 print:border-2 print:border-black text-[11px]">
                 <tbody>
                   <tr>
-                    <td className="border border-slate-300 p-1.5">Charges d&apos;exploitation du mois</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono font-medium text-rose-700">{formatMoney(totals.expenses.totalOperating)}</td>
+                    <td className="border border-slate-300 print:border-black p-1.5">Charges d&apos;exploitation du mois</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-bold text-rose-700 print:text-black">{formatMoney(totals.expenses.totalOperating)}</td>
                   </tr>
                   <tr>
-                    <td className="border border-slate-300 p-1.5">Produits / Apports exceptionnels</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono font-medium text-emerald-700">{formatMoney(totals.expenses.exceptionalIncome)}</td>
+                    <td className="border border-slate-300 print:border-black p-1.5">Produits / Apports exceptionnels</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-bold text-emerald-700 print:text-black">{formatMoney(totals.expenses.exceptionalIncome)}</td>
                   </tr>
                   <tr>
-                    <td className="border border-slate-300 p-1.5">
+                    <td className="border border-slate-300 print:border-black p-1.5">
                       Créances factures au 31 ({totals.customerDebt.debtorsCount} débiteurs)
-                      <span className="block text-[9.5px] text-slate-500 font-medium">
+                      <span className="block text-[9.5px] text-slate-500 print:text-black font-medium">
                         Factures de vente confirmées uniquement
                       </span>
                     </td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono font-medium">{formatMoney(totals.customerDebt.totalOutstanding)}</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-bold">{formatMoney(totals.customerDebt.totalOutstanding)}</td>
                   </tr>
                   {(totals.customerDebt.draftQuotesRemaining ?? 0) > 0 && (
-                    <tr className="text-slate-500 text-[10.5px]">
-                      <td className="border border-slate-300 p-1.5">
+                    <tr className="text-slate-500 print:text-black text-[10.5px]">
+                      <td className="border border-slate-300 print:border-black p-1.5">
                         Solde restant sur devis en cours (hors créances exigibles)
                       </td>
-                      <td className="border border-slate-300 p-1.5 text-right font-mono">{formatMoney(totals.customerDebt.draftQuotesRemaining ?? 0)}</td>
+                      <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-medium">{formatMoney(totals.customerDebt.draftQuotesRemaining ?? 0)}</td>
                     </tr>
                   )}
-                  <tr className="bg-slate-50 font-bold">
-                    <td className="border border-slate-300 p-1.5">Marge brute d&apos;exploitation estimée</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono text-emerald-700">{formatMoney(totals.sales.grossMarginEstimated)}</td>
+                  <tr className="bg-slate-50 print:bg-white font-bold border-t-2 border-slate-300 print:border-t-2 print:border-black">
+                    <td className="border border-slate-300 print:border-black p-1.5 uppercase font-black">Marge brute d&apos;exploitation estimée</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono text-emerald-700 print:text-black font-black">{formatMoney(totals.sales.grossMarginEstimated)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -312,47 +327,47 @@ export function PrintableMonthlyReport({
 
           {/* TABLEAU 3 : COMPTES DE TRÉSORERIE & VIREMENTS INTER-COMPTES */}
           <div>
-            <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 mb-2 border-b border-slate-300 pb-1 flex justify-between items-center">
-              <span>4. Comptes de Trésorerie & Virements Internes</span>
-              <span className="text-[10px] text-slate-500 font-normal">
+            <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 print:text-black mb-2 border-b-2 border-slate-300 print:border-black pb-1 flex justify-between items-center">
+              <span>4. Comptes de Trésorerie &amp; Virements Internes</span>
+              <span className="text-[10px] text-slate-500 print:text-black font-normal">
                 Virements : {formatMoney(totals.treasury.totalTransfersVolume)} (Dont {formatMoney(totals.cashSessions.closingTransfersTotal)} clôtures caisse + {formatMoney(totals.cashSessions.manualTransfersTotal ?? 0)} ponctuel) • Strictement neutre
               </span>
             </h3>
-            <table className="w-full border-collapse border border-slate-300 text-[10.5px]">
+            <table className="w-full border-collapse border border-slate-300 print:border-2 print:border-black text-[10.5px]">
               <thead>
-                <tr className="bg-slate-100 text-slate-700">
-                  <th className="border border-slate-300 p-1 text-left">Compte</th>
-                  <th className="border border-slate-300 p-1 text-left">Type</th>
-                  <th className="border border-slate-300 p-1 text-right">Solde Début</th>
-                  <th className="border border-slate-300 p-1 text-right">Virements Reçus (+)</th>
-                  <th className="border border-slate-300 p-1 text-right">Virements Émis (-)</th>
-                  <th className="border border-slate-300 p-1 text-right">Autres Entrées</th>
-                  <th className="border border-slate-300 p-1 text-right">Autres Sorties</th>
-                  <th className="border border-slate-300 p-1 text-right">Solde Clôture</th>
+                <tr className="bg-slate-100 text-slate-700 print:bg-white print:text-black print:border-b-2 print:border-black font-bold">
+                  <th className="border border-slate-300 print:border-black p-1 text-left">Compte</th>
+                  <th className="border border-slate-300 print:border-black p-1 text-left">Type</th>
+                  <th className="border border-slate-300 print:border-black p-1 text-right">Solde Début</th>
+                  <th className="border border-slate-300 print:border-black p-1 text-right">Virements Reçus (+)</th>
+                  <th className="border border-slate-300 print:border-black p-1 text-right">Virements Émis (-)</th>
+                  <th className="border border-slate-300 print:border-black p-1 text-right">Autres Entrées</th>
+                  <th className="border border-slate-300 print:border-black p-1 text-right">Autres Sorties</th>
+                  <th className="border border-slate-300 print:border-black p-1 text-right">Solde Clôture</th>
                 </tr>
               </thead>
               <tbody>
                 {totals.treasury.accounts.map((acc) => (
                   <tr key={acc.id}>
-                    <td className="border border-slate-300 p-1 font-semibold">{acc.name}</td>
-                    <td className="border border-slate-300 p-1 text-slate-500 uppercase text-[9px]">{acc.type}</td>
-                    <td className="border border-slate-300 p-1 text-right font-mono">{formatMoney(acc.openingBalance)}</td>
-                    <td className="border border-slate-300 p-1 text-right font-mono text-emerald-700">{acc.transfersIn > 0 ? `+${formatMoney(acc.transfersIn)}` : "0"}</td>
-                    <td className="border border-slate-300 p-1 text-right font-mono text-rose-700">{acc.transfersOut > 0 ? `-${formatMoney(acc.transfersOut)}` : "0"}</td>
-                    <td className="border border-slate-300 p-1 text-right font-mono text-emerald-700">{acc.otherInflows > 0 ? `+${formatMoney(acc.otherInflows)}` : "0"}</td>
-                    <td className="border border-slate-300 p-1 text-right font-mono text-rose-700">{acc.otherOutflows > 0 ? `-${formatMoney(acc.otherOutflows)}` : "0"}</td>
-                    <td className="border border-slate-300 p-1 text-right font-mono font-bold text-slate-900">{formatMoney(acc.closingBalance)}</td>
+                    <td className="border border-slate-300 print:border-black p-1 font-bold">{acc.name}</td>
+                    <td className="border border-slate-300 print:border-black p-1 text-slate-500 print:text-black uppercase text-[9px] font-semibold">{acc.type}</td>
+                    <td className="border border-slate-300 print:border-black p-1 text-right font-mono font-medium">{formatMoney(acc.openingBalance)}</td>
+                    <td className="border border-slate-300 print:border-black p-1 text-right font-mono text-emerald-700 print:text-black font-bold">{acc.transfersIn > 0 ? `+${formatMoney(acc.transfersIn)}` : "0"}</td>
+                    <td className="border border-slate-300 print:border-black p-1 text-right font-mono text-rose-700 print:text-black font-bold">{acc.transfersOut > 0 ? `-${formatMoney(acc.transfersOut)}` : "0"}</td>
+                    <td className="border border-slate-300 print:border-black p-1 text-right font-mono text-emerald-700 print:text-black font-bold">{acc.otherInflows > 0 ? `+${formatMoney(acc.otherInflows)}` : "0"}</td>
+                    <td className="border border-slate-300 print:border-black p-1 text-right font-mono text-rose-700 print:text-black font-bold">{acc.otherOutflows > 0 ? `-${formatMoney(acc.otherOutflows)}` : "0"}</td>
+                    <td className="border border-slate-300 print:border-black p-1 text-right font-mono font-black text-slate-900 print:text-black">{formatMoney(acc.closingBalance)}</td>
                   </tr>
                 ))}
-                <tr className="bg-slate-100 font-bold">
-                  <td colSpan={2} className="border border-slate-300 p-1 text-slate-900">Total Trésorerie Consolidée</td>
-                  <td className="border border-slate-300 p-1 text-right font-mono">{formatMoney(totals.treasury.totalOpening)}</td>
-                  <td className="border border-slate-300 p-1 text-right font-mono text-emerald-700">+{formatMoney(totals.treasury.totalTransfersVolume)}</td>
-                  <td className="border border-slate-300 p-1 text-right font-mono text-rose-700">-{formatMoney(totals.treasury.totalTransfersVolume)}</td>
-                  <td className="border border-slate-300 p-1 text-right font-mono" colSpan={2}>
+                <tr className="bg-slate-100 print:bg-white font-bold border-t-2 border-slate-300 print:border-t-2 print:border-black">
+                  <td colSpan={2} className="border border-slate-300 print:border-black p-1 text-slate-900 print:text-black uppercase font-black">Total Trésorerie Consolidée</td>
+                  <td className="border border-slate-300 print:border-black p-1 text-right font-mono font-bold">{formatMoney(totals.treasury.totalOpening)}</td>
+                  <td className="border border-slate-300 print:border-black p-1 text-right font-mono text-emerald-700 print:text-black font-bold">+{formatMoney(totals.treasury.totalTransfersVolume)}</td>
+                  <td className="border border-slate-300 print:border-black p-1 text-right font-mono text-rose-700 print:text-black font-bold">-{formatMoney(totals.treasury.totalTransfersVolume)}</td>
+                  <td className="border border-slate-300 print:border-black p-1 text-right font-mono font-bold" colSpan={2}>
                     Variation nette : {totals.treasury.netVariation >= 0 ? `+${formatMoney(totals.treasury.netVariation)}` : formatMoney(totals.treasury.netVariation)}
                   </td>
-                  <td className="border border-slate-300 p-1 text-right font-mono text-slate-950 font-black">{formatMoney(totals.treasury.totalClosing)}</td>
+                  <td className="border border-slate-300 print:border-black p-1 text-right font-mono text-slate-950 print:text-black font-black text-sm">{formatMoney(totals.treasury.totalClosing)}</td>
                 </tr>
               </tbody>
             </table>
@@ -361,36 +376,36 @@ export function PrintableMonthlyReport({
           {/* TABLEAU 4 : VALORISATION DES STOCKS & SESSIONS DE CAISSE */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 mb-2 border-b border-slate-300 pb-1">
+              <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 print:text-black mb-2 border-b-2 border-slate-300 print:border-black pb-1">
                 5. Sessions de Caisse Journalière
               </h3>
-              <table className="w-full border-collapse border border-slate-300 text-[11px]">
+              <table className="w-full border-collapse border border-slate-300 print:border-2 print:border-black text-[11px]">
                 <tbody>
                   <tr>
-                    <td className="border border-slate-300 p-1.5">Nombre total de sessions</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono font-bold">{totals.cashSessions.totalCount} ({totals.cashSessions.closedCount} fermées, {totals.cashSessions.openCount} ouvertes)</td>
+                    <td className="border border-slate-300 print:border-black p-1.5">Nombre total de sessions</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-black">{totals.cashSessions.totalCount} ({totals.cashSessions.closedCount} fermées, {totals.cashSessions.openCount} ouvertes)</td>
                   </tr>
                   <tr>
-                    <td className="border border-slate-300 p-1.5">Espèces réelles comptées au tiroir</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono font-medium">{formatMoney(totals.cashSessions.closingCountedTotal)}</td>
+                    <td className="border border-slate-300 print:border-black p-1.5">Espèces réelles comptées au tiroir</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-bold">{formatMoney(totals.cashSessions.closingCountedTotal)}</td>
                   </tr>
                   <tr>
-                    <td className="border border-slate-300 p-1.5">Transferts de clôture vers coffre</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono">{formatMoney(totals.cashSessions.closingTransfersTotal)}</td>
+                    <td className="border border-slate-300 print:border-black p-1.5">Transferts de clôture vers coffre</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-bold">{formatMoney(totals.cashSessions.closingTransfersTotal)}</td>
                   </tr>
                   {(totals.cashSessions.manualTransfersTotal ?? 0) > 0 && (
                     <tr>
-                      <td className="border border-slate-300 p-1.5 text-slate-500">Transferts ponctuels hors session</td>
-                      <td className="border border-slate-300 p-1.5 text-right font-mono text-slate-600">+{formatMoney(totals.cashSessions.manualTransfersTotal ?? 0)}</td>
+                      <td className="border border-slate-300 print:border-black p-1.5 text-slate-500 print:text-black">Transferts ponctuels hors session</td>
+                      <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono text-slate-600 print:text-black font-medium">+{formatMoney(totals.cashSessions.manualTransfersTotal ?? 0)}</td>
                     </tr>
                   )}
-                  <tr className="bg-slate-50 font-bold">
-                    <td className="border border-slate-300 p-1.5">Écart de caisse cumulé</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-mono">
+                  <tr className="bg-slate-50 print:bg-white font-bold border-t-2 border-slate-300 print:border-t-2 print:border-black">
+                    <td className="border border-slate-300 print:border-black p-1.5 uppercase font-black">Écart de caisse cumulé</td>
+                    <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-black">
                       {totals.cashSessions.discrepancyTotal === 0 ? (
-                        <span className="text-emerald-700">0 DA (Conforme)</span>
+                        <span className="text-emerald-700 print:text-black">0 DA (Conforme)</span>
                       ) : (
-                        <span className="text-rose-700">{formatMoney(totals.cashSessions.discrepancyTotal)}</span>
+                        <span className="text-rose-700 print:text-black">{formatMoney(totals.cashSessions.discrepancyTotal)}</span>
                       )}
                     </td>
                   </tr>
@@ -399,40 +414,40 @@ export function PrintableMonthlyReport({
             </div>
 
             <div>
-              <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 mb-2 border-b border-slate-300 pb-1 flex justify-between items-center">
+              <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 print:text-black mb-2 border-b-2 border-slate-300 print:border-black pb-1 flex justify-between items-center">
                 <span>6. Valorisation Globale des Stocks</span>
-                <span className="text-[9.5px] font-normal text-slate-500">
+                <span className="text-[9.5px] font-bold text-slate-500 print:text-black uppercase">
                   {totals.stock.valuationBasis === "SNAPSHOT" ? "Arrêté figé" : totals.stock.valuationBasis === "UNAVAILABLE" ? "Non disponible" : "Temps réel"}
                 </span>
               </h3>
               {totals.stock.valuationBasis === "UNAVAILABLE" ? (
-                <div className="p-3 text-center border border-slate-300 bg-slate-50 text-slate-500 text-[11px] italic">
+                <div className="p-3 text-center border border-slate-300 print:border-2 print:border-black bg-slate-50 print:bg-white text-slate-500 print:text-black text-[11px] italic">
                   Valorisation historique indisponible : les mouvements et coûts historiques ne permettent pas une reconstitution rétroactive fiable. Aucun snapshot archivé pour ce mois.
                 </div>
               ) : (
-                <table className="w-full border-collapse border border-slate-300 text-[11px]">
+                <table className="w-full border-collapse border border-slate-300 print:border-2 print:border-black text-[11px]">
                   <tbody>
                     <tr>
-                      <td className="border border-slate-300 p-1.5">Quantité totale d&apos;articles en stock</td>
-                      <td className="border border-slate-300 p-1.5 text-right font-mono font-bold">{totals.stock.totalQuantity} pièces</td>
+                      <td className="border border-slate-300 print:border-black p-1.5">Quantité totale d&apos;articles en stock</td>
+                      <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-black">{totals.stock.totalQuantity} pièces</td>
                     </tr>
                     <tr>
-                      <td className="border border-slate-300 p-1.5">Valorisation au Coût d&apos;Achat (PMP/Revient)</td>
-                      <td className="border border-slate-300 p-1.5 text-right font-mono font-bold text-slate-900">{formatMoney(totals.stock.valuationCost)}</td>
+                      <td className="border border-slate-300 print:border-black p-1.5">Valorisation au Coût d&apos;Achat (PMP/Revient)</td>
+                      <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-black text-slate-900 print:text-black">{formatMoney(totals.stock.valuationCost)}</td>
                     </tr>
                     <tr>
-                      <td className="border border-slate-300 p-1.5">Valorisation au Prix de Vente Catalogue</td>
-                      <td className="border border-slate-300 p-1.5 text-right font-mono font-medium">{formatMoney(totals.stock.valuationSelling)}</td>
+                      <td className="border border-slate-300 print:border-black p-1.5">Valorisation au Prix de Vente Catalogue</td>
+                      <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono font-bold">{formatMoney(totals.stock.valuationSelling)}</td>
                     </tr>
-                    <tr className="bg-slate-50 font-bold">
-                      <td className="border border-slate-300 p-1.5">Marge potentielle brute théorique</td>
-                      <td className="border border-slate-300 p-1.5 text-right font-mono text-emerald-700">{formatMoney(totals.stock.potentialMargin)}</td>
+                    <tr className="bg-slate-50 print:bg-white font-bold border-t-2 border-slate-300 print:border-t-2 print:border-black">
+                      <td className="border border-slate-300 print:border-black p-1.5 uppercase font-black">Marge potentielle brute théorique</td>
+                      <td className="border border-slate-300 print:border-black p-1.5 text-right font-mono text-emerald-700 print:text-black font-black">{formatMoney(totals.stock.potentialMargin)}</td>
                     </tr>
                   </tbody>
                 </table>
               )}
               {totals.stock.valuationNotice && (
-                <p className="text-[9px] text-slate-400 italic mt-1 leading-tight">
+                <p className="text-[9px] text-slate-400 print:text-black italic mt-1 leading-tight">
                   * {totals.stock.valuationNotice}
                 </p>
               )}
@@ -441,47 +456,47 @@ export function PrintableMonthlyReport({
 
           {/* TABLEAU 5 : GRILLE DE POINTAGE & CONTRÔLE (CHECKLIST) */}
           <div className="break-before-page">
-            <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 mb-2 border-b border-slate-300 pb-1 flex justify-between items-center">
-              <span>7. Grille de Pointage & Rapprochement de Clôture (10 Contrôles)</span>
-              <span className="text-[10px] font-bold text-slate-700">
+            <h3 className="font-bold text-xs uppercase tracking-wide text-slate-900 print:text-black mb-2 border-b-2 border-slate-300 print:border-black pb-1 flex justify-between items-center">
+              <span>7. Grille de Pointage &amp; Rapprochement de Clôture (10 Contrôles)</span>
+              <span className="text-[10px] font-black text-slate-700 print:text-black">
                 Progression : {validatedCount}/10 Validé(s) {discrepancyCount > 0 ? `(${discrepancyCount} écarts)` : ""}
               </span>
             </h3>
-            <table className="w-full border-collapse border border-slate-300 text-[10.5px]">
+            <table className="w-full border-collapse border border-slate-300 print:border-2 print:border-black text-[10.5px]">
               <thead>
-                <tr className="bg-slate-100 text-slate-700">
-                  <th className="border border-slate-300 p-1 text-left w-1/3">Point de Contrôle</th>
-                  <th className="border border-slate-300 p-1 text-center w-28">Statut</th>
-                  <th className="border border-slate-300 p-1 text-left">Observations & Justifications</th>
-                  <th className="border border-slate-300 p-1 text-right w-24">Visa / Date</th>
+                <tr className="bg-slate-100 text-slate-700 print:bg-white print:text-black print:border-b-2 print:border-black font-bold">
+                  <th className="border border-slate-300 print:border-black p-1 text-left w-1/3">Point de Contrôle</th>
+                  <th className="border border-slate-300 print:border-black p-1 text-center w-32">Statut</th>
+                  <th className="border border-slate-300 print:border-black p-1 text-left">Observations &amp; Justifications</th>
+                  <th className="border border-slate-300 print:border-black p-1 text-right w-24">Visa / Date</th>
                 </tr>
               </thead>
               <tbody>
                 {checklist.map((item) => {
                   const statusBadge =
                     item.status === "VALIDATED" ? (
-                      <span className="font-bold text-emerald-700">✓ Validé</span>
+                      <span className="font-bold text-emerald-700 print:text-black print:font-black">[ ✓ VALIDÉ ]</span>
                     ) : item.status === "DISCREPANCY" ? (
-                      <span className="font-bold text-rose-700">⚠ Écart à résoudre</span>
+                      <span className="font-bold text-rose-700 print:text-black print:font-black print:border-2 print:border-black print:px-1">[ ⚠ ÉCART ]</span>
                     ) : item.status === "NOT_APPLICABLE" ? (
-                      <span className="text-slate-500">Non applicable</span>
+                      <span className="text-slate-500 print:text-black">[ N/A ]</span>
                     ) : (
-                      <span className="text-amber-700 font-semibold">À vérifier</span>
+                      <span className="text-amber-700 font-bold print:text-black">[ À VÉRIFIER ]</span>
                     );
 
                   return (
                     <tr key={item.key}>
-                      <td className="border border-slate-300 p-1">
-                        <p className="font-bold text-slate-900">{item.label}</p>
-                        <p className="text-[9.5px] text-slate-500">{item.description}</p>
+                      <td className="border border-slate-300 print:border-black p-1">
+                        <p className="font-bold text-slate-900 print:text-black">{item.label}</p>
+                        <p className="text-[9.5px] text-slate-500 print:text-black">{item.description}</p>
                       </td>
-                      <td className="border border-slate-300 p-1 text-center bg-slate-50/50">
+                      <td className="border border-slate-300 print:border-black p-1 text-center bg-slate-50/50 print:bg-white font-mono">
                         {statusBadge}
                       </td>
-                      <td className="border border-slate-300 p-1 text-slate-700 italic">
+                      <td className="border border-slate-300 print:border-black p-1 text-slate-700 print:text-black italic">
                         {item.note || "—"}
                       </td>
-                      <td className="border border-slate-300 p-1 text-right text-[9.5px] text-slate-500">
+                      <td className="border border-slate-300 print:border-black p-1 text-right text-[9.5px] text-slate-500 print:text-black font-medium">
                         {item.checkedBy || "Opérateur"}
                         {item.checkedAt && (
                           <div className="text-[8.5px]">
@@ -498,11 +513,11 @@ export function PrintableMonthlyReport({
 
           {/* SECTION 6 : ANOMALIES & ÉCARTS DOCUMENTÉS */}
           {discrepancies.length > 0 && (
-            <div className="bg-amber-50/60 border border-amber-200 rounded-lg p-3">
-              <h4 className="font-bold text-[11px] text-amber-900 uppercase mb-1">
-                Points d&apos;Arbitrage & Anomalies Détectés ({discrepancies.length})
+            <div className="bg-amber-50/60 border border-amber-200 print:bg-white print:border-2 print:border-black print:text-black rounded-lg p-3">
+              <h4 className="font-bold text-[11px] text-amber-900 print:text-black uppercase mb-1">
+                [ Points d&apos;Arbitrage &amp; Anomalies Détectés ({discrepancies.length}) ]
               </h4>
-              <ul className="list-disc list-inside space-y-1 text-[10.5px] text-amber-950">
+              <ul className="list-disc list-inside space-y-1 text-[10.5px] text-amber-950 print:text-black">
                 {discrepancies.map((d) => (
                   <li key={d.id}>
                     <strong>{d.title}</strong> : {d.details}
@@ -514,37 +529,38 @@ export function PrintableMonthlyReport({
 
           {/* NOTES GÉNÉRALES DU SNAPSHOT */}
           {notes && (
-            <div className="border border-slate-200 bg-slate-50 p-2.5 rounded-lg text-[10.5px]">
-              <span className="font-bold text-slate-900">Commentaire de clôture : </span>
-              <span className="text-slate-700">{notes}</span>
+            <div className="border border-slate-200 print:border-2 print:border-black bg-slate-50 print:bg-white p-2.5 rounded-lg text-[10.5px] print:text-black">
+              <span className="font-bold text-slate-900 print:text-black">Commentaire de clôture : </span>
+              <span className="text-slate-700 print:text-black">{notes}</span>
             </div>
           )}
 
           {/* ZONE DE SIGNATURE ET VALIDATION */}
-          <div className="pt-6 border-t-2 border-slate-900 grid grid-cols-2 gap-8 text-center text-xs">
+          <div className="pt-6 border-t-2 border-slate-900 print:border-black grid grid-cols-2 gap-8 text-center text-xs">
             <div>
-              <p className="font-bold text-slate-900">L&apos;Opérateur Comptable / Gestionnaire</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">Visa, signature et date</p>
-              <div className="h-16 mt-2 border border-dashed border-slate-300 rounded-md flex items-end justify-center pb-2 text-[10px] text-slate-400">
+              <p className="font-bold text-slate-900 print:text-black uppercase">L&apos;Opérateur Comptable / Gestionnaire</p>
+              <p className="text-[10px] text-slate-500 print:text-black mt-0.5">Visa, signature et date</p>
+              <div className="h-16 mt-2 border-2 border-dashed border-slate-300 print:border-black rounded-md flex items-end justify-center pb-2 text-[10px] text-slate-400 print:text-black">
                 {generatedBy || "Opérateur ERP"}
               </div>
             </div>
 
             <div>
-              <p className="font-bold text-slate-900">La Direction Générale / Gérant</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">Bon pour approbation et archivage</p>
-              <div className="h-16 mt-2 border border-dashed border-slate-300 rounded-md flex items-end justify-center pb-2 text-[10px] text-slate-400">
-                Signature & Cachet
+              <p className="font-bold text-slate-900 print:text-black uppercase">La Direction Générale / Gérant</p>
+              <p className="text-[10px] text-slate-500 print:text-black mt-0.5">Bon pour approbation et archivage</p>
+              <div className="h-16 mt-2 border-2 border-dashed border-slate-300 print:border-black rounded-md flex items-end justify-center pb-2 text-[10px] text-slate-400 print:text-black font-semibold">
+                Signature &amp; Cachet
               </div>
             </div>
           </div>
 
           {/* PIED DE PAGE */}
-          <div className="text-center text-[9px] text-slate-400 pt-2 border-t border-slate-100">
+          <div className="text-center text-[9px] text-slate-400 print:text-black pt-2 border-t border-slate-100 print:border-black">
             {shopSettings.documentFooter} — Ce document est une synthèse interne arrêtée et certifiée conforme aux écritures du logiciel Shop ERP.
           </div>
         </div>
       </div>
     </div>
+    </PrintPortal>
   );
 }

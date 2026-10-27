@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./print.css";
 
 /* ── Design tokens ─────────────────────────────────────────────────────────── */
 :root {

@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Printer, X } from "lucide-react";
 import type { ShopSettingsData } from "@/app/settings/actions";
+import { PrintPortal } from "@/components/common/PrintPortal";
 
 export interface PrintablePurchaseItem {
   id: number;
@@ -119,7 +120,8 @@ export function PrintablePurchaseOrder({
   const balance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0">
+    <PrintPortal>
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0">
       <div className="relative w-full max-w-4xl bg-white rounded-xl shadow-2xl p-8 print:p-6 print:shadow-none print:w-full print:max-w-none print:rounded-none">
         {/* Actions bar (invisible à l'impression) */}
         <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-200 print:hidden">
@@ -200,59 +202,59 @@ export function PrintablePurchaseOrder({
 
           {/* Supplier & Order Info */}
           <div className="grid grid-cols-2 gap-8 my-6">
-            <div className="bg-slate-50 p-4 rounded border border-slate-200">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <div className="bg-slate-50 print:bg-white p-4 rounded border-2 border-slate-300 print:border-black">
+              <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 print:text-black mb-1">
                 Destinataire / Fournisseur :
               </span>
               {purchase.supplier ? (
                 <div className="space-y-0.5">
-                  <p className="font-bold text-sm text-slate-900">
+                  <p className="font-black text-base text-slate-900 print:text-black uppercase">
                     {purchase.supplier.name}
                   </p>
                   {purchase.supplier.code && (
-                    <p className="font-mono text-[11px] text-slate-500">
-                      Réf: {purchase.supplier.code}
+                    <p className="font-mono text-xs font-bold text-slate-700 print:text-black">
+                      Code Fournisseur : {purchase.supplier.code}
                     </p>
                   )}
                   {purchase.supplier.phone && (
-                    <p className="text-slate-600">
-                      Tél : <span className="font-mono">{purchase.supplier.phone}</span>
+                    <p className="text-slate-700 print:text-black text-xs font-medium">
+                      Tél : <span className="font-mono font-bold">{purchase.supplier.phone}</span>
                     </p>
                   )}
                   {purchase.supplier.address && (
-                    <p className="text-slate-600">{purchase.supplier.address}</p>
+                    <p className="text-slate-700 print:text-black text-xs">{purchase.supplier.address}</p>
                   )}
                   {purchase.supplier.email && (
-                    <p className="text-slate-600">{purchase.supplier.email}</p>
+                    <p className="text-slate-700 print:text-black text-xs">{purchase.supplier.email}</p>
                   )}
                 </div>
               ) : (
-                <p className="italic text-slate-500">Fournisseur non spécifié</p>
+                <p className="italic text-slate-500 print:text-black">Fournisseur non spécifié</p>
               )}
             </div>
 
-            <div className="bg-slate-50 p-4 rounded border border-slate-200">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <div className="bg-slate-50 print:bg-white p-4 rounded border-2 border-slate-300 print:border-black">
+              <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 print:text-black mb-1">
                 Informations Commande &amp; Statuts :
               </span>
-              <div className="space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Statut commande :</span>
-                  <span className="font-bold uppercase text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-800">
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-700 print:text-black font-medium">Statut commande :</span>
+                  <span className="font-black uppercase text-[10px] px-2 py-0.5 rounded border border-black bg-white text-black">
                     {purchase.status === "received"
-                      ? "Reçue"
+                      ? "[COMMANDE REÇUE]"
                       : purchase.status === "partially_received"
-                      ? "Partiellement reçue"
+                      ? "[RÉCEPTION PARTIELLE]"
                       : purchase.status === "ordered"
-                      ? "Commandée"
+                      ? "[COMMANDE CONFIRMÉE]"
                       : purchase.status === "cancelled"
-                      ? "Annulée"
-                      : "Brouillon"}
+                      ? "[ANNULÉE]"
+                      : "[BROUILLON]"}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Statut réception :</span>
-                  <span className="font-bold text-slate-800">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-700 print:text-black font-medium">Statut réception :</span>
+                  <span className="font-black text-slate-900 print:text-black uppercase text-[11px]">
                     {purchase.receiptStatus === "received"
                       ? "Marchandises Reçues"
                       : purchase.receiptStatus === "partial"
@@ -260,14 +262,14 @@ export function PrintablePurchaseOrder({
                       : "En attente de livraison"}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Statut règlement :</span>
-                  <span className="font-bold text-slate-800">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-700 print:text-black font-medium">Statut règlement :</span>
+                  <span className="font-black text-slate-900 print:text-black uppercase text-[11px]">
                     {purchase.paymentStatus === "paid"
-                      ? "Payé intégralement"
+                      ? "[RÉGLÉ INTÉGRALEMENT]"
                       : purchase.paymentStatus === "partial"
-                      ? "Partiellement payé"
-                      : "Non payé"}
+                      ? "[ACOMPTE VERSÉ]"
+                      : "[NON PAYÉ]"}
                   </span>
                 </div>
               </div>
@@ -275,37 +277,37 @@ export function PrintablePurchaseOrder({
           </div>
 
           {/* Table of items */}
-          <div className="overflow-hidden border border-slate-300 rounded mb-6">
+          <div className="overflow-hidden border-2 border-slate-300 print:border-black rounded print:rounded-none mb-6">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
-                  <th className="py-2.5 px-3">Réf / SKU</th>
-                  <th className="py-2.5 px-3">Désignation du Meuble</th>
-                  <th className="py-2.5 px-3">Modèle / Finition</th>
-                  <th className="py-2.5 px-3 text-center">Quantité</th>
-                  <th className="py-2.5 px-3 text-right">Prix Unitaire (DA)</th>
+                <tr className="bg-slate-100 print:bg-white text-slate-900 print:text-black font-black uppercase border-b-2 border-slate-300 print:border-black">
+                  <th className="py-2.5 px-3 print:border-r print:border-black">Réf / SKU</th>
+                  <th className="py-2.5 px-3 print:border-r print:border-black">Désignation du Meuble</th>
+                  <th className="py-2.5 px-3 print:border-r print:border-black">Modèle / Finition</th>
+                  <th className="py-2.5 px-3 text-center print:border-r print:border-black">Quantité</th>
+                  <th className="py-2.5 px-3 text-right print:border-r print:border-black">Prix Unitaire (DA)</th>
                   <th className="py-2.5 px-3 text-right">Total Ligne (DA)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-slate-200 print:divide-black">
                 {(purchase.items || []).map((it, idx) => (
-                  <tr key={it.id || idx} className="hover:bg-slate-50">
-                    <td className="py-2 px-3 font-mono font-medium text-slate-600">
+                  <tr key={it.id || idx} className="hover:bg-slate-50 print:border-b print:border-black">
+                    <td className="py-2 px-3 font-mono font-bold text-slate-900 print:text-black print:border-r print:border-black">
                       {it.product?.sku || "—"}
                     </td>
-                    <td className="py-2 px-3 font-semibold text-slate-900">
+                    <td className="py-2 px-3 font-bold text-slate-900 print:text-black print:border-r print:border-black">
                       {it.product?.name || "Article"}
                     </td>
-                    <td className="py-2 px-3 text-slate-600">
+                    <td className="py-2 px-3 text-slate-700 print:text-black print:border-r print:border-black">
                       {[it.product?.model, it.product?.color].filter(Boolean).join(" - ") || "—"}
                     </td>
-                    <td className="py-2 px-3 text-center font-mono font-bold">
+                    <td className="py-2 px-3 text-center font-mono font-black text-slate-900 print:text-black print:border-r print:border-black">
                       {it.quantity}
                     </td>
-                    <td className="py-2 px-3 text-right font-mono">
+                    <td className="py-2 px-3 text-right font-mono text-slate-900 print:text-black print:border-r print:border-black">
                       {it.unitCost.toLocaleString("fr-DZ")} DA
                     </td>
-                    <td className="py-2 px-3 text-right font-mono font-bold">
+                    <td className="py-2 px-3 text-right font-mono font-black text-slate-900 print:text-black">
                       {it.subtotal.toLocaleString("fr-DZ")} DA
                     </td>
                   </tr>
@@ -316,37 +318,37 @@ export function PrintablePurchaseOrder({
 
           {/* Financial summary */}
           <div className="flex justify-end mb-8">
-            <div className="w-72 bg-slate-50 p-4 rounded border border-slate-200 space-y-1.5 text-xs">
-              <div className="flex justify-between text-slate-600">
-                <span>Sous-total HT :</span>
-                <span className="font-mono font-semibold">
+            <div className="w-80 bg-slate-50 print:bg-white p-4 rounded border-2 border-slate-900 print:border-black space-y-1.5 text-xs">
+              <div className="flex justify-between text-slate-700 print:text-black">
+                <span className="font-medium">Sous-total HT :</span>
+                <span className="font-mono font-bold">
                   {(purchase.subtotal || purchase.totalAmount).toLocaleString("fr-DZ")} DA
                 </span>
               </div>
               {purchase.discount > 0 && (
-                <div className="flex justify-between text-emerald-700">
-                  <span>Remise accordée :</span>
-                  <span className="font-mono font-semibold">
+                <div className="flex justify-between text-slate-700 print:text-black">
+                  <span className="font-medium">Remise accordée :</span>
+                  <span className="font-mono font-bold">
                     -{purchase.discount.toLocaleString("fr-DZ")} DA
                   </span>
                 </div>
               )}
-              <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-300">
-                <span>TOTAL COMMANDE :</span>
-                <span className="font-mono text-base text-amber-800">
+              <div className="flex justify-between text-sm font-black text-slate-900 print:text-black pt-2 border-t-2 border-slate-900 print:border-black">
+                <span className="uppercase tracking-wide">TOTAL COMMANDE :</span>
+                <span className="font-mono text-base font-black">
                   {purchase.totalAmount.toLocaleString("fr-DZ")} DA
                 </span>
               </div>
-              <div className="flex justify-between text-slate-700 pt-1">
-                <span>Acompte / Montant réglé :</span>
-                <span className="font-mono font-semibold text-emerald-700">
+              <div className="flex justify-between text-slate-800 print:text-black pt-1">
+                <span className="font-bold">Acompte / Montant réglé :</span>
+                <span className="font-mono font-bold text-slate-900 print:text-black">
                   {purchase.paidAmount.toLocaleString("fr-DZ")} DA
                 </span>
               </div>
-              <div className="flex justify-between text-rose-800 font-bold pt-1 border-t border-slate-200">
-                <span>Solde restant dû :</span>
+              <div className="flex justify-between font-black pt-1 border-t border-slate-300 print:border-black text-slate-900 print:text-black">
+                <span className="uppercase">Solde restant dû :</span>
                 <span className="font-mono text-sm">
-                  {balance.toLocaleString("fr-DZ")} DA
+                  {balance.toLocaleString("fr-DZ")} DA {balance === 0 ? "[RÉGLÉ]" : "[RESTE DÛ]"}
                 </span>
               </div>
             </div>
@@ -354,30 +356,33 @@ export function PrintablePurchaseOrder({
 
           {/* Observations */}
           {purchase.notes && (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded mb-8 text-xs text-slate-600">
-              <span className="font-bold text-slate-800 block mb-0.5">Observations / Conditions :</span>
+            <div className="p-3 bg-slate-50 print:bg-white border border-slate-300 print:border-black rounded mb-8 text-xs text-slate-700 print:text-black">
+              <span className="font-black text-slate-900 print:text-black block mb-0.5 uppercase text-[11px]">Observations / Conditions de livraison :</span>
               <p>{purchase.notes}</p>
             </div>
           )}
 
           {/* Signatures */}
-          <div className="grid grid-cols-2 gap-12 pt-8 border-t border-slate-300 text-center">
+          <div className="grid grid-cols-2 gap-12 pt-8 border-t-2 border-slate-900 print:border-black text-center">
             <div>
-              <p className="font-bold text-slate-800 mb-16 uppercase text-[11px]">
+              <p className="font-black text-slate-900 print:text-black mb-12 uppercase text-[11px]">
                 Visa &amp; Signature Fournisseur
               </p>
-              <p className="text-[10px] text-slate-400 italic">Mention « Bon pour accord »</p>
+              <div className="w-52 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
+              <p className="text-[10px] text-slate-500 print:text-black italic mt-1">Mention « Bon pour accord et livraison »</p>
             </div>
             <div>
-              <p className="font-bold text-slate-800 mb-16 uppercase text-[11px]">
+              <p className="font-black text-slate-900 print:text-black mb-12 uppercase text-[11px]">
                 Pour la Direction Shop ERP
               </p>
-              <p className="text-[10px] text-slate-400 italic">Cachet et signature autorisée</p>
+              <div className="w-52 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
+              <p className="text-[10px] text-slate-500 print:text-black italic mt-1">Cachet et signature autorisée</p>
             </div>
           </div>
         </div>
       </div>
     </div>
+    </PrintPortal>
   );
 }
 
@@ -425,7 +430,8 @@ export function PrintableGoodsReceipt({
   );
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0">
+    <PrintPortal>
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0">
       <div className="relative w-full max-w-4xl bg-white rounded-xl shadow-2xl p-8 print:p-6 print:shadow-none print:w-full print:max-w-none print:rounded-none">
         <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-200 print:hidden">
           <div className="flex items-center gap-2">
@@ -617,6 +623,7 @@ export function PrintableGoodsReceipt({
         </div>
       </div>
     </div>
+    </PrintPortal>
   );
 }
 
@@ -651,7 +658,8 @@ export function PrintableSupplierPaymentReceipt({
   const balance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0">
+    <PrintPortal>
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-xs flex items-center justify-center print:p-0 print:bg-white print:fixed print:inset-0">
       <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl p-8 print:p-6 print:shadow-none print:w-full print:max-w-none print:rounded-none">
         <div className="flex items-center justify-between pb-3 mb-6 border-b border-slate-200 print:hidden">
           <div className="flex items-center gap-2">
@@ -677,8 +685,8 @@ export function PrintableSupplierPaymentReceipt({
           </div>
         </div>
 
-        <div className="border border-slate-300 rounded p-6 text-slate-900 leading-relaxed font-sans text-xs">
-          <div className="flex justify-between items-start border-b border-slate-200 pb-4">
+        <div className="border-2 border-slate-900 print:border-black rounded-lg print:rounded-none p-6 text-slate-900 leading-relaxed font-sans text-xs">
+          <div className="flex justify-between items-start border-b-2 border-slate-900 print:border-black pb-4">
             <div className="flex items-start gap-3">
               {settings?.logoUrl && (
                 <img
@@ -688,37 +696,37 @@ export function PrintableSupplierPaymentReceipt({
                 />
               )}
               <div>
-                <h2 className="text-lg font-black tracking-tight text-slate-900 uppercase">
+                <h2 className="text-xl font-black tracking-tight text-slate-900 print:text-black uppercase">
                   {settings?.shopName || "Shop ERP Mobilier"}
                 </h2>
-                <p className="text-slate-500 text-[11px]">Bordereau de Décaissement Fournisseur</p>
-                {settings?.address && <p className="text-slate-400 text-[10px]">{settings.address}</p>}
+                <p className="text-slate-600 print:text-black text-[11px] font-semibold">Bordereau de Décaissement Fournisseur</p>
+                {settings?.address && <p className="text-slate-600 print:text-black text-[10px]">{settings.address}</p>}
               </div>
             </div>
             <div className="text-right">
-              <span className="font-mono font-bold text-sm bg-slate-900 text-white px-2.5 py-0.5 rounded">
+              <span className="font-mono font-bold text-sm bg-slate-900 text-white print:bg-white print:text-black print:border print:border-black px-2.5 py-0.5 rounded">
                 {payment.reference || "PAYF-DIRECT"}
               </span>
-              <p className="text-slate-500 text-xs mt-1">
+              <p className="text-slate-600 print:text-black font-semibold text-xs mt-1">
                 Date : {new Date(payment.paymentDate).toLocaleDateString("fr-DZ")}
               </p>
             </div>
           </div>
 
           <div className="my-4 space-y-2">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Bénéficiaire / Fournisseur :</span>
-              <span className="font-bold text-slate-900">{purchase.supplier?.name || "Fournisseur"}</span>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 print:text-black font-bold uppercase text-[11px]">Bénéficiaire / Fournisseur :</span>
+              <span className="font-black text-slate-900 print:text-black text-sm uppercase">{purchase.supplier?.name || "Fournisseur"}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Commande fournisseur liée :</span>
-              <span className="font-mono font-bold text-slate-900">{purchase.reference}</span>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 print:text-black font-bold uppercase text-[11px]">Commande fournisseur liée :</span>
+              <span className="font-mono font-black text-slate-900 print:text-black">{purchase.reference}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Mode de paiement :</span>
-              <span className="font-semibold text-slate-800 uppercase text-[11px]">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 print:text-black font-bold uppercase text-[11px]">Mode de paiement :</span>
+              <span className="font-bold text-slate-900 print:text-black uppercase text-[11px]">
                 {payment.method === "cash"
-                  ? "Espèces"
+                  ? "Espèces (Décaissement Caisse)"
                   : payment.method === "check"
                   ? "Chèque bancaire"
                   : payment.method === "transfer"
@@ -727,55 +735,58 @@ export function PrintableSupplierPaymentReceipt({
               </span>
             </div>
             {payment.notes && (
-              <div className="flex justify-between">
-                <span className="text-slate-500">Observation / Réf Chèque :</span>
-                <span className="text-slate-800 italic">{payment.notes}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600 print:text-black font-bold uppercase text-[11px]">Observation / Réf Chèque :</span>
+                <span className="text-slate-900 print:text-black font-medium">{payment.notes}</span>
               </div>
             )}
           </div>
 
-          <div className="bg-emerald-50 border border-emerald-200 rounded p-4 text-center my-4">
-            <span className="text-xs font-bold text-emerald-800 uppercase block mb-1">
-              Montant Réglé
+          <div className="bg-slate-50 print:bg-white border-2 border-slate-900 print:border-black rounded-lg p-4 text-center my-4">
+            <span className="text-xs font-black text-slate-900 print:text-black uppercase block mb-1">
+              MONTANT RÉGLÉ / DÉCAISSÉ (−)
             </span>
-            <span className="text-2xl font-mono font-black text-emerald-700">
+            <span className="text-2xl font-mono font-black text-slate-900 print:text-black">
               {payment.amount.toLocaleString("fr-DZ")} DA
             </span>
           </div>
 
-          <div className="bg-slate-50 p-3 rounded border border-slate-200 text-xs space-y-1 mb-6">
+          <div className="bg-slate-50 print:bg-white p-3 rounded-lg border-2 border-slate-900 print:border-black text-xs space-y-1.5 mb-6">
             <div className="flex justify-between">
-              <span className="text-slate-500">Total commande :</span>
-              <span className="font-mono font-semibold">{purchase.totalAmount.toLocaleString("fr-DZ")} DA</span>
+              <span className="text-slate-600 print:text-black font-medium">Total initial commande :</span>
+              <span className="font-mono font-bold text-slate-900 print:text-black">{purchase.totalAmount.toLocaleString("fr-DZ")} DA</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Total cumulé réglé :</span>
-              <span className="font-mono font-semibold text-emerald-700">
+              <span className="text-slate-600 print:text-black font-medium">Total cumulé réglé :</span>
+              <span className="font-mono font-bold text-slate-900 print:text-black">
                 {purchase.paidAmount.toLocaleString("fr-DZ")} DA
               </span>
             </div>
-            <div className="flex justify-between pt-1 border-t border-slate-200 font-bold text-rose-700">
-              <span>Nouveau solde restant dû :</span>
-              <span className="font-mono">{balance.toLocaleString("fr-DZ")} DA</span>
+            <div className="flex justify-between pt-1 border-t border-slate-400 print:border-black font-black text-slate-900 print:text-black">
+              <span className="uppercase">Nouveau solde restant dû :</span>
+              <span className="font-mono text-sm">{balance.toLocaleString("fr-DZ")} DA {balance === 0 ? "[SOLDE SOLDÉ]" : "[RESTE DÛ]"}</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-200 text-center">
+          <div className="grid grid-cols-2 gap-8 pt-4 border-t-2 border-slate-900 print:border-black text-center">
             <div>
-              <p className="font-bold text-slate-700 mb-10 text-[11px] uppercase">
+              <p className="font-black text-slate-900 print:text-black mb-10 text-[11px] uppercase">
                 Pour Acquit Fournisseur
               </p>
-              <p className="text-[10px] text-slate-400">Signature</p>
+              <div className="w-40 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
+              <p className="text-[10px] text-slate-500 print:text-black mt-1">Signature du bénéficiaire</p>
             </div>
             <div>
-              <p className="font-bold text-slate-700 mb-10 text-[11px] uppercase">
+              <p className="font-black text-slate-900 print:text-black mb-10 text-[11px] uppercase">
                 La Caisse / Comptabilité
               </p>
-              <p className="text-[10px] text-slate-400">Cachet</p>
+              <div className="w-40 mx-auto border-b-2 border-dashed border-slate-400 print:border-black"></div>
+              <p className="text-[10px] text-slate-500 print:text-black mt-1">Visa caissier autorisant le paiement</p>
             </div>
           </div>
         </div>
       </div>
     </div>
+    </PrintPortal>
   );
 }

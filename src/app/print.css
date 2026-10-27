@@ -1,0 +1,201 @@
+/* ── Standardized Monochrome Print Stylesheet for Shop ERP ────────────────── */
+
+@page {
+  size: A4 portrait;
+  margin: 10mm 12mm;
+}
+
+@media print {
+  /* 1. Global Reset to Pure Black & White */
+  html, body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 11pt !important;
+    line-height: 1.35 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* 2. ISOLATED DOCUMENT PRINTING SCOPE */
+  /*
+   * When an individual printable document is active (via #print-root or body class):
+   * Explicitly HIDE the entire application shell (#app-root, sidebars, navigation,
+   * tables, lists, search filters, headers) so that ONLY the selected document is printed.
+   */
+  body.has-active-print-document #app-root,
+  body:has(#print-root:not(:empty)) #app-root,
+  body:has(.print-root:not(:empty)) #app-root {
+    display: none !important;
+    visibility: hidden !important;
+    position: absolute !important;
+    left: -99999px !important;
+    top: -99999px !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Ensure #print-root takes the entire printed page flow */
+  #print-root,
+  .print-root {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  /* Unfix all modal backdrops and containers inside #print-root */
+  #print-root .fixed,
+  #print-root .absolute,
+  #print-root .overflow-y-auto,
+  #print-root .overflow-hidden,
+  .print-root .fixed,
+  .print-root .absolute,
+  .print-root .overflow-y-auto,
+  .print-root .overflow-hidden {
+    position: static !important;
+    display: block !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  /* Modal cards inside #print-root become full-width A4 sheets */
+  #print-root [class*="max-w-"],
+  .print-root [class*="max-w-"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+  }
+
+  /* 3. Hide Screen-Only Navigation, Toolbars, and Action Buttons */
+  nav,
+  aside,
+  header:not(.print-header),
+  button,
+  .no-print,
+  [data-no-print="true"],
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* 4. Elimination of Shadows, Glows, and Gradients */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* 5. High-Contrast Tables with Header Repetition */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    page-break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  th {
+    color: #000000 !important;
+    border-color: #000000 !important;
+    font-weight: 800 !important;
+  }
+
+  td {
+    border-color: #000000 !important;
+  }
+
+  /* Inverse header styling for solid black th blocks */
+  th.bg-black,
+  tr.bg-black th,
+  thead.bg-black th,
+  .print-bg-black {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 6. Typography Hierarchy & Contrast */
+  h1, h2, h3, h4, .font-black, .font-bold {
+    color: #000000 !important;
+    font-weight: 800 !important;
+  }
+
+  /* Safeguard: Ensure intentional white text never gets overridden to black */
+  .text-white,
+  .print\:text-white,
+  .print-text-white {
+    color: #ffffff !important;
+  }
+
+  .text-slate-400,
+  .text-slate-500,
+  .text-slate-600,
+  .text-slate-700,
+  .text-muted-foreground,
+  .text-gray-400,
+  .text-gray-500,
+  .text-gray-600 {
+    color: #000000 !important;
+  }
+
+  /* 7. Image and Logo Monochrome Rendering */
+  img {
+    filter: grayscale(100%) contrast(130%) !important;
+    -webkit-filter: grayscale(100%) contrast(130%) !important;
+    max-height: 52px !important;
+    object-fit: contain !important;
+  }
+
+  /* 8. Page Breaks */
+  .page-break-before,
+  .break-before-page {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  .page-break-after,
+  .break-after-page {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .page-break-inside-avoid,
+  .break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

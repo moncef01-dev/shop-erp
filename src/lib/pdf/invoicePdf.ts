@@ -41,95 +41,97 @@ function renderInvoicePage(
     ? "DEVIS / BON DE COMMANDE"
     : "FACTURE DE VENTE";
 
-  doc.setTextColor(15, 23, 42);
+  doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text(docTitle, pageWidth - 14, 24, { align: "right" });
+  doc.setFontSize(14);
+  doc.text(docTitle, pageWidth - 14, 23, { align: "right" });
 
   doc.setFont("courier", "bold");
   doc.setFontSize(11);
-  doc.setTextColor(180, 83, 9); // amber-700
-  doc.text(sale.reference, pageWidth - 14, 30, { align: "right" });
+  doc.setTextColor(0, 0, 0);
+  doc.text(sale.reference, pageWidth - 14, 29, { align: "right" });
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
-  doc.setTextColor(100, 116, 139);
+  doc.setTextColor(0, 0, 0);
   const saleDateStr = new Date(sale.saleDate).toLocaleDateString("fr-DZ", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
-  doc.text(`Date : ${saleDateStr}`, pageWidth - 14, 35, { align: "right" });
+  doc.text(`Date : ${saleDateStr}`, pageWidth - 14, 34, { align: "right" });
 
   const pStatusStr =
     sale.paymentStatus === "paid"
-      ? "Payée (Soldée)"
+      ? "PAYÉE (COMPTANT / SOLDÉE)"
       : sale.paymentStatus === "partial"
-      ? "Partiellement réglée"
-      : "À crédit / Non réglée";
-  doc.text(`Règlement : ${pStatusStr}`, pageWidth - 14, 39.5, { align: "right" });
+      ? "PARTIELLEMENT RÉGLÉE (ACOMPTE)"
+      : "À CRÉDIT / NON RÉGLÉE";
+  doc.setFont("helvetica", "bold");
+  doc.text(`Règlement : ${pStatusStr}`, pageWidth - 14, 38.5, { align: "right" });
 
   // Coordonnées Magasin (gauche)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(13);
+  doc.setTextColor(0, 0, 0);
   doc.text(shopName, 14, 18);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.setTextColor(71, 85, 105);
+  doc.setTextColor(0, 0, 0);
   doc.text(shopActivity, 14, 23);
   doc.text(shopAddress, 14, 27.5);
   doc.text(`Tél : ${shopPhone}`, 14, 32);
   if (shopNif) doc.text(shopNif, 14, 36.5);
 
   // Ligne de séparation
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.4);
-  doc.line(14, 43, pageWidth - 14, 43);
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.line(14, 42, pageWidth - 14, 42);
 
   // 2. Bloc Client (Cadre)
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(14, 46, pageWidth - 28, 24, 2, 2, "F");
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(14, 46, pageWidth - 28, 24, 2, 2, "S");
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(14, 45, pageWidth - 28, 25, 1, 1, "F");
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(14, 45, pageWidth - 28, 25, 1, 1, "S");
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text("CLIENT / DESTINATAIRE :", 18, 51);
+  doc.setTextColor(0, 0, 0);
+  doc.text("CLIENT / DESTINATAIRE :", 18, 50.5);
 
   if (sale.customer) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text(sale.customer.name, 18, 57);
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    doc.text(sale.customer.name.toUpperCase(), 18, 56.5);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
-    doc.setTextColor(71, 85, 105);
+    doc.setTextColor(0, 0, 0);
     const code = sale.customer.code || `CLI-${sale.customer.id}`;
     let phoneText = sale.customer.phone ? `Tél : ${sale.customer.phone}` : "Tél : Non renseigné";
     const phone2 = (sale.customer as { phone2?: string | null }).phone2;
     if (phone2) {
       phoneText += ` / ${phone2}`;
     }
-    doc.text(`Code : ${code}  •  ${phoneText}`, 18, 62);
+    doc.text(`Code : ${code}  •  ${phoneText}`, 18, 61.5);
 
     if (sale.customer.address) {
-      doc.text(`Adresse : ${sale.customer.address}`, 18, 66.5);
+      doc.text(`Adresse : ${sale.customer.address}`, 18, 66);
     }
   } else {
     doc.setFont("helvetica", "italic");
-    doc.setFontSize(9.5);
-    doc.setTextColor(71, 85, 105);
-    doc.text("Client Passager / Comptoir", 18, 58);
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Client Passager / Vente Comptoir", 18, 58);
   }
 
   // 3. Tableau des Articles
   const tableHeaders = isInternal
-    ? ["Réf", "Désignation & Modèle", "Dépôt", "Qté", "P.U (DA)", "Remise", "Total Net"]
-    : ["Réf", "Désignation & Modèle", "Qté", "P.U (DA)", "Remise", "Total Net"];
+    ? ["Réf / SKU", "Désignation & Modèle", "Dépôt", "Qté", "P.U (DA)", "Remise", "Total Net (DA)"]
+    : ["Réf / SKU", "Désignation & Modèle", "Qté", "P.U (DA)", "Remise", "Total Net (DA)"];
 
   const tableBody = (sale.items || []).map((item) => {
     const sku = item.product?.sku || "—";
@@ -147,26 +149,33 @@ function renderInvoicePage(
   });
 
   autoTable(doc, {
-    startY: 74,
+    startY: 73,
     head: [tableHeaders],
     body: tableBody,
-    theme: "striped",
+    theme: "grid",
     headStyles: {
-      fillColor: isInternal ? [51, 65, 85] : [15, 23, 42],
+      fillColor: [0, 0, 0],
       textColor: [255, 255, 255],
       fontStyle: "bold",
       fontSize: 8,
       halign: "left",
+      lineColor: [0, 0, 0],
+      lineWidth: 0.3,
     },
     bodyStyles: {
       fontSize: 8,
-      textColor: [30, 41, 59],
+      textColor: [0, 0, 0],
       cellPadding: 2.2,
+      lineColor: [0, 0, 0],
+      lineWidth: 0.2,
+    },
+    alternateRowStyles: {
+      fillColor: [255, 255, 255],
     },
     columnStyles: isInternal
       ? {
           0: { cellWidth: 24, font: "courier", fontStyle: "bold" },
-          1: { cellWidth: "auto" },
+          1: { cellWidth: "auto", fontStyle: "bold" },
           2: { cellWidth: 26 },
           3: { cellWidth: 12, halign: "center", fontStyle: "bold" },
           4: { cellWidth: 22, halign: "right" },
@@ -175,7 +184,7 @@ function renderInvoicePage(
         }
       : {
           0: { cellWidth: 28, font: "courier", fontStyle: "bold" },
-          1: { cellWidth: "auto" },
+          1: { cellWidth: "auto", fontStyle: "bold" },
           2: { cellWidth: 14, halign: "center", fontStyle: "bold" },
           3: { cellWidth: 25, halign: "right" },
           4: { cellWidth: 20, halign: "right" },
@@ -188,24 +197,25 @@ function renderInvoicePage(
 
   // 4. Totaux & Règlements
   const totalsY = finalY + 6;
-  const totalsBoxWidth = 80;
+  const totalsBoxWidth = 84;
   const totalsBoxX = pageWidth - 14 - totalsBoxWidth;
 
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(totalsBoxX, totalsY, totalsBoxWidth, 40, 2, 2, "F");
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(totalsBoxX, totalsY, totalsBoxWidth, 40, 2, 2, "S");
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(totalsBoxX, totalsY, totalsBoxWidth, 42, 1, 1, "F");
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(totalsBoxX, totalsY, totalsBoxWidth, 42, 1, 1, "S");
 
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(71, 85, 105);
+  doc.setTextColor(0, 0, 0);
 
   const subtotal = sale.subtotal || sale.totalAmount;
   doc.text("Sous-total brut :", totalsBoxX + 4, totalsY + 6);
   doc.text(formatDAPdf(subtotal), totalsBoxX + totalsBoxWidth - 4, totalsY + 6, { align: "right" });
 
   if ((sale.discount || 0) > 0) {
-    doc.text("Remise globale :", totalsBoxX + 4, totalsY + 11.5);
+    doc.text("Remise accordée :", totalsBoxX + 4, totalsY + 11.5);
     doc.text(`-${formatDAPdf(sale.discount || 0)}`, totalsBoxX + totalsBoxWidth - 4, totalsY + 11.5, {
       align: "right",
     });
@@ -221,43 +231,49 @@ function renderInvoicePage(
     });
   }
 
+  // Ligne de total
+  doc.setLineWidth(0.4);
+  doc.line(totalsBoxX + 4, totalsY + 20.5, totalsBoxX + totalsBoxWidth - 4, totalsY + 20.5);
+
   // Total TTC
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text("TOTAL NET À PAYER :", totalsBoxX + 4, totalsY + 24);
-  doc.text(formatDAPdf(sale.totalAmount), totalsBoxX + totalsBoxWidth - 4, totalsY + 24, { align: "right" });
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.text("TOTAL NET À PAYER :", totalsBoxX + 4, totalsY + 26);
+  doc.text(formatDAPdf(sale.totalAmount), totalsBoxX + totalsBoxWidth - 4, totalsY + 26, { align: "right" });
 
   // Acompte / Versé
   doc.setFontSize(8.5);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(5, 150, 105); // emerald-600
-  doc.text("Montant Versé :", totalsBoxX + 4, totalsY + 30);
-  doc.text(formatDAPdf(sale.paidAmount || 0), totalsBoxX + totalsBoxWidth - 4, totalsY + 30, { align: "right" });
+  doc.setTextColor(0, 0, 0);
+  doc.text("Montant Versé / Acompte :", totalsBoxX + 4, totalsY + 32);
+  doc.text(formatDAPdf(sale.paidAmount || 0), totalsBoxX + totalsBoxWidth - 4, totalsY + 32, { align: "right" });
 
   // Reste Dû
   const remaining = Math.max(0, (sale.totalAmount || 0) - (sale.paidAmount || 0));
-  doc.setTextColor(remaining > 0 ? 190 : 71, remaining > 0 ? 24 : 85, remaining > 0 ? 93 : 105);
-  doc.text("Solde Restant Dû :", totalsBoxX + 4, totalsY + 36);
-  doc.text(formatDAPdf(remaining), totalsBoxX + totalsBoxWidth - 4, totalsY + 36, { align: "right" });
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("Solde Restant Dû :", totalsBoxX + 4, totalsY + 38);
+  doc.text(formatDAPdf(remaining), totalsBoxX + totalsBoxWidth - 4, totalsY + 38, { align: "right" });
 
   // Détails règlement (gauche)
   const leftBoxWidth = totalsBoxX - 14 - 6;
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(14, totalsY, leftBoxWidth, 40, 2, 2, "F");
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(14, totalsY, leftBoxWidth, 40, 2, 2, "S");
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(14, totalsY, leftBoxWidth, 42, 1, 1, "F");
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(14, totalsY, leftBoxWidth, 42, 1, 1, "S");
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
+  doc.setTextColor(0, 0, 0);
   doc.text("MODALITÉS DE RÈGLEMENT & ACOMPTES :", 18, totalsY + 6);
 
   if (sale.payments && sale.payments.length > 0) {
     let pY = totalsY + 11.5;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
-    doc.setTextColor(30, 41, 59);
+    doc.setTextColor(0, 0, 0);
 
     sale.payments.slice(0, 3).forEach((p) => {
       const pDate = new Date(p.paymentDate).toLocaleDateString("fr-DZ");
@@ -273,7 +289,7 @@ function renderInvoicePage(
   } else {
     doc.setFont("helvetica", "italic");
     doc.setFontSize(7.5);
-    doc.setTextColor(100, 116, 139);
+    doc.setTextColor(0, 0, 0);
     doc.text("Aucun acompte encaissé lors de la création.", 18, totalsY + 12);
   }
 
@@ -281,35 +297,36 @@ function renderInvoicePage(
   if (isInternal && sale.notes) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7);
-    doc.setTextColor(180, 83, 9);
-    doc.text("NOTES & DIRECTIVES INTERNES MAGASIN :", 18, totalsY + 28);
+    doc.setTextColor(0, 0, 0);
+    doc.text("NOTES & DIRECTIVES INTERNES MAGASIN :", 18, totalsY + 29);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.setTextColor(71, 85, 105);
-    doc.text(sale.notes.slice(0, 80), 18, totalsY + 33);
+    doc.setTextColor(0, 0, 0);
+    doc.text(sale.notes.slice(0, 80), 18, totalsY + 34);
   }
 
   // 5. Signatures & Mentions Légales
-  const sigY = totalsY + 46;
-  doc.setDrawColor(203, 213, 225);
+  const sigY = totalsY + 48;
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.4);
   doc.setLineDashPattern([1, 1], 0);
   doc.line(18, sigY + 16, 75, sigY + 16);
   doc.line(pageWidth - 75, sigY + 16, pageWidth - 18, sigY + 16);
   doc.setLineDashPattern([], 0);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
+  doc.setFontSize(8);
+  doc.setTextColor(0, 0, 0);
   doc.text("Cachet & Signature Magasin", 18, sigY);
   doc.text("Signature & Accord Client", pageWidth - 75, sigY);
 
   // Bas de page
   const footerText =
     settings?.documentFooter ||
-    "Merci pour votre confiance. Les marchandises vendues sont garanties 12 mois. Service après-vente disponible 6j/7.";
+    "Les marchandises livrées demeurent la propriété du magasin jusqu'au complet paiement du prix conformément aux clauses de réserve de propriété.";
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.5);
-  doc.setTextColor(148, 163, 184);
+  doc.setFontSize(7);
+  doc.setTextColor(0, 0, 0);
   doc.text(footerText, pageWidth / 2, pageHeight - 8, { align: "center" });
 }
 
