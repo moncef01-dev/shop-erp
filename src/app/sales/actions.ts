@@ -10,6 +10,7 @@ import {
 import { roundMoney } from "@/lib/formatters";
 import { getCustomerAdvancesData } from "./advances-actions";
 import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
+import { generateNextExpenseReference } from "@/app/cash/actions";
 
 export type SaleActionResponse<T = unknown> = {
   success: boolean;
@@ -1220,7 +1221,11 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
 
     const sale = await prisma.sales.findUnique({
       where: { id: saleId },
-      include: { items: true, payments: true },
+      include: {
+        items: true,
+        payments: { include: { session: true } },
+        customer: true,
+      },
     });
 
     if (!sale) return { success: false, error: "Vente introuvable." };
@@ -1232,9 +1237,32 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
       return { success: false, error: "Cette vente est déjà annulée." };
     }
 
+    const defaultCashAcc =
+      (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
+      (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+
+    const activeSession = await prisma.cashSession.findFirst({
+      where: { status: "open" },
+    });
+
+    // S'il y a un paiement en espèces issu d'une session clôturée, exiger une session ouverte pour le décaissement
+    const hasClosedSessionCashPayment = sale.payments.some(
+      (p) => p.status !== "cancelled" && p.method === "cash" && p.amount > 0 && p.session?.status === "closed"
+    );
+    if (hasClosedSessionCashPayment && !activeSession) {
+      return {
+        success: false,
+        error: "Impossible d'effectuer le remboursement en espèces : aucune session de caisse n'est actuellement ouverte. Veuillez ouvrir une session de caisse pour enregistrer le décaissement.",
+      };
+    }
+
+    const createdRefunds: string[] = [];
+    const now = new Date();
+    const nowStr = now.toLocaleDateString("fr-DZ");
+
     await prisma.$transaction(async (tx) => {
-      // 1. Si la vente était confirmée, réintégrer le stock
-      if (sale.status === "confirmed") {
+      // 1. Si la vente était confirmée et non livrée, réintégrer le stock
+      if (sale.status === "confirmed" && sale.deliveryStatus !== "delivered") {
         await restoreStockForCancelledSale(tx, {
           saleId: sale.id,
           saleReference: sale.reference,
@@ -1242,11 +1270,63 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
         });
       }
 
-      // 2. Marquer les paiements comme annulés
-      await tx.payment.updateMany({
-        where: { saleId: sale.id },
-        data: { status: "cancelled", notes: `Annulé : ${trimmedReason}` },
-      });
+      // 2. Traitement des règlements existants
+      for (const p of sale.payments) {
+        if (p.status === "cancelled") continue;
+
+        if (p.session?.status === "closed") {
+          // Le paiement appartient à une session déjà clôturée :
+          // Préserver l'historique et la clôture de la session passée
+          const auditNote = `[Facture ${sale.reference} annulée le ${nowStr} - Acompte remboursé au client : ${trimmedReason}]`;
+          await tx.payment.update({
+            where: { id: p.id },
+            data: {
+              notes: p.notes ? `${p.notes}\n${auditNote}` : auditNote,
+            },
+          });
+
+          // Émettre le décaissement de remboursement en espèces daté du jour
+          if (p.method === "cash" && p.amount > 0) {
+            const existingExpense = await tx.expense.findFirst({
+              where: {
+                receiptNumber: sale.reference,
+                type: "expense",
+                amount: p.amount,
+              },
+            });
+
+            if (!existingExpense) {
+              const expenseRef = await generateNextExpenseReference("expense", tx);
+              await tx.expense.create({
+                data: {
+                  reference: expenseRef,
+                  type: "expense",
+                  category: "other",
+                  description: `Remboursement acompte suite annulation vente ${sale.reference}`,
+                  amount: p.amount,
+                  method: "cash",
+                  beneficiary: sale.customer?.name || "Client",
+                  receiptNumber: sale.reference,
+                  notes: `Remboursement en espèces du règlement ${p.reference || `PAY-${p.id}`} (${p.amount.toLocaleString("fr-DZ")} DA perçu le ${new Date(p.paymentDate).toLocaleDateString("fr-DZ")}). Motif d'annulation : ${trimmedReason}`,
+                  date: now,
+                  sessionId: activeSession ? activeSession.id : null,
+                  accountId: p.accountId ?? defaultCashAcc?.id ?? null,
+                },
+              });
+              createdRefunds.push(expenseRef);
+            }
+          }
+        } else {
+          // Session ouverte ou hors session : annulation directe
+          await tx.payment.update({
+            where: { id: p.id },
+            data: {
+              status: "cancelled",
+              notes: p.notes ? `${p.notes}\n[Annulé le ${nowStr} : ${trimmedReason}]` : `[Annulé le ${nowStr} : ${trimmedReason}]`,
+            },
+          });
+        }
+      }
 
       // 3. Mettre à jour le statut de la vente
       await tx.sales.update({
@@ -1254,8 +1334,8 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
         data: {
           status: "cancelled",
           notes: sale.notes
-            ? `${sale.notes}\n[Annulé le ${new Date().toLocaleDateString("fr-DZ")} : ${trimmedReason}]`
-            : `[Annulé le ${new Date().toLocaleDateString("fr-DZ")} : ${trimmedReason}]`,
+            ? `${sale.notes}\n[Annulé le ${nowStr} : ${trimmedReason}]`
+            : `[Annulé le ${nowStr} : ${trimmedReason}]`,
         },
       });
     });
@@ -1263,10 +1343,14 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
     safeRevalidate("/sales");
     safeRevalidate("/products");
     safeRevalidate("/customers");
+    safeRevalidate("/cash");
+
+    const refundMsg = createdRefunds.length > 0 ? ` Décaissement de remboursement émis : ${createdRefunds.join(", ")}.` : "";
 
     return {
       success: true,
-      message: `La vente ${sale.reference} a été annulée. Les stocks ont été réintégrés et les mouvements compensatoires enregistrés.`,
+      message: `La vente ${sale.reference} a été annulée. Les stocks ont été réintégrés et les mouvements compensatoires enregistrés.${refundMsg}`,
+      data: { saleId: sale.id, reference: sale.reference, refunds: createdRefunds },
     };
   } catch (err: unknown) {
     console.error("Erreur annulation vente:", err);

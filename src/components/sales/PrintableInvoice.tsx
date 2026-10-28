@@ -324,12 +324,21 @@ export function PrintableInvoice({ sale, settings, onClose, onEdit, autoPrint }:
                           <span className="font-mono font-bold">{sale.customer.code || `CLI-${sale.customer.id}`}</span>
                         </p>
                         {sale.customer.phone && (
-                          <p className="text-xs text-slate-700 print:text-black">
+                          <p
+                            className="text-[16px] print:text-[16px] font-bold text-black print:text-black"
+                            style={{ fontSize: "16px", color: "#000000" }}
+                          >
                             <span className="font-bold">Tél : </span>
                             <span className="font-mono font-bold">{sale.customer.phone}</span>
-                            {sale.customer.phone2 && (
-                              <span className="ml-1 font-mono">/ {sale.customer.phone2}</span>
-                            )}
+                          </p>
+                        )}
+                        {sale.customer.phone2 && (
+                          <p
+                            className="text-[16px] print:text-[16px] font-bold text-black print:text-black"
+                            style={{ fontSize: "16px", color: "#000000" }}
+                          >
+                            <span className="font-bold">{sale.customer.phone ? "Tél 2 : " : "Tél : "}</span>
+                            <span className="font-mono font-bold">{sale.customer.phone2}</span>
                           </p>
                         )}
                         {sale.customer.address && (
