@@ -155,7 +155,6 @@
   }
 
   /* Safeguard: Ensure intentional white text never gets overridden to black */
-  .text-white,
   .print\:text-white,
   .print-text-white {
     color: #ffffff !important;
