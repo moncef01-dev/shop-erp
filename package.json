@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test:stock": "npx --yes tsx tests/stock-integrity.test.ts",
@@ -24,7 +24,8 @@
     "test:treasury": "npx --yes tsx tests/treasury-and-supplier-debt.test.ts",
     "test:closing-audit": "npx --yes tsx tests/treasury-closing-edit-audit.test.ts",
     "test:supplier-ledger": "npx --yes tsx tests/supplier-accounts-ledger.test.ts",
-    "test:all": "npm run test:stock && npm run test:sales && npm run test:purchases && npm run test:cash && npm run test:settings && npm run test:documents && npm run test:reports && npm run test:sales-delivery-fees && npm run test:new-customer && npm run test:family-stock && npm run test:stock-kpi && npm run test:sales-deposit && npm run test:cash-out-of-session && npm run test:sales-calculations && npm run test:treasury && npm run test:closing-audit && npm run test:supplier-ledger",
+    "test:savings": "node --experimental-strip-types --import ./tests/ts-register.mjs tests/savings-integrity.test.ts",
+    "test:all": "npm run test:stock && npm run test:sales && npm run test:purchases && npm run test:cash && npm run test:settings && npm run test:documents && npm run test:reports && npm run test:sales-delivery-fees && npm run test:new-customer && npm run test:family-stock && npm run test:stock-kpi && npm run test:sales-deposit && npm run test:cash-out-of-session && npm run test:sales-calculations && npm run test:treasury && npm run test:closing-audit && npm run test:supplier-ledger && npm run test:savings",
     "db:backup": "node scripts/backup.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

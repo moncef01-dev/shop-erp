@@ -333,6 +333,7 @@ export type SalesWhereInput = {
   payments?: Prisma.PaymentListRelationFilter
   movements?: Prisma.StockMovementListRelationFilter
   advanceAllocations?: Prisma.CustomerAdvanceAllocationListRelationFilter
+  savingsTransactions?: Prisma.CustomerSavingsTransactionListRelationFilter
 }
 
 export type SalesOrderByWithRelationInput = {
@@ -357,6 +358,7 @@ export type SalesOrderByWithRelationInput = {
   payments?: Prisma.PaymentOrderByRelationAggregateInput
   movements?: Prisma.StockMovementOrderByRelationAggregateInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationOrderByRelationAggregateInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionOrderByRelationAggregateInput
 }
 
 export type SalesWhereUniqueInput = Prisma.AtLeast<{
@@ -384,6 +386,7 @@ export type SalesWhereUniqueInput = Prisma.AtLeast<{
   payments?: Prisma.PaymentListRelationFilter
   movements?: Prisma.StockMovementListRelationFilter
   advanceAllocations?: Prisma.CustomerAdvanceAllocationListRelationFilter
+  savingsTransactions?: Prisma.CustomerSavingsTransactionListRelationFilter
 }, "id" | "reference">
 
 export type SalesOrderByWithAggregationInput = {
@@ -452,6 +455,7 @@ export type SalesCreateInput = {
   payments?: Prisma.PaymentCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateInput = {
@@ -475,6 +479,7 @@ export type SalesUncheckedCreateInput = {
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUpdateInput = {
@@ -497,6 +502,7 @@ export type SalesUpdateInput = {
   payments?: Prisma.PaymentUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateInput = {
@@ -520,6 +526,7 @@ export type SalesUncheckedUpdateInput = {
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUncheckedUpdateManyWithoutSaleNestedInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesCreateManyInput = {
@@ -784,6 +791,22 @@ export type SalesUpdateOneRequiredWithoutAdvanceAllocationsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.SalesUpdateToOneWithWhereWithoutAdvanceAllocationsInput, Prisma.SalesUpdateWithoutAdvanceAllocationsInput>, Prisma.SalesUncheckedUpdateWithoutAdvanceAllocationsInput>
 }
 
+export type SalesCreateNestedOneWithoutSavingsTransactionsInput = {
+  create?: Prisma.XOR<Prisma.SalesCreateWithoutSavingsTransactionsInput, Prisma.SalesUncheckedCreateWithoutSavingsTransactionsInput>
+  connectOrCreate?: Prisma.SalesCreateOrConnectWithoutSavingsTransactionsInput
+  connect?: Prisma.SalesWhereUniqueInput
+}
+
+export type SalesUpdateOneWithoutSavingsTransactionsNestedInput = {
+  create?: Prisma.XOR<Prisma.SalesCreateWithoutSavingsTransactionsInput, Prisma.SalesUncheckedCreateWithoutSavingsTransactionsInput>
+  connectOrCreate?: Prisma.SalesCreateOrConnectWithoutSavingsTransactionsInput
+  upsert?: Prisma.SalesUpsertWithoutSavingsTransactionsInput
+  disconnect?: Prisma.SalesWhereInput | boolean
+  delete?: Prisma.SalesWhereInput | boolean
+  connect?: Prisma.SalesWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.SalesUpdateToOneWithWhereWithoutSavingsTransactionsInput, Prisma.SalesUpdateWithoutSavingsTransactionsInput>, Prisma.SalesUncheckedUpdateWithoutSavingsTransactionsInput>
+}
+
 export type SalesCreateWithoutMovementsInput = {
   reference: string
   status?: string
@@ -803,6 +826,7 @@ export type SalesCreateWithoutMovementsInput = {
   items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentCreateNestedManyWithoutSaleInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateWithoutMovementsInput = {
@@ -825,6 +849,7 @@ export type SalesUncheckedCreateWithoutMovementsInput = {
   items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSaleInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesCreateOrConnectWithoutMovementsInput = {
@@ -862,6 +887,7 @@ export type SalesUpdateWithoutMovementsInput = {
   items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutSaleNestedInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateWithoutMovementsInput = {
@@ -884,6 +910,7 @@ export type SalesUncheckedUpdateWithoutMovementsInput = {
   items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSaleNestedInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesCreateWithoutCustomerInput = {
@@ -905,6 +932,7 @@ export type SalesCreateWithoutCustomerInput = {
   payments?: Prisma.PaymentCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateWithoutCustomerInput = {
@@ -927,6 +955,7 @@ export type SalesUncheckedCreateWithoutCustomerInput = {
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesCreateOrConnectWithoutCustomerInput = {
@@ -995,6 +1024,7 @@ export type SalesCreateWithoutItemsInput = {
   payments?: Prisma.PaymentCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateWithoutItemsInput = {
@@ -1017,6 +1047,7 @@ export type SalesUncheckedCreateWithoutItemsInput = {
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesCreateOrConnectWithoutItemsInput = {
@@ -1054,6 +1085,7 @@ export type SalesUpdateWithoutItemsInput = {
   payments?: Prisma.PaymentUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateWithoutItemsInput = {
@@ -1076,6 +1108,7 @@ export type SalesUncheckedUpdateWithoutItemsInput = {
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUncheckedUpdateManyWithoutSaleNestedInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesCreateWithoutPaymentsInput = {
@@ -1097,6 +1130,7 @@ export type SalesCreateWithoutPaymentsInput = {
   items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateWithoutPaymentsInput = {
@@ -1119,6 +1153,7 @@ export type SalesUncheckedCreateWithoutPaymentsInput = {
   items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesCreateOrConnectWithoutPaymentsInput = {
@@ -1156,6 +1191,7 @@ export type SalesUpdateWithoutPaymentsInput = {
   items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateWithoutPaymentsInput = {
@@ -1178,6 +1214,7 @@ export type SalesUncheckedUpdateWithoutPaymentsInput = {
   items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUncheckedUpdateManyWithoutSaleNestedInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesCreateWithoutAdvanceAllocationsInput = {
@@ -1199,6 +1236,7 @@ export type SalesCreateWithoutAdvanceAllocationsInput = {
   items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSaleInput
 }
 
 export type SalesUncheckedCreateWithoutAdvanceAllocationsInput = {
@@ -1221,6 +1259,7 @@ export type SalesUncheckedCreateWithoutAdvanceAllocationsInput = {
   items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSaleInput
   movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSaleInput
 }
 
 export type SalesCreateOrConnectWithoutAdvanceAllocationsInput = {
@@ -1258,6 +1297,7 @@ export type SalesUpdateWithoutAdvanceAllocationsInput = {
   items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateWithoutAdvanceAllocationsInput = {
@@ -1280,6 +1320,113 @@ export type SalesUncheckedUpdateWithoutAdvanceAllocationsInput = {
   items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUncheckedUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSaleNestedInput
+}
+
+export type SalesCreateWithoutSavingsTransactionsInput = {
+  reference: string
+  status?: string
+  subtotal?: number
+  discount?: number
+  deliveryFee?: number
+  includeDeliveryFee?: boolean
+  totalAmount?: number
+  paidAmount?: number
+  paymentStatus?: string
+  deliveryStatus?: string
+  notes?: string | null
+  saleDate?: Date | string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  customer?: Prisma.CustomerCreateNestedOneWithoutSalesInput
+  items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
+  payments?: Prisma.PaymentCreateNestedManyWithoutSaleInput
+  movements?: Prisma.StockMovementCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationCreateNestedManyWithoutSaleInput
+}
+
+export type SalesUncheckedCreateWithoutSavingsTransactionsInput = {
+  id?: number
+  reference: string
+  customerId?: number | null
+  status?: string
+  subtotal?: number
+  discount?: number
+  deliveryFee?: number
+  includeDeliveryFee?: boolean
+  totalAmount?: number
+  paidAmount?: number
+  paymentStatus?: string
+  deliveryStatus?: string
+  notes?: string | null
+  saleDate?: Date | string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
+  payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSaleInput
+  movements?: Prisma.StockMovementUncheckedCreateNestedManyWithoutSaleInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedCreateNestedManyWithoutSaleInput
+}
+
+export type SalesCreateOrConnectWithoutSavingsTransactionsInput = {
+  where: Prisma.SalesWhereUniqueInput
+  create: Prisma.XOR<Prisma.SalesCreateWithoutSavingsTransactionsInput, Prisma.SalesUncheckedCreateWithoutSavingsTransactionsInput>
+}
+
+export type SalesUpsertWithoutSavingsTransactionsInput = {
+  update: Prisma.XOR<Prisma.SalesUpdateWithoutSavingsTransactionsInput, Prisma.SalesUncheckedUpdateWithoutSavingsTransactionsInput>
+  create: Prisma.XOR<Prisma.SalesCreateWithoutSavingsTransactionsInput, Prisma.SalesUncheckedCreateWithoutSavingsTransactionsInput>
+  where?: Prisma.SalesWhereInput
+}
+
+export type SalesUpdateToOneWithWhereWithoutSavingsTransactionsInput = {
+  where?: Prisma.SalesWhereInput
+  data: Prisma.XOR<Prisma.SalesUpdateWithoutSavingsTransactionsInput, Prisma.SalesUncheckedUpdateWithoutSavingsTransactionsInput>
+}
+
+export type SalesUpdateWithoutSavingsTransactionsInput = {
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  discount?: Prisma.FloatFieldUpdateOperationsInput | number
+  deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  deliveryStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  saleDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  customer?: Prisma.CustomerUpdateOneWithoutSalesNestedInput
+  items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
+  payments?: Prisma.PaymentUpdateManyWithoutSaleNestedInput
+  movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
+}
+
+export type SalesUncheckedUpdateWithoutSavingsTransactionsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  customerId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  discount?: Prisma.FloatFieldUpdateOperationsInput | number
+  deliveryFee?: Prisma.FloatFieldUpdateOperationsInput | number
+  includeDeliveryFee?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  totalAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paidAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  deliveryStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  saleDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
+  payments?: Prisma.PaymentUncheckedUpdateManyWithoutSaleNestedInput
+  movements?: Prisma.StockMovementUncheckedUpdateManyWithoutSaleNestedInput
+  advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesCreateManyCustomerInput = {
@@ -1319,6 +1466,7 @@ export type SalesUpdateWithoutCustomerInput = {
   payments?: Prisma.PaymentUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUpdateManyWithoutSaleNestedInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateWithoutCustomerInput = {
@@ -1341,6 +1489,7 @@ export type SalesUncheckedUpdateWithoutCustomerInput = {
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSaleNestedInput
   movements?: Prisma.StockMovementUncheckedUpdateManyWithoutSaleNestedInput
   advanceAllocations?: Prisma.CustomerAdvanceAllocationUncheckedUpdateManyWithoutSaleNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SalesUncheckedUpdateManyWithoutCustomerInput = {
@@ -1371,6 +1520,7 @@ export type SalesCountOutputType = {
   payments: number
   movements: number
   advanceAllocations: number
+  savingsTransactions: number
 }
 
 export type SalesCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1378,6 +1528,7 @@ export type SalesCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.
   payments?: boolean | SalesCountOutputTypeCountPaymentsArgs
   movements?: boolean | SalesCountOutputTypeCountMovementsArgs
   advanceAllocations?: boolean | SalesCountOutputTypeCountAdvanceAllocationsArgs
+  savingsTransactions?: boolean | SalesCountOutputTypeCountSavingsTransactionsArgs
 }
 
 /**
@@ -1418,6 +1569,13 @@ export type SalesCountOutputTypeCountAdvanceAllocationsArgs<ExtArgs extends runt
   where?: Prisma.CustomerAdvanceAllocationWhereInput
 }
 
+/**
+ * SalesCountOutputType without action
+ */
+export type SalesCountOutputTypeCountSavingsTransactionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.CustomerSavingsTransactionWhereInput
+}
+
 
 export type SalesSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1441,6 +1599,7 @@ export type SalesSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   payments?: boolean | Prisma.Sales$paymentsArgs<ExtArgs>
   movements?: boolean | Prisma.Sales$movementsArgs<ExtArgs>
   advanceAllocations?: boolean | Prisma.Sales$advanceAllocationsArgs<ExtArgs>
+  savingsTransactions?: boolean | Prisma.Sales$savingsTransactionsArgs<ExtArgs>
   _count?: boolean | Prisma.SalesCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["sales"]>
 
@@ -1510,6 +1669,7 @@ export type SalesInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   payments?: boolean | Prisma.Sales$paymentsArgs<ExtArgs>
   movements?: boolean | Prisma.Sales$movementsArgs<ExtArgs>
   advanceAllocations?: boolean | Prisma.Sales$advanceAllocationsArgs<ExtArgs>
+  savingsTransactions?: boolean | Prisma.Sales$savingsTransactionsArgs<ExtArgs>
   _count?: boolean | Prisma.SalesCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type SalesIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1527,6 +1687,7 @@ export type $SalesPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     payments: Prisma.$PaymentPayload<ExtArgs>[]
     movements: Prisma.$StockMovementPayload<ExtArgs>[]
     advanceAllocations: Prisma.$CustomerAdvanceAllocationPayload<ExtArgs>[]
+    savingsTransactions: Prisma.$CustomerSavingsTransactionPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1944,6 +2105,7 @@ export interface Prisma__SalesClient<T, Null = never, ExtArgs extends runtime.Ty
   payments<T extends Prisma.Sales$paymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sales$paymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PaymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   movements<T extends Prisma.Sales$movementsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sales$movementsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$StockMovementPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   advanceAllocations<T extends Prisma.Sales$advanceAllocationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sales$advanceAllocationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CustomerAdvanceAllocationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  savingsTransactions<T extends Prisma.Sales$savingsTransactionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sales$savingsTransactionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CustomerSavingsTransactionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2500,6 +2662,30 @@ export type Sales$advanceAllocationsArgs<ExtArgs extends runtime.Types.Extension
   take?: number
   skip?: number
   distinct?: Prisma.CustomerAdvanceAllocationScalarFieldEnum | Prisma.CustomerAdvanceAllocationScalarFieldEnum[]
+}
+
+/**
+ * Sales.savingsTransactions
+ */
+export type Sales$savingsTransactionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the CustomerSavingsTransaction
+   */
+  select?: Prisma.CustomerSavingsTransactionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the CustomerSavingsTransaction
+   */
+  omit?: Prisma.CustomerSavingsTransactionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CustomerSavingsTransactionInclude<ExtArgs> | null
+  where?: Prisma.CustomerSavingsTransactionWhereInput
+  orderBy?: Prisma.CustomerSavingsTransactionOrderByWithRelationInput | Prisma.CustomerSavingsTransactionOrderByWithRelationInput[]
+  cursor?: Prisma.CustomerSavingsTransactionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.CustomerSavingsTransactionScalarFieldEnum | Prisma.CustomerSavingsTransactionScalarFieldEnum[]
 }
 
 /**

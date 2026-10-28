@@ -21,6 +21,7 @@ import {
   RotateCcw,
   ShoppingCart,
   Pencil,
+  Coins,
 } from "lucide-react";
 import {
   createSaleAction,
@@ -124,6 +125,7 @@ interface SalesClientProps {
     activeCashSession?: { id: number; reference: string } | null;
     metrics: SalesMetrics;
     advances?: CustomerAdvanceItem[];
+    savingsAccounts?: Array<{ customerId: number; balance: number }>;
   };
 }
 
@@ -131,6 +133,8 @@ export function SalesClient({ initialData }: SalesClientProps) {
   const sales = initialData.sales;
   const metrics = initialData.metrics;
   const activeCashSession = initialData.activeCashSession;
+  const savingsAccounts = initialData.savingsAccounts || [];
+  const [paymentModalMethod, setPaymentModalMethod] = useState<string>("cash");
   const [createdCustomers, setCreatedCustomers] = useState<CustomerOption[]>([]);
   const customers = useMemo(() => {
     const list = [...createdCustomers];
@@ -234,6 +238,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
 
   const openPaymentModal = (sale: PrintableSale) => {
     setPaymentModalSale(sale);
+    setPaymentModalMethod("cash");
     setPaymentAmountInput("");
     setPaymentInputError(null);
   };
@@ -526,6 +531,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
   const [isPaidAmountCustom, setIsPaidAmountCustom] = useState<boolean>(false);
   const [formPaymentMethod, setFormPaymentMethod] = useState<"cash" | "cib" | "check" | "transfer">("cash");
   const [formPaymentNotes, setFormPaymentNotes] = useState<string>("");
+  const [formSavingsUsed, setFormSavingsUsed] = useState<string>("");
 
   // Delivery fee & checkbox state
   const [formIncludeDeliveryFee, setFormIncludeDeliveryFee] = useState<boolean>(false);
@@ -583,20 +589,46 @@ export function SalesClient({ initialData }: SalesClientProps) {
     return roundMoney(Math.max(0, subtotal + effectiveDeliveryFee - effectiveGlobalDiscount));
   }, [subtotal, effectiveDeliveryFee, effectiveGlobalDiscount]);
 
+  const selectedCustomerSavings = useMemo(() => {
+    if (formCustomerId === "walkin") return 0;
+    const cid = parseInt(formCustomerId, 10);
+    const acc = savingsAccounts.find((s) => s.customerId === cid);
+    return acc ? acc.balance : 0;
+  }, [formCustomerId, savingsAccounts]);
+
+  const parsedSavingsUsed = useMemo(() => {
+    if (selectedCustomerSavings <= 0) return 0;
+    const val = parseFloat(formSavingsUsed);
+    if (isNaN(val) || val <= 0) return 0;
+    return roundMoney(Math.min(val, selectedCustomerSavings, grandTotal));
+  }, [formSavingsUsed, selectedCustomerSavings, grandTotal]);
+
+  const remainingAfterSavings = useMemo(() => {
+    return roundMoney(Math.max(0, grandTotal - parsedSavingsUsed));
+  }, [grandTotal, parsedSavingsUsed]);
+
   const effectivePaidAmount = useMemo(() => {
     if (formPaymentType === "credit") {
       return 0;
     }
     if (formPaymentType === "full" && !isPaidAmountCustom) {
-      return grandTotal;
+      return remainingAfterSavings;
     }
     const typed = parseFloat(formPaidAmount);
     return isNaN(typed) ? 0 : roundMoney(Math.max(0, typed));
-  }, [formPaymentType, isPaidAmountCustom, grandTotal, formPaidAmount]);
+  }, [formPaymentType, isPaidAmountCustom, remainingAfterSavings, formPaidAmount]);
 
   const remainingDue = useMemo(() => {
-    return roundMoney(Math.max(0, grandTotal - effectivePaidAmount));
-  }, [grandTotal, effectivePaidAmount]);
+    return roundMoney(Math.max(0, grandTotal - parsedSavingsUsed - effectivePaidAmount));
+  }, [grandTotal, parsedSavingsUsed, effectivePaidAmount]);
+
+  const modalCustomerSavings = useMemo(() => {
+    if (!paymentModalSale) return 0;
+    const cid = paymentModalSale.customer?.id;
+    if (!cid) return 0;
+    const acc = savingsAccounts.find((s) => s.customerId === cid);
+    return acc ? acc.balance : 0;
+  }, [paymentModalSale, savingsAccounts]);
 
   // Helper to get available stock for a product at a location
   const getAvailableStock = (prodId: number, locId: number): number => {
@@ -758,6 +790,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
       deliveryFee: parsedDeliveryFee,
       includeDeliveryFee: formIncludeDeliveryFee,
       discount: effectiveGlobalDiscount,
+      savingsUsed: parsedSavingsUsed > 0 ? parsedSavingsUsed : undefined,
       items: parsedLines.map((l) => ({
         productId: l.productId,
         locationId: l.locationId,
@@ -828,8 +861,17 @@ export function SalesClient({ initialData }: SalesClientProps) {
       return;
     }
 
-    setPaymentInputError(null);
     const formData = new FormData(e.currentTarget);
+    const chosenMethod = (formData.get("method") as string) || paymentModalMethod;
+    if (chosenMethod === "savings") {
+      if (amount > modalCustomerSavings) {
+        setPaymentInputError(
+          `Le montant saisi (${amount.toLocaleString("fr-DZ")} DA) dépasse le solde d'épargne disponible (${modalCustomerSavings.toLocaleString("fr-DZ")} DA).`
+        );
+        return;
+      }
+    }
+    setPaymentInputError(null);
     formData.set("amount", trimmedVal);
     formData.append("saleId", String(paymentModalSale.id));
 
@@ -1467,7 +1509,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
                 <div className="flex gap-2">
                   <select
                     value={formCustomerId}
-                    onChange={(e) => setFormCustomerId(e.target.value)}
+                    onChange={(e) => { setFormCustomerId(e.target.value); setFormSavingsUsed(""); }}
                     className="flex-1 px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500"
                   >
                     <option value="walkin">Client Passager / Comptoir (Vente Directe)</option>
@@ -1722,6 +1764,63 @@ export function SalesClient({ initialData }: SalesClientProps) {
                   </div>
                 </div>
 
+                {selectedCustomerSavings > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Coins className="h-4 w-4 text-amber-600 shrink-0" />
+                        <span className="text-xs font-bold text-amber-950">
+                          Épargne / Avoir disponible : {selectedCustomerSavings.toLocaleString("fr-DZ")} DA
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const maxUsable = Math.min(selectedCustomerSavings, grandTotal);
+                          setFormSavingsUsed(String(maxUsable));
+                        }}
+                        className="text-[11px] font-semibold text-amber-800 hover:text-amber-900 underline cursor-pointer"
+                      >
+                        Utiliser le max ({Math.min(selectedCustomerSavings, grandTotal).toLocaleString("fr-DZ")} DA)
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-0.5">
+                          Montant déduit de l&apos;épargne (DA)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={Math.min(selectedCustomerSavings, grandTotal)}
+                          step="1"
+                          placeholder="0"
+                          value={formSavingsUsed}
+                          onChange={(e) => setFormSavingsUsed(e.target.value)}
+                          className="w-full px-3 py-1.5 text-xs font-mono font-bold text-amber-900 border border-amber-300 rounded-lg bg-white"
+                        />
+                      </div>
+                      {parsedSavingsUsed > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setFormSavingsUsed("")}
+                          className="text-xs text-slate-400 hover:text-rose-600 self-end pb-2 cursor-pointer"
+                          title="Effacer la déduction d'épargne"
+                        >
+                          Effacer
+                        </button>
+                      )}
+                    </div>
+
+                    {parsedSavingsUsed > 0 && (
+                      <p className="text-[11px] text-amber-800 font-medium">
+                        ✓ Déduction de {parsedSavingsUsed.toLocaleString("fr-DZ")} DA appliquée sur l&apos;épargne. Reste pour solder la facture : {remainingAfterSavings.toLocaleString("fr-DZ")} DA.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
@@ -1823,6 +1922,15 @@ export function SalesClient({ initialData }: SalesClientProps) {
                       className="w-full p-2 bg-slate-800 border border-slate-700 rounded text-xs text-white"
                     ></textarea>
                   </div>
+
+                  {parsedSavingsUsed > 0 && (
+                    <div className="flex justify-between text-xs text-amber-300 pt-1">
+                      <span>Déduction Épargne Client :</span>
+                      <span className="font-mono font-bold">
+                        - {parsedSavingsUsed.toLocaleString("fr-DZ")} DA
+                      </span>
+                    </div>
+                  )}
 
                   <div className="flex justify-between text-base font-bold pt-3 border-t border-slate-700">
                     <span>TOTAL FACTURE :</span>
@@ -2776,13 +2884,29 @@ export function SalesClient({ initialData }: SalesClientProps) {
                   </label>
                   <select
                     name="method"
-                    defaultValue="cash"
+                    value={paymentModalMethod}
+                    onChange={(e) => {
+                      const newMethod = e.target.value;
+                      setPaymentModalMethod(newMethod);
+                      if (newMethod === "savings") {
+                        const remainingBal = Math.max(0, paymentModalSale.totalAmount - paymentModalSale.paidAmount);
+                        const maxApplicable = Math.min(modalCustomerSavings, remainingBal);
+                        if (!paymentAmountInput || parseFloat(paymentAmountInput) > maxApplicable) {
+                          setPaymentAmountInput(String(maxApplicable));
+                        }
+                      }
+                    }}
                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white"
                   >
                     <option value="cash">Espèces</option>
                     <option value="cib">Carte CIB / Edahabia</option>
                     <option value="check">Chèque bancaire</option>
                     <option value="transfer">Virement</option>
+                    {modalCustomerSavings > 0 && (
+                      <option value="savings">
+                        Épargne Client (Dispo : {modalCustomerSavings.toLocaleString("fr-DZ")} DA)
+                      </option>
+                    )}
                   </select>
                 </div>
 
@@ -2799,7 +2923,12 @@ export function SalesClient({ initialData }: SalesClientProps) {
                 </div>
 
                 <div className="col-span-2">
-                  {activeCashSession ? (
+                  {paymentModalMethod === "savings" ? (
+                    <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 font-medium flex items-center gap-1.5">
+                      <Coins className="h-3.5 w-3.5 text-amber-600 shrink-0 inline-block" />
+                      Règlement prélevé sur le compte d&apos;épargne du client ({modalCustomerSavings.toLocaleString("fr-DZ")} DA disponibles). Aucun flux d&apos;espèces physique n&apos;est généré en caisse.
+                    </p>
+                  ) : activeCashSession ? (
                     <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2.5 py-1 font-medium flex items-center gap-1.5">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0 inline-block"></span>
                       Caisse ouverte ({activeCashSession.reference}) : les versements en espèces sont rattachés au tiroir.

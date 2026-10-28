@@ -423,7 +423,9 @@ export const ModelName = {
   MonthlyClosingChecklist: 'MonthlyClosingChecklist',
   MonthlyClosingSnapshot: 'MonthlyClosingSnapshot',
   MonthlyClosingPeriod: 'MonthlyClosingPeriod',
-  MonthlyClosingAuditLog: 'MonthlyClosingAuditLog'
+  MonthlyClosingAuditLog: 'MonthlyClosingAuditLog',
+  CustomerSavingsAccount: 'CustomerSavingsAccount',
+  CustomerSavingsTransaction: 'CustomerSavingsTransaction'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -439,7 +441,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "location" | "productStock" | "stockMovement" | "customer" | "supplier" | "sales" | "saleItem" | "payment" | "customerAdvance" | "customerAdvanceAllocation" | "purchase" | "purchaseItem" | "purchaseReceipt" | "purchaseReceiptItem" | "cashSession" | "expense" | "treasuryAccount" | "treasuryTransfer" | "supplierDebt" | "transaction" | "shopSettings" | "monthlyClosingChecklist" | "monthlyClosingSnapshot" | "monthlyClosingPeriod" | "monthlyClosingAuditLog"
+    modelProps: "category" | "product" | "location" | "productStock" | "stockMovement" | "customer" | "supplier" | "sales" | "saleItem" | "payment" | "customerAdvance" | "customerAdvanceAllocation" | "purchase" | "purchaseItem" | "purchaseReceipt" | "purchaseReceiptItem" | "cashSession" | "expense" | "treasuryAccount" | "treasuryTransfer" | "supplierDebt" | "transaction" | "shopSettings" | "monthlyClosingChecklist" | "monthlyClosingSnapshot" | "monthlyClosingPeriod" | "monthlyClosingAuditLog" | "customerSavingsAccount" | "customerSavingsTransaction"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2441,6 +2443,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    CustomerSavingsAccount: {
+      payload: Prisma.$CustomerSavingsAccountPayload<ExtArgs>
+      fields: Prisma.CustomerSavingsAccountFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CustomerSavingsAccountFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CustomerSavingsAccountFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload>
+        }
+        findFirst: {
+          args: Prisma.CustomerSavingsAccountFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CustomerSavingsAccountFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload>
+        }
+        findMany: {
+          args: Prisma.CustomerSavingsAccountFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload>[]
+        }
+        create: {
+          args: Prisma.CustomerSavingsAccountCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload>
+        }
+        createMany: {
+          args: Prisma.CustomerSavingsAccountCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CustomerSavingsAccountCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload>[]
+        }
+        delete: {
+          args: Prisma.CustomerSavingsAccountDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload>
+        }
+        update: {
+          args: Prisma.CustomerSavingsAccountUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload>
+        }
+        deleteMany: {
+          args: Prisma.CustomerSavingsAccountDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CustomerSavingsAccountUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CustomerSavingsAccountUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload>[]
+        }
+        upsert: {
+          args: Prisma.CustomerSavingsAccountUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsAccountPayload>
+        }
+        aggregate: {
+          args: Prisma.CustomerSavingsAccountAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCustomerSavingsAccount>
+        }
+        groupBy: {
+          args: Prisma.CustomerSavingsAccountGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CustomerSavingsAccountGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CustomerSavingsAccountCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CustomerSavingsAccountCountAggregateOutputType> | number
+        }
+      }
+    }
+    CustomerSavingsTransaction: {
+      payload: Prisma.$CustomerSavingsTransactionPayload<ExtArgs>
+      fields: Prisma.CustomerSavingsTransactionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CustomerSavingsTransactionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CustomerSavingsTransactionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload>
+        }
+        findFirst: {
+          args: Prisma.CustomerSavingsTransactionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CustomerSavingsTransactionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload>
+        }
+        findMany: {
+          args: Prisma.CustomerSavingsTransactionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload>[]
+        }
+        create: {
+          args: Prisma.CustomerSavingsTransactionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload>
+        }
+        createMany: {
+          args: Prisma.CustomerSavingsTransactionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CustomerSavingsTransactionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload>[]
+        }
+        delete: {
+          args: Prisma.CustomerSavingsTransactionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload>
+        }
+        update: {
+          args: Prisma.CustomerSavingsTransactionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload>
+        }
+        deleteMany: {
+          args: Prisma.CustomerSavingsTransactionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CustomerSavingsTransactionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CustomerSavingsTransactionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload>[]
+        }
+        upsert: {
+          args: Prisma.CustomerSavingsTransactionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomerSavingsTransactionPayload>
+        }
+        aggregate: {
+          args: Prisma.CustomerSavingsTransactionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCustomerSavingsTransaction>
+        }
+        groupBy: {
+          args: Prisma.CustomerSavingsTransactionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CustomerSavingsTransactionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CustomerSavingsTransactionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CustomerSavingsTransactionCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -2954,6 +3104,46 @@ export const MonthlyClosingAuditLogScalarFieldEnum = {
 export type MonthlyClosingAuditLogScalarFieldEnum = (typeof MonthlyClosingAuditLogScalarFieldEnum)[keyof typeof MonthlyClosingAuditLogScalarFieldEnum]
 
 
+export const CustomerSavingsAccountScalarFieldEnum = {
+  id: 'id',
+  customerId: 'customerId',
+  balance: 'balance',
+  totalDeposited: 'totalDeposited',
+  totalUsed: 'totalUsed',
+  totalRefunded: 'totalRefunded',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CustomerSavingsAccountScalarFieldEnum = (typeof CustomerSavingsAccountScalarFieldEnum)[keyof typeof CustomerSavingsAccountScalarFieldEnum]
+
+
+export const CustomerSavingsTransactionScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  customerId: 'customerId',
+  accountId: 'accountId',
+  treasuryAccountId: 'treasuryAccountId',
+  type: 'type',
+  amount: 'amount',
+  direction: 'direction',
+  balanceBefore: 'balanceBefore',
+  balanceAfter: 'balanceAfter',
+  paymentMethod: 'paymentMethod',
+  saleId: 'saleId',
+  relatedTransactionId: 'relatedTransactionId',
+  sessionId: 'sessionId',
+  description: 'description',
+  notes: 'notes',
+  status: 'status',
+  date: 'date',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CustomerSavingsTransactionScalarFieldEnum = (typeof CustomerSavingsTransactionScalarFieldEnum)[keyof typeof CustomerSavingsTransactionScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -3188,6 +3378,8 @@ export type GlobalOmitConfig = {
   monthlyClosingSnapshot?: Prisma.MonthlyClosingSnapshotOmit
   monthlyClosingPeriod?: Prisma.MonthlyClosingPeriodOmit
   monthlyClosingAuditLog?: Prisma.MonthlyClosingAuditLogOmit
+  customerSavingsAccount?: Prisma.CustomerSavingsAccountOmit
+  customerSavingsTransaction?: Prisma.CustomerSavingsTransactionOmit
 }
 
 /* Types for Logging */

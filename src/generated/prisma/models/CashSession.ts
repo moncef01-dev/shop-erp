@@ -393,6 +393,7 @@ export type CashSessionWhereInput = {
   payments?: Prisma.PaymentListRelationFilter
   customerAdvances?: Prisma.CustomerAdvanceListRelationFilter
   transfers?: Prisma.TreasuryTransferListRelationFilter
+  savingsTransactions?: Prisma.CustomerSavingsTransactionListRelationFilter
 }
 
 export type CashSessionOrderByWithRelationInput = {
@@ -422,6 +423,7 @@ export type CashSessionOrderByWithRelationInput = {
   payments?: Prisma.PaymentOrderByRelationAggregateInput
   customerAdvances?: Prisma.CustomerAdvanceOrderByRelationAggregateInput
   transfers?: Prisma.TreasuryTransferOrderByRelationAggregateInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionOrderByRelationAggregateInput
 }
 
 export type CashSessionWhereUniqueInput = Prisma.AtLeast<{
@@ -454,6 +456,7 @@ export type CashSessionWhereUniqueInput = Prisma.AtLeast<{
   payments?: Prisma.PaymentListRelationFilter
   customerAdvances?: Prisma.CustomerAdvanceListRelationFilter
   transfers?: Prisma.TreasuryTransferListRelationFilter
+  savingsTransactions?: Prisma.CustomerSavingsTransactionListRelationFilter
 }, "id" | "reference">
 
 export type CashSessionOrderByWithAggregationInput = {
@@ -537,6 +540,7 @@ export type CashSessionCreateInput = {
   payments?: Prisma.PaymentCreateNestedManyWithoutSessionInput
   customerAdvances?: Prisma.CustomerAdvanceCreateNestedManyWithoutSessionInput
   transfers?: Prisma.TreasuryTransferCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionUncheckedCreateInput = {
@@ -565,6 +569,7 @@ export type CashSessionUncheckedCreateInput = {
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSessionInput
   customerAdvances?: Prisma.CustomerAdvanceUncheckedCreateNestedManyWithoutSessionInput
   transfers?: Prisma.TreasuryTransferUncheckedCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionUpdateInput = {
@@ -592,6 +597,7 @@ export type CashSessionUpdateInput = {
   payments?: Prisma.PaymentUpdateManyWithoutSessionNestedInput
   customerAdvances?: Prisma.CustomerAdvanceUpdateManyWithoutSessionNestedInput
   transfers?: Prisma.TreasuryTransferUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionUncheckedUpdateInput = {
@@ -620,6 +626,7 @@ export type CashSessionUncheckedUpdateInput = {
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSessionNestedInput
   customerAdvances?: Prisma.CustomerAdvanceUncheckedUpdateManyWithoutSessionNestedInput
   transfers?: Prisma.TreasuryTransferUncheckedUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionCreateManyInput = {
@@ -915,6 +922,22 @@ export type CashSessionUpdateOneWithoutTransfersNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.CashSessionUpdateToOneWithWhereWithoutTransfersInput, Prisma.CashSessionUpdateWithoutTransfersInput>, Prisma.CashSessionUncheckedUpdateWithoutTransfersInput>
 }
 
+export type CashSessionCreateNestedOneWithoutSavingsTransactionsInput = {
+  create?: Prisma.XOR<Prisma.CashSessionCreateWithoutSavingsTransactionsInput, Prisma.CashSessionUncheckedCreateWithoutSavingsTransactionsInput>
+  connectOrCreate?: Prisma.CashSessionCreateOrConnectWithoutSavingsTransactionsInput
+  connect?: Prisma.CashSessionWhereUniqueInput
+}
+
+export type CashSessionUpdateOneWithoutSavingsTransactionsNestedInput = {
+  create?: Prisma.XOR<Prisma.CashSessionCreateWithoutSavingsTransactionsInput, Prisma.CashSessionUncheckedCreateWithoutSavingsTransactionsInput>
+  connectOrCreate?: Prisma.CashSessionCreateOrConnectWithoutSavingsTransactionsInput
+  upsert?: Prisma.CashSessionUpsertWithoutSavingsTransactionsInput
+  disconnect?: Prisma.CashSessionWhereInput | boolean
+  delete?: Prisma.CashSessionWhereInput | boolean
+  connect?: Prisma.CashSessionWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.CashSessionUpdateToOneWithWhereWithoutSavingsTransactionsInput, Prisma.CashSessionUpdateWithoutSavingsTransactionsInput>, Prisma.CashSessionUncheckedUpdateWithoutSavingsTransactionsInput>
+}
+
 export type CashSessionCreateWithoutPaymentsInput = {
   reference: string
   openedAt?: Date | string
@@ -939,6 +962,7 @@ export type CashSessionCreateWithoutPaymentsInput = {
   expenses?: Prisma.ExpenseCreateNestedManyWithoutSessionInput
   customerAdvances?: Prisma.CustomerAdvanceCreateNestedManyWithoutSessionInput
   transfers?: Prisma.TreasuryTransferCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionUncheckedCreateWithoutPaymentsInput = {
@@ -966,6 +990,7 @@ export type CashSessionUncheckedCreateWithoutPaymentsInput = {
   expenses?: Prisma.ExpenseUncheckedCreateNestedManyWithoutSessionInput
   customerAdvances?: Prisma.CustomerAdvanceUncheckedCreateNestedManyWithoutSessionInput
   transfers?: Prisma.TreasuryTransferUncheckedCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionCreateOrConnectWithoutPaymentsInput = {
@@ -1008,6 +1033,7 @@ export type CashSessionUpdateWithoutPaymentsInput = {
   expenses?: Prisma.ExpenseUpdateManyWithoutSessionNestedInput
   customerAdvances?: Prisma.CustomerAdvanceUpdateManyWithoutSessionNestedInput
   transfers?: Prisma.TreasuryTransferUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionUncheckedUpdateWithoutPaymentsInput = {
@@ -1035,6 +1061,7 @@ export type CashSessionUncheckedUpdateWithoutPaymentsInput = {
   expenses?: Prisma.ExpenseUncheckedUpdateManyWithoutSessionNestedInput
   customerAdvances?: Prisma.CustomerAdvanceUncheckedUpdateManyWithoutSessionNestedInput
   transfers?: Prisma.TreasuryTransferUncheckedUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionCreateWithoutCustomerAdvancesInput = {
@@ -1061,6 +1088,7 @@ export type CashSessionCreateWithoutCustomerAdvancesInput = {
   expenses?: Prisma.ExpenseCreateNestedManyWithoutSessionInput
   payments?: Prisma.PaymentCreateNestedManyWithoutSessionInput
   transfers?: Prisma.TreasuryTransferCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionUncheckedCreateWithoutCustomerAdvancesInput = {
@@ -1088,6 +1116,7 @@ export type CashSessionUncheckedCreateWithoutCustomerAdvancesInput = {
   expenses?: Prisma.ExpenseUncheckedCreateNestedManyWithoutSessionInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSessionInput
   transfers?: Prisma.TreasuryTransferUncheckedCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionCreateOrConnectWithoutCustomerAdvancesInput = {
@@ -1130,6 +1159,7 @@ export type CashSessionUpdateWithoutCustomerAdvancesInput = {
   expenses?: Prisma.ExpenseUpdateManyWithoutSessionNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutSessionNestedInput
   transfers?: Prisma.TreasuryTransferUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionUncheckedUpdateWithoutCustomerAdvancesInput = {
@@ -1157,6 +1187,7 @@ export type CashSessionUncheckedUpdateWithoutCustomerAdvancesInput = {
   expenses?: Prisma.ExpenseUncheckedUpdateManyWithoutSessionNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSessionNestedInput
   transfers?: Prisma.TreasuryTransferUncheckedUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionCreateWithoutExpensesInput = {
@@ -1183,6 +1214,7 @@ export type CashSessionCreateWithoutExpensesInput = {
   payments?: Prisma.PaymentCreateNestedManyWithoutSessionInput
   customerAdvances?: Prisma.CustomerAdvanceCreateNestedManyWithoutSessionInput
   transfers?: Prisma.TreasuryTransferCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionUncheckedCreateWithoutExpensesInput = {
@@ -1210,6 +1242,7 @@ export type CashSessionUncheckedCreateWithoutExpensesInput = {
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSessionInput
   customerAdvances?: Prisma.CustomerAdvanceUncheckedCreateNestedManyWithoutSessionInput
   transfers?: Prisma.TreasuryTransferUncheckedCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionCreateOrConnectWithoutExpensesInput = {
@@ -1252,6 +1285,7 @@ export type CashSessionUpdateWithoutExpensesInput = {
   payments?: Prisma.PaymentUpdateManyWithoutSessionNestedInput
   customerAdvances?: Prisma.CustomerAdvanceUpdateManyWithoutSessionNestedInput
   transfers?: Prisma.TreasuryTransferUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionUncheckedUpdateWithoutExpensesInput = {
@@ -1279,6 +1313,7 @@ export type CashSessionUncheckedUpdateWithoutExpensesInput = {
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSessionNestedInput
   customerAdvances?: Prisma.CustomerAdvanceUncheckedUpdateManyWithoutSessionNestedInput
   transfers?: Prisma.TreasuryTransferUncheckedUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionCreateWithoutAccountInput = {
@@ -1305,6 +1340,7 @@ export type CashSessionCreateWithoutAccountInput = {
   payments?: Prisma.PaymentCreateNestedManyWithoutSessionInput
   customerAdvances?: Prisma.CustomerAdvanceCreateNestedManyWithoutSessionInput
   transfers?: Prisma.TreasuryTransferCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionUncheckedCreateWithoutAccountInput = {
@@ -1332,6 +1368,7 @@ export type CashSessionUncheckedCreateWithoutAccountInput = {
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSessionInput
   customerAdvances?: Prisma.CustomerAdvanceUncheckedCreateNestedManyWithoutSessionInput
   transfers?: Prisma.TreasuryTransferUncheckedCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionCreateOrConnectWithoutAccountInput = {
@@ -1410,6 +1447,7 @@ export type CashSessionCreateWithoutTransfersInput = {
   expenses?: Prisma.ExpenseCreateNestedManyWithoutSessionInput
   payments?: Prisma.PaymentCreateNestedManyWithoutSessionInput
   customerAdvances?: Prisma.CustomerAdvanceCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionUncheckedCreateWithoutTransfersInput = {
@@ -1437,6 +1475,7 @@ export type CashSessionUncheckedCreateWithoutTransfersInput = {
   expenses?: Prisma.ExpenseUncheckedCreateNestedManyWithoutSessionInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSessionInput
   customerAdvances?: Prisma.CustomerAdvanceUncheckedCreateNestedManyWithoutSessionInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutSessionInput
 }
 
 export type CashSessionCreateOrConnectWithoutTransfersInput = {
@@ -1479,6 +1518,7 @@ export type CashSessionUpdateWithoutTransfersInput = {
   expenses?: Prisma.ExpenseUpdateManyWithoutSessionNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutSessionNestedInput
   customerAdvances?: Prisma.CustomerAdvanceUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionUncheckedUpdateWithoutTransfersInput = {
@@ -1506,6 +1546,133 @@ export type CashSessionUncheckedUpdateWithoutTransfersInput = {
   expenses?: Prisma.ExpenseUncheckedUpdateManyWithoutSessionNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSessionNestedInput
   customerAdvances?: Prisma.CustomerAdvanceUncheckedUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSessionNestedInput
+}
+
+export type CashSessionCreateWithoutSavingsTransactionsInput = {
+  reference: string
+  openedAt?: Date | string
+  closedAt?: Date | string | null
+  status?: string
+  openingAmount?: number
+  totalCashIn?: number
+  totalCashOut?: number
+  theoreticalAmount?: number | null
+  closingAmount?: number | null
+  difference?: number | null
+  openingNotes?: string | null
+  closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  account?: Prisma.TreasuryAccountCreateNestedOneWithoutCashSessionsInput
+  expenses?: Prisma.ExpenseCreateNestedManyWithoutSessionInput
+  payments?: Prisma.PaymentCreateNestedManyWithoutSessionInput
+  customerAdvances?: Prisma.CustomerAdvanceCreateNestedManyWithoutSessionInput
+  transfers?: Prisma.TreasuryTransferCreateNestedManyWithoutSessionInput
+}
+
+export type CashSessionUncheckedCreateWithoutSavingsTransactionsInput = {
+  id?: number
+  reference: string
+  accountId?: number | null
+  openedAt?: Date | string
+  closedAt?: Date | string | null
+  status?: string
+  openingAmount?: number
+  totalCashIn?: number
+  totalCashOut?: number
+  theoreticalAmount?: number | null
+  closingAmount?: number | null
+  difference?: number | null
+  openingNotes?: string | null
+  closingNotes?: string | null
+  originalClosingAmount?: number | null
+  originalTheoreticalAmount?: number | null
+  originalDifference?: number | null
+  retainedAmount?: number | null
+  closingEditAudit?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  expenses?: Prisma.ExpenseUncheckedCreateNestedManyWithoutSessionInput
+  payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSessionInput
+  customerAdvances?: Prisma.CustomerAdvanceUncheckedCreateNestedManyWithoutSessionInput
+  transfers?: Prisma.TreasuryTransferUncheckedCreateNestedManyWithoutSessionInput
+}
+
+export type CashSessionCreateOrConnectWithoutSavingsTransactionsInput = {
+  where: Prisma.CashSessionWhereUniqueInput
+  create: Prisma.XOR<Prisma.CashSessionCreateWithoutSavingsTransactionsInput, Prisma.CashSessionUncheckedCreateWithoutSavingsTransactionsInput>
+}
+
+export type CashSessionUpsertWithoutSavingsTransactionsInput = {
+  update: Prisma.XOR<Prisma.CashSessionUpdateWithoutSavingsTransactionsInput, Prisma.CashSessionUncheckedUpdateWithoutSavingsTransactionsInput>
+  create: Prisma.XOR<Prisma.CashSessionCreateWithoutSavingsTransactionsInput, Prisma.CashSessionUncheckedCreateWithoutSavingsTransactionsInput>
+  where?: Prisma.CashSessionWhereInput
+}
+
+export type CashSessionUpdateToOneWithWhereWithoutSavingsTransactionsInput = {
+  where?: Prisma.CashSessionWhereInput
+  data: Prisma.XOR<Prisma.CashSessionUpdateWithoutSavingsTransactionsInput, Prisma.CashSessionUncheckedUpdateWithoutSavingsTransactionsInput>
+}
+
+export type CashSessionUpdateWithoutSavingsTransactionsInput = {
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  openedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  closedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  openingAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  totalCashIn?: Prisma.FloatFieldUpdateOperationsInput | number
+  totalCashOut?: Prisma.FloatFieldUpdateOperationsInput | number
+  theoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  account?: Prisma.TreasuryAccountUpdateOneWithoutCashSessionsNestedInput
+  expenses?: Prisma.ExpenseUpdateManyWithoutSessionNestedInput
+  payments?: Prisma.PaymentUpdateManyWithoutSessionNestedInput
+  customerAdvances?: Prisma.CustomerAdvanceUpdateManyWithoutSessionNestedInput
+  transfers?: Prisma.TreasuryTransferUpdateManyWithoutSessionNestedInput
+}
+
+export type CashSessionUncheckedUpdateWithoutSavingsTransactionsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  accountId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  openedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  closedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  openingAmount?: Prisma.FloatFieldUpdateOperationsInput | number
+  totalCashIn?: Prisma.FloatFieldUpdateOperationsInput | number
+  totalCashOut?: Prisma.FloatFieldUpdateOperationsInput | number
+  theoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  difference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  openingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  closingNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  originalClosingAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalTheoreticalAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  originalDifference?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  retainedAmount?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  closingEditAudit?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  expenses?: Prisma.ExpenseUncheckedUpdateManyWithoutSessionNestedInput
+  payments?: Prisma.PaymentUncheckedUpdateManyWithoutSessionNestedInput
+  customerAdvances?: Prisma.CustomerAdvanceUncheckedUpdateManyWithoutSessionNestedInput
+  transfers?: Prisma.TreasuryTransferUncheckedUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionCreateManyAccountInput = {
@@ -1555,6 +1722,7 @@ export type CashSessionUpdateWithoutAccountInput = {
   payments?: Prisma.PaymentUpdateManyWithoutSessionNestedInput
   customerAdvances?: Prisma.CustomerAdvanceUpdateManyWithoutSessionNestedInput
   transfers?: Prisma.TreasuryTransferUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionUncheckedUpdateWithoutAccountInput = {
@@ -1582,6 +1750,7 @@ export type CashSessionUncheckedUpdateWithoutAccountInput = {
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSessionNestedInput
   customerAdvances?: Prisma.CustomerAdvanceUncheckedUpdateManyWithoutSessionNestedInput
   transfers?: Prisma.TreasuryTransferUncheckedUpdateManyWithoutSessionNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutSessionNestedInput
 }
 
 export type CashSessionUncheckedUpdateManyWithoutAccountInput = {
@@ -1617,6 +1786,7 @@ export type CashSessionCountOutputType = {
   payments: number
   customerAdvances: number
   transfers: number
+  savingsTransactions: number
 }
 
 export type CashSessionCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1624,6 +1794,7 @@ export type CashSessionCountOutputTypeSelect<ExtArgs extends runtime.Types.Exten
   payments?: boolean | CashSessionCountOutputTypeCountPaymentsArgs
   customerAdvances?: boolean | CashSessionCountOutputTypeCountCustomerAdvancesArgs
   transfers?: boolean | CashSessionCountOutputTypeCountTransfersArgs
+  savingsTransactions?: boolean | CashSessionCountOutputTypeCountSavingsTransactionsArgs
 }
 
 /**
@@ -1664,6 +1835,13 @@ export type CashSessionCountOutputTypeCountTransfersArgs<ExtArgs extends runtime
   where?: Prisma.TreasuryTransferWhereInput
 }
 
+/**
+ * CashSessionCountOutputType without action
+ */
+export type CashSessionCountOutputTypeCountSavingsTransactionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.CustomerSavingsTransactionWhereInput
+}
+
 
 export type CashSessionSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1692,6 +1870,7 @@ export type CashSessionSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   payments?: boolean | Prisma.CashSession$paymentsArgs<ExtArgs>
   customerAdvances?: boolean | Prisma.CashSession$customerAdvancesArgs<ExtArgs>
   transfers?: boolean | Prisma.CashSession$transfersArgs<ExtArgs>
+  savingsTransactions?: boolean | Prisma.CashSession$savingsTransactionsArgs<ExtArgs>
   _count?: boolean | Prisma.CashSessionCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["cashSession"]>
 
@@ -1776,6 +1955,7 @@ export type CashSessionInclude<ExtArgs extends runtime.Types.Extensions.Internal
   payments?: boolean | Prisma.CashSession$paymentsArgs<ExtArgs>
   customerAdvances?: boolean | Prisma.CashSession$customerAdvancesArgs<ExtArgs>
   transfers?: boolean | Prisma.CashSession$transfersArgs<ExtArgs>
+  savingsTransactions?: boolean | Prisma.CashSession$savingsTransactionsArgs<ExtArgs>
   _count?: boolean | Prisma.CashSessionCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type CashSessionIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1793,6 +1973,7 @@ export type $CashSessionPayload<ExtArgs extends runtime.Types.Extensions.Interna
     payments: Prisma.$PaymentPayload<ExtArgs>[]
     customerAdvances: Prisma.$CustomerAdvancePayload<ExtArgs>[]
     transfers: Prisma.$TreasuryTransferPayload<ExtArgs>[]
+    savingsTransactions: Prisma.$CustomerSavingsTransactionPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -2215,6 +2396,7 @@ export interface Prisma__CashSessionClient<T, Null = never, ExtArgs extends runt
   payments<T extends Prisma.CashSession$paymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CashSession$paymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PaymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   customerAdvances<T extends Prisma.CashSession$customerAdvancesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CashSession$customerAdvancesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CustomerAdvancePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   transfers<T extends Prisma.CashSession$transfersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CashSession$transfersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$TreasuryTransferPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  savingsTransactions<T extends Prisma.CashSession$savingsTransactionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CashSession$savingsTransactionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CustomerSavingsTransactionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2776,6 +2958,30 @@ export type CashSession$transfersArgs<ExtArgs extends runtime.Types.Extensions.I
   take?: number
   skip?: number
   distinct?: Prisma.TreasuryTransferScalarFieldEnum | Prisma.TreasuryTransferScalarFieldEnum[]
+}
+
+/**
+ * CashSession.savingsTransactions
+ */
+export type CashSession$savingsTransactionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the CustomerSavingsTransaction
+   */
+  select?: Prisma.CustomerSavingsTransactionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the CustomerSavingsTransaction
+   */
+  omit?: Prisma.CustomerSavingsTransactionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CustomerSavingsTransactionInclude<ExtArgs> | null
+  where?: Prisma.CustomerSavingsTransactionWhereInput
+  orderBy?: Prisma.CustomerSavingsTransactionOrderByWithRelationInput | Prisma.CustomerSavingsTransactionOrderByWithRelationInput[]
+  cursor?: Prisma.CustomerSavingsTransactionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.CustomerSavingsTransactionScalarFieldEnum | Prisma.CustomerSavingsTransactionScalarFieldEnum[]
 }
 
 /**

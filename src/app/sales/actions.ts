@@ -11,6 +11,7 @@ import { roundMoney } from "@/lib/formatters";
 import { getCustomerAdvancesData } from "./advances-actions";
 import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
 import { generateNextExpenseReference } from "@/app/cash/actions";
+import { generateNextSavingsReference, reverseSavingsDeductionsForSale } from "@/app/savings/actions";
 
 export type SaleActionResponse<T = unknown> = {
   success: boolean;
@@ -140,13 +141,16 @@ export async function getSalesModuleData() {
   const totalOutstandingCredit = roundMoney(
     activeSales.reduce((acc, s) => acc + Math.max(0, s.totalAmount - s.paidAmount), 0)
   );
-  const [settings, activeSession, advances] = await Promise.all([
+  const [settings, activeSession, advances, savingsAccounts] = await Promise.all([
     prisma.shopSettings.findUnique({ where: { id: 1 } }),
     prisma.cashSession.findFirst({
       where: { status: "open" },
       select: { id: true, reference: true },
     }),
     getCustomerAdvancesData(),
+    prisma.customerSavingsAccount.findMany({
+      select: { customerId: true, balance: true },
+    }),
   ]);
 
   return {
@@ -156,6 +160,7 @@ export async function getSalesModuleData() {
     locations,
     settings,
     advances,
+    savingsAccounts: savingsAccounts.map((s) => ({ customerId: s.customerId, balance: s.balance })),
     activeCashSession: activeSession ? { id: activeSession.id, reference: activeSession.reference } : null,
     metrics: {
       totalRevenue,
@@ -190,6 +195,7 @@ export interface CreateSaleInput {
     method: "cash" | "cib" | "check" | "transfer";
     notes?: string;
   };
+  savingsUsed?: number;
 }
 
 // ─── CRÉATION D'UNE VENTE / FACTURE ──────────────────────────────────────────
@@ -206,6 +212,7 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
       discount = 0,
       items,
       initialPayment,
+      savingsUsed = 0,
     } = payload;
 
     if (!items || items.length === 0) {
@@ -249,22 +256,37 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
     const safeGlobalDiscount = roundMoney(Math.max(0, discount || 0));
     const totalAmount = roundMoney(Math.max(0, subtotal + effectiveDeliveryFee - safeGlobalDiscount));
 
-    // Initialisation paiement
-    const paymentAmount = initialPayment && initialPayment.amount > 0 ? roundMoney(initialPayment.amount) : 0;
-    if (paymentAmount > totalAmount) {
+    // Déduction épargne client & Initialisation paiement
+    const parsedSavingsUsed = roundMoney(Math.max(0, savingsUsed || 0));
+    if (parsedSavingsUsed > 0 && !customerId) {
       return {
         success: false,
-        error: `Le versement initial (${paymentAmount.toLocaleString("fr-DZ")} DA) ne peut pas excéder le montant total de la facture (${totalAmount.toLocaleString("fr-DZ")} DA).`,
+        error: "L'utilisation de l'épargne client requiert la sélection d'un compte client nominatif.",
+      };
+    }
+    if (parsedSavingsUsed > totalAmount) {
+      return {
+        success: false,
+        error: `Le montant d'épargne appliqué (${parsedSavingsUsed.toLocaleString("fr-DZ")} DA) ne peut pas excéder le total de la facture (${totalAmount.toLocaleString("fr-DZ")} DA).`,
+      };
+    }
+    const remainingAfterSavings = roundMoney(Math.max(0, totalAmount - parsedSavingsUsed));
+    const paymentAmount = initialPayment && initialPayment.amount > 0 ? roundMoney(initialPayment.amount) : 0;
+    if (paymentAmount > remainingAfterSavings) {
+      return {
+        success: false,
+        error: `Le versement initial (${paymentAmount.toLocaleString("fr-DZ")} DA) ne peut pas excéder le reste à payer (${remainingAfterSavings.toLocaleString("fr-DZ")} DA).`,
       };
     }
     if (paymentAmount < 0) {
       return { success: false, error: "Le montant du paiement ne peut pas être négatif." };
     }
 
+    const totalInitialPaid = roundMoney(parsedSavingsUsed + paymentAmount);
     let paymentStatus = "unpaid";
-    if (paymentAmount >= totalAmount && totalAmount > 0) {
+    if (totalInitialPaid >= totalAmount && totalAmount > 0) {
       paymentStatus = "paid";
-    } else if (paymentAmount > 0) {
+    } else if (totalInitialPaid > 0) {
       paymentStatus = "partial";
     }
 
@@ -298,7 +320,7 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
           deliveryFee: parsedDeliveryFee,
           includeDeliveryFee: shouldIncludeDeliveryFee,
           totalAmount,
-          paidAmount: paymentAmount,
+          paidAmount: totalInitialPaid,
           paymentStatus,
           deliveryStatus,
           notes,
@@ -331,6 +353,57 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
             customerName,
           });
         }
+      }
+
+      // 4bis. Appliquer la déduction d'épargne client si demandée
+      if (parsedSavingsUsed > 0 && customerId) {
+        const savingsAcc = await tx.customerSavingsAccount.findUnique({
+          where: { customerId },
+        });
+        if (!savingsAcc || savingsAcc.balance < parsedSavingsUsed) {
+          throw new Error(
+            `Solde d'épargne client insuffisant (${savingsAcc?.balance ?? 0} DA disponibles, ${parsedSavingsUsed} DA demandés).`
+          );
+        }
+        const savingsRef = await generateNextSavingsReference("USAGE", tx);
+        await tx.customerSavingsTransaction.create({
+          data: {
+            reference: savingsRef,
+            customerId,
+            accountId: savingsAcc.id,
+            type: "USAGE",
+            amount: parsedSavingsUsed,
+            direction: "OUT",
+            balanceBefore: savingsAcc.balance,
+            balanceAfter: roundMoney(savingsAcc.balance - parsedSavingsUsed),
+            paymentMethod: "savings",
+            saleId: sale.id,
+            description: `Règlement facture ${sale.reference}`, 
+            notes: `Déduction de ${parsedSavingsUsed.toLocaleString("fr-DZ")} DA d'épargne sur facture ${sale.reference}`,
+            date: new Date(saleDate),
+          },
+        });
+        await tx.customerSavingsAccount.update({
+          where: { id: savingsAcc.id },
+          data: {
+            balance: roundMoney(savingsAcc.balance - parsedSavingsUsed),
+            totalUsed: roundMoney(savingsAcc.totalUsed + parsedSavingsUsed),
+          },
+        });
+        const savingsPayRef = await generateNextPaymentReference(tx);
+        await tx.payment.create({
+          data: {
+            reference: savingsPayRef,
+            saleId: sale.id,
+            amount: parsedSavingsUsed,
+            method: "savings",
+            status: "completed",
+            notes: `Règlement par déduction d'épargne client (Réf: ${savingsRef})`,
+            paymentDate: new Date(saleDate),
+            sessionId: null,
+            accountId: null,
+          },
+        });
       }
 
       // 5. Enregistrer le paiement initial / acompte si fourni (valable sur vente confirmée ou commande/devis)
@@ -1274,6 +1347,24 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
       for (const p of sale.payments) {
         if (p.status === "cancelled") continue;
 
+        if (p.method === "savings") {
+          // Annuler le paiement sans décaissement de trésorerie
+          await tx.payment.update({
+            where: { id: p.id },
+            data: {
+              status: "cancelled",
+              notes: p.notes ? `${p.notes}\n[Annulé le ${nowStr} - Épargne rétablie : ${trimmedReason}]` : `[Annulé le ${nowStr} - Épargne rétablie : ${trimmedReason}]`,
+            },
+          });
+          if (sale.customerId) {
+            const revRefs = await reverseSavingsDeductionsForSale(tx, sale.id, sale.customerId, trimmedReason);
+            if (revRefs.length > 0) {
+              createdRefunds.push(`Épargne client rétablie (${revRefs.join(", ")})`);
+            }
+          }
+          continue;
+        }
+
         if (p.session?.status === "closed") {
           // Le paiement appartient à une session déjà clôturée :
           // Préserver l'historique et la clôture de la session passée
@@ -1404,7 +1495,7 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
     const result = await prisma.$transaction(async (tx) => {
       const currentSale = await tx.sales.findUnique({
         where: { id: saleId },
-        select: { id: true, reference: true, totalAmount: true, paidAmount: true, status: true },
+        select: { id: true, reference: true, totalAmount: true, paidAmount: true, status: true, customerId: true },
       });
 
       if (!currentSale) throw new Error("Facture introuvable.");
@@ -1419,9 +1510,52 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
         );
       }
 
+      const parsedPaymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
+      const now = new Date();
+      const effectivePaymentDate =
+        parsedPaymentDate.toDateString() === now.toDateString() ||
+        (parsedPaymentDate.getHours() === 0 && parsedPaymentDate.getMinutes() === 0)
+          ? now
+          : parsedPaymentDate;
+
       let sessionId: number | null = null;
       let accountId: number | null = null;
-      if (method === "cash") {
+      if (method === "savings") {
+        if (!currentSale.customerId) {
+          throw new Error("Impossible d'utiliser l'épargne client sur une vente au comptoir sans client assigné.");
+        }
+        const savingsAcc = await tx.customerSavingsAccount.findUnique({
+          where: { customerId: currentSale.customerId },
+        });
+        if (!savingsAcc || savingsAcc.balance < amount) {
+          throw new Error(`Solde d'épargne insuffisant (${savingsAcc?.balance ?? 0} DA disponibles, ${amount} DA demandés).`);
+        }
+        const savingsRef = await generateNextSavingsReference("USAGE", tx);
+        await tx.customerSavingsTransaction.create({
+          data: {
+            reference: savingsRef,
+            customerId: currentSale.customerId,
+            accountId: savingsAcc.id,
+            type: "USAGE",
+            amount,
+            direction: "OUT",
+            balanceBefore: savingsAcc.balance,
+            balanceAfter: roundMoney(savingsAcc.balance - amount),
+            paymentMethod: "savings",
+            saleId: currentSale.id,
+            description: `Règlement facture ${currentSale.reference}`,
+            notes: notes || `Règlement par déduction d'épargne client`,
+            date: effectivePaymentDate,
+          },
+        });
+        await tx.customerSavingsAccount.update({
+          where: { id: savingsAcc.id },
+          data: {
+            balance: roundMoney(savingsAcc.balance - amount),
+            totalUsed: roundMoney(savingsAcc.totalUsed + amount),
+          },
+        });
+      } else if (method === "cash") {
         const activeSession = await tx.cashSession.findFirst({
           where: { status: "open" },
           select: { id: true },
@@ -1447,13 +1581,6 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
       }
 
       const payRef = await generateNextPaymentReference(tx);
-      const parsedPaymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
-      const now = new Date();
-      const effectivePaymentDate =
-        parsedPaymentDate.toDateString() === now.toDateString() ||
-        (parsedPaymentDate.getHours() === 0 && parsedPaymentDate.getMinutes() === 0)
-          ? now
-          : parsedPaymentDate;
 
       const payment = await tx.payment.create({
         data: {

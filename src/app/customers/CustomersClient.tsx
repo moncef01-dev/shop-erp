@@ -17,7 +17,9 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Coins,
 } from "lucide-react";
+import Link from "next/link";
 import {
   createCustomerAction,
   updateCustomerAction,
@@ -434,6 +436,13 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <Link
+                          href={`/savings?customerId=${customer.id}`}
+                          title="Épargne & Avoir Client"
+                          className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Coins className="h-4 w-4" />
+                        </Link>
                         <button
                           onClick={() => handleOpenDetails(customer.id)}
                           title="Fiche & Historique"
@@ -734,13 +743,22 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
                 </div>
               </div>
 
-              <button
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/savings?customerId=${selectedCustomerDetails.id}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition-colors"
+                >
+                  <Coins className="h-4 w-4 text-amber-600" />
+                  Épargne & Avoir
+                </Link>
+                <button
                 onClick={() => setSelectedCustomerDetails(null)}
                 className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                 title="Fermer (Échap)"
               >
                 <X className="h-5 w-5" />
               </button>
+              </div>
             </div>
 
             {/* Content Body */}

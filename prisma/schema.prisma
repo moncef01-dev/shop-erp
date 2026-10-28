@@ -140,6 +140,8 @@ model Customer {
 
   sales    Sales[]
   advances CustomerAdvance[]
+  savingsAccount CustomerSavingsAccount?
+  savingsTransactions CustomerSavingsTransaction[]
 
   @@map("customers")
 }
@@ -191,6 +193,7 @@ model Sales {
   payments           Payment[]
   movements          StockMovement[]
   advanceAllocations CustomerAdvanceAllocation[]
+  savingsTransactions CustomerSavingsTransaction[]
 
   @@index([customerId])
   @@index([status])
@@ -419,6 +422,7 @@ model CashSession {
   payments          Payment[]
   customerAdvances  CustomerAdvance[]
   transfers         TreasuryTransfer[]
+  savingsTransactions CustomerSavingsTransaction[]
 
   @@index([accountId])
   @@index([status])
@@ -473,6 +477,7 @@ model TreasuryAccount {
   expenses         Expense[]
   customerAdvances CustomerAdvance[]
   cashSessions     CashSession[]
+  savingsTransactions CustomerSavingsTransaction[]
 
   @@index([type])
   @@index([isActive])
@@ -643,3 +648,59 @@ model MonthlyClosingAuditLog {
 }
 
 
+
+// ─── ÉPARGNE & AVOIR CLIENT (CUSTOMER SAVINGS / STORE CREDIT) ─────────────────
+
+model CustomerSavingsAccount {
+  id             Int       @id @default(autoincrement())
+  customerId     Int       @unique
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  balance        Float     @default(0)
+  totalDeposited Float     @default(0)
+  totalUsed      Float     @default(0)
+  totalRefunded  Float     @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  transactions   CustomerSavingsTransaction[]
+
+  @@map("customer_savings_accounts")
+}
+
+model CustomerSavingsTransaction {
+  id                   Int       @id @default(autoincrement())
+  reference            String    @unique
+  customerId           Int
+  customer             Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  accountId            Int
+  account              CustomerSavingsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  treasuryAccountId    Int?
+  treasuryAccount      TreasuryAccount? @relation(fields: [treasuryAccountId], references: [id], onDelete: SetNull)
+  type                 String    // "DEPOSIT", "USAGE", "REFUND", "REVERSAL"
+  amount               Float
+  direction            String    // "IN", "OUT"
+  balanceBefore        Float
+  balanceAfter         Float
+  paymentMethod        String    @default("cash") // "cash", "transfer", "check", "cib"
+  saleId               Int?
+  sale                 Sales?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  relatedTransactionId Int?
+  relatedTransaction   CustomerSavingsTransaction? @relation("SavingsReversals", fields: [relatedTransactionId], references: [id])
+  reversals            CustomerSavingsTransaction[] @relation("SavingsReversals")
+  sessionId            Int?
+  session              CashSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  description          String
+  notes                String?
+  status               String    @default("completed") // "completed", "cancelled"
+  date                 DateTime  @default(now())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([customerId])
+  @@index([accountId])
+  @@index([type])
+  @@index([saleId])
+  @@index([date])
+  @@index([sessionId])
+  @@map("customer_savings_transactions")
+}

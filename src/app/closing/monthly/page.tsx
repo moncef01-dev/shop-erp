@@ -7,7 +7,7 @@ export const metadata = {
 };
 
 interface PageProps {
-  searchParams?: Promise<{ month?: string }> | { month?: string };
+  searchParams?: Promise<{ month?: string }>;
 }
 
 export default async function MonthlyClosingPage(props: PageProps) {

@@ -89,6 +89,11 @@ export const treasurySubItems: SubNavItem[] = [
     icon: Coins,
   },
   {
+    label: "Épargne Client",
+    href: "/savings",
+    icon: Coins,
+  },
+  {
     label: "Clôture Caisse",
     href: "/cash/closing",
     icon: Lock,
@@ -130,6 +135,12 @@ export const navItems: NavItem[] = [
     href: "/customers",
     icon: Users,
     description: "Répertoire et historique clients",
+  },
+  {
+    label: "Épargne Client",
+    href: "/savings",
+    icon: Coins,
+    description: "Dépôts libres, utilisation sur facture et remboursements",
   },
   {
     label: "Fournisseurs",

@@ -152,3 +152,13 @@ export type MonthlyClosingPeriod = Prisma.MonthlyClosingPeriodModel
  * 
  */
 export type MonthlyClosingAuditLog = Prisma.MonthlyClosingAuditLogModel
+/**
+ * Model CustomerSavingsAccount
+ * 
+ */
+export type CustomerSavingsAccount = Prisma.CustomerSavingsAccountModel
+/**
+ * Model CustomerSavingsTransaction
+ * 
+ */
+export type CustomerSavingsTransaction = Prisma.CustomerSavingsTransactionModel

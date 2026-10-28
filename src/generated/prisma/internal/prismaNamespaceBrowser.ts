@@ -77,7 +77,9 @@ export const ModelName = {
   MonthlyClosingChecklist: 'MonthlyClosingChecklist',
   MonthlyClosingSnapshot: 'MonthlyClosingSnapshot',
   MonthlyClosingPeriod: 'MonthlyClosingPeriod',
-  MonthlyClosingAuditLog: 'MonthlyClosingAuditLog'
+  MonthlyClosingAuditLog: 'MonthlyClosingAuditLog',
+  CustomerSavingsAccount: 'CustomerSavingsAccount',
+  CustomerSavingsTransaction: 'CustomerSavingsTransaction'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -568,6 +570,46 @@ export const MonthlyClosingAuditLogScalarFieldEnum = {
 } as const
 
 export type MonthlyClosingAuditLogScalarFieldEnum = (typeof MonthlyClosingAuditLogScalarFieldEnum)[keyof typeof MonthlyClosingAuditLogScalarFieldEnum]
+
+
+export const CustomerSavingsAccountScalarFieldEnum = {
+  id: 'id',
+  customerId: 'customerId',
+  balance: 'balance',
+  totalDeposited: 'totalDeposited',
+  totalUsed: 'totalUsed',
+  totalRefunded: 'totalRefunded',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CustomerSavingsAccountScalarFieldEnum = (typeof CustomerSavingsAccountScalarFieldEnum)[keyof typeof CustomerSavingsAccountScalarFieldEnum]
+
+
+export const CustomerSavingsTransactionScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  customerId: 'customerId',
+  accountId: 'accountId',
+  treasuryAccountId: 'treasuryAccountId',
+  type: 'type',
+  amount: 'amount',
+  direction: 'direction',
+  balanceBefore: 'balanceBefore',
+  balanceAfter: 'balanceAfter',
+  paymentMethod: 'paymentMethod',
+  saleId: 'saleId',
+  relatedTransactionId: 'relatedTransactionId',
+  sessionId: 'sessionId',
+  description: 'description',
+  notes: 'notes',
+  status: 'status',
+  date: 'date',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CustomerSavingsTransactionScalarFieldEnum = (typeof CustomerSavingsTransactionScalarFieldEnum)[keyof typeof CustomerSavingsTransactionScalarFieldEnum]
 
 
 export const SortOrder = {

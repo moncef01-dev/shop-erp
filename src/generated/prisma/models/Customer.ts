@@ -266,6 +266,8 @@ export type CustomerWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"Customer"> | Date | string
   sales?: Prisma.SalesListRelationFilter
   advances?: Prisma.CustomerAdvanceListRelationFilter
+  savingsAccount?: Prisma.XOR<Prisma.CustomerSavingsAccountNullableScalarRelationFilter, Prisma.CustomerSavingsAccountWhereInput> | null
+  savingsTransactions?: Prisma.CustomerSavingsTransactionListRelationFilter
 }
 
 export type CustomerOrderByWithRelationInput = {
@@ -282,6 +284,8 @@ export type CustomerOrderByWithRelationInput = {
   updatedAt?: Prisma.SortOrder
   sales?: Prisma.SalesOrderByRelationAggregateInput
   advances?: Prisma.CustomerAdvanceOrderByRelationAggregateInput
+  savingsAccount?: Prisma.CustomerSavingsAccountOrderByWithRelationInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionOrderByRelationAggregateInput
 }
 
 export type CustomerWhereUniqueInput = Prisma.AtLeast<{
@@ -301,6 +305,8 @@ export type CustomerWhereUniqueInput = Prisma.AtLeast<{
   updatedAt?: Prisma.DateTimeFilter<"Customer"> | Date | string
   sales?: Prisma.SalesListRelationFilter
   advances?: Prisma.CustomerAdvanceListRelationFilter
+  savingsAccount?: Prisma.XOR<Prisma.CustomerSavingsAccountNullableScalarRelationFilter, Prisma.CustomerSavingsAccountWhereInput> | null
+  savingsTransactions?: Prisma.CustomerSavingsTransactionListRelationFilter
 }, "id" | "code">
 
 export type CustomerOrderByWithAggregationInput = {
@@ -352,6 +358,8 @@ export type CustomerCreateInput = {
   updatedAt?: Date | string
   sales?: Prisma.SalesCreateNestedManyWithoutCustomerInput
   advances?: Prisma.CustomerAdvanceCreateNestedManyWithoutCustomerInput
+  savingsAccount?: Prisma.CustomerSavingsAccountCreateNestedOneWithoutCustomerInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerUncheckedCreateInput = {
@@ -368,6 +376,8 @@ export type CustomerUncheckedCreateInput = {
   updatedAt?: Date | string
   sales?: Prisma.SalesUncheckedCreateNestedManyWithoutCustomerInput
   advances?: Prisma.CustomerAdvanceUncheckedCreateNestedManyWithoutCustomerInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUncheckedCreateNestedOneWithoutCustomerInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerUpdateInput = {
@@ -383,6 +393,8 @@ export type CustomerUpdateInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sales?: Prisma.SalesUpdateManyWithoutCustomerNestedInput
   advances?: Prisma.CustomerAdvanceUpdateManyWithoutCustomerNestedInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUpdateOneWithoutCustomerNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutCustomerNestedInput
 }
 
 export type CustomerUncheckedUpdateInput = {
@@ -399,6 +411,8 @@ export type CustomerUncheckedUpdateInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sales?: Prisma.SalesUncheckedUpdateManyWithoutCustomerNestedInput
   advances?: Prisma.CustomerAdvanceUncheckedUpdateManyWithoutCustomerNestedInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUncheckedUpdateOneWithoutCustomerNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutCustomerNestedInput
 }
 
 export type CustomerCreateManyInput = {
@@ -532,6 +546,34 @@ export type CustomerUpdateOneRequiredWithoutAdvancesNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.CustomerUpdateToOneWithWhereWithoutAdvancesInput, Prisma.CustomerUpdateWithoutAdvancesInput>, Prisma.CustomerUncheckedUpdateWithoutAdvancesInput>
 }
 
+export type CustomerCreateNestedOneWithoutSavingsAccountInput = {
+  create?: Prisma.XOR<Prisma.CustomerCreateWithoutSavingsAccountInput, Prisma.CustomerUncheckedCreateWithoutSavingsAccountInput>
+  connectOrCreate?: Prisma.CustomerCreateOrConnectWithoutSavingsAccountInput
+  connect?: Prisma.CustomerWhereUniqueInput
+}
+
+export type CustomerUpdateOneRequiredWithoutSavingsAccountNestedInput = {
+  create?: Prisma.XOR<Prisma.CustomerCreateWithoutSavingsAccountInput, Prisma.CustomerUncheckedCreateWithoutSavingsAccountInput>
+  connectOrCreate?: Prisma.CustomerCreateOrConnectWithoutSavingsAccountInput
+  upsert?: Prisma.CustomerUpsertWithoutSavingsAccountInput
+  connect?: Prisma.CustomerWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.CustomerUpdateToOneWithWhereWithoutSavingsAccountInput, Prisma.CustomerUpdateWithoutSavingsAccountInput>, Prisma.CustomerUncheckedUpdateWithoutSavingsAccountInput>
+}
+
+export type CustomerCreateNestedOneWithoutSavingsTransactionsInput = {
+  create?: Prisma.XOR<Prisma.CustomerCreateWithoutSavingsTransactionsInput, Prisma.CustomerUncheckedCreateWithoutSavingsTransactionsInput>
+  connectOrCreate?: Prisma.CustomerCreateOrConnectWithoutSavingsTransactionsInput
+  connect?: Prisma.CustomerWhereUniqueInput
+}
+
+export type CustomerUpdateOneRequiredWithoutSavingsTransactionsNestedInput = {
+  create?: Prisma.XOR<Prisma.CustomerCreateWithoutSavingsTransactionsInput, Prisma.CustomerUncheckedCreateWithoutSavingsTransactionsInput>
+  connectOrCreate?: Prisma.CustomerCreateOrConnectWithoutSavingsTransactionsInput
+  upsert?: Prisma.CustomerUpsertWithoutSavingsTransactionsInput
+  connect?: Prisma.CustomerWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.CustomerUpdateToOneWithWhereWithoutSavingsTransactionsInput, Prisma.CustomerUpdateWithoutSavingsTransactionsInput>, Prisma.CustomerUncheckedUpdateWithoutSavingsTransactionsInput>
+}
+
 export type CustomerCreateWithoutSalesInput = {
   code?: string | null
   name: string
@@ -544,6 +586,8 @@ export type CustomerCreateWithoutSalesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   advances?: Prisma.CustomerAdvanceCreateNestedManyWithoutCustomerInput
+  savingsAccount?: Prisma.CustomerSavingsAccountCreateNestedOneWithoutCustomerInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerUncheckedCreateWithoutSalesInput = {
@@ -559,6 +603,8 @@ export type CustomerUncheckedCreateWithoutSalesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   advances?: Prisma.CustomerAdvanceUncheckedCreateNestedManyWithoutCustomerInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUncheckedCreateNestedOneWithoutCustomerInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerCreateOrConnectWithoutSalesInput = {
@@ -589,6 +635,8 @@ export type CustomerUpdateWithoutSalesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   advances?: Prisma.CustomerAdvanceUpdateManyWithoutCustomerNestedInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUpdateOneWithoutCustomerNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutCustomerNestedInput
 }
 
 export type CustomerUncheckedUpdateWithoutSalesInput = {
@@ -604,6 +652,8 @@ export type CustomerUncheckedUpdateWithoutSalesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   advances?: Prisma.CustomerAdvanceUncheckedUpdateManyWithoutCustomerNestedInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUncheckedUpdateOneWithoutCustomerNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutCustomerNestedInput
 }
 
 export type CustomerCreateWithoutAdvancesInput = {
@@ -618,6 +668,8 @@ export type CustomerCreateWithoutAdvancesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   sales?: Prisma.SalesCreateNestedManyWithoutCustomerInput
+  savingsAccount?: Prisma.CustomerSavingsAccountCreateNestedOneWithoutCustomerInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerUncheckedCreateWithoutAdvancesInput = {
@@ -633,6 +685,8 @@ export type CustomerUncheckedCreateWithoutAdvancesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   sales?: Prisma.SalesUncheckedCreateNestedManyWithoutCustomerInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUncheckedCreateNestedOneWithoutCustomerInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerCreateOrConnectWithoutAdvancesInput = {
@@ -663,6 +717,8 @@ export type CustomerUpdateWithoutAdvancesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sales?: Prisma.SalesUpdateManyWithoutCustomerNestedInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUpdateOneWithoutCustomerNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutCustomerNestedInput
 }
 
 export type CustomerUncheckedUpdateWithoutAdvancesInput = {
@@ -678,6 +734,172 @@ export type CustomerUncheckedUpdateWithoutAdvancesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sales?: Prisma.SalesUncheckedUpdateManyWithoutCustomerNestedInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUncheckedUpdateOneWithoutCustomerNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutCustomerNestedInput
+}
+
+export type CustomerCreateWithoutSavingsAccountInput = {
+  code?: string | null
+  name: string
+  phone?: string | null
+  phone2?: string | null
+  email?: string | null
+  address?: string | null
+  notes?: string | null
+  isActive?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sales?: Prisma.SalesCreateNestedManyWithoutCustomerInput
+  advances?: Prisma.CustomerAdvanceCreateNestedManyWithoutCustomerInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionCreateNestedManyWithoutCustomerInput
+}
+
+export type CustomerUncheckedCreateWithoutSavingsAccountInput = {
+  id?: number
+  code?: string | null
+  name: string
+  phone?: string | null
+  phone2?: string | null
+  email?: string | null
+  address?: string | null
+  notes?: string | null
+  isActive?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sales?: Prisma.SalesUncheckedCreateNestedManyWithoutCustomerInput
+  advances?: Prisma.CustomerAdvanceUncheckedCreateNestedManyWithoutCustomerInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedCreateNestedManyWithoutCustomerInput
+}
+
+export type CustomerCreateOrConnectWithoutSavingsAccountInput = {
+  where: Prisma.CustomerWhereUniqueInput
+  create: Prisma.XOR<Prisma.CustomerCreateWithoutSavingsAccountInput, Prisma.CustomerUncheckedCreateWithoutSavingsAccountInput>
+}
+
+export type CustomerUpsertWithoutSavingsAccountInput = {
+  update: Prisma.XOR<Prisma.CustomerUpdateWithoutSavingsAccountInput, Prisma.CustomerUncheckedUpdateWithoutSavingsAccountInput>
+  create: Prisma.XOR<Prisma.CustomerCreateWithoutSavingsAccountInput, Prisma.CustomerUncheckedCreateWithoutSavingsAccountInput>
+  where?: Prisma.CustomerWhereInput
+}
+
+export type CustomerUpdateToOneWithWhereWithoutSavingsAccountInput = {
+  where?: Prisma.CustomerWhereInput
+  data: Prisma.XOR<Prisma.CustomerUpdateWithoutSavingsAccountInput, Prisma.CustomerUncheckedUpdateWithoutSavingsAccountInput>
+}
+
+export type CustomerUpdateWithoutSavingsAccountInput = {
+  code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone2?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sales?: Prisma.SalesUpdateManyWithoutCustomerNestedInput
+  advances?: Prisma.CustomerAdvanceUpdateManyWithoutCustomerNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUpdateManyWithoutCustomerNestedInput
+}
+
+export type CustomerUncheckedUpdateWithoutSavingsAccountInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone2?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sales?: Prisma.SalesUncheckedUpdateManyWithoutCustomerNestedInput
+  advances?: Prisma.CustomerAdvanceUncheckedUpdateManyWithoutCustomerNestedInput
+  savingsTransactions?: Prisma.CustomerSavingsTransactionUncheckedUpdateManyWithoutCustomerNestedInput
+}
+
+export type CustomerCreateWithoutSavingsTransactionsInput = {
+  code?: string | null
+  name: string
+  phone?: string | null
+  phone2?: string | null
+  email?: string | null
+  address?: string | null
+  notes?: string | null
+  isActive?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sales?: Prisma.SalesCreateNestedManyWithoutCustomerInput
+  advances?: Prisma.CustomerAdvanceCreateNestedManyWithoutCustomerInput
+  savingsAccount?: Prisma.CustomerSavingsAccountCreateNestedOneWithoutCustomerInput
+}
+
+export type CustomerUncheckedCreateWithoutSavingsTransactionsInput = {
+  id?: number
+  code?: string | null
+  name: string
+  phone?: string | null
+  phone2?: string | null
+  email?: string | null
+  address?: string | null
+  notes?: string | null
+  isActive?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sales?: Prisma.SalesUncheckedCreateNestedManyWithoutCustomerInput
+  advances?: Prisma.CustomerAdvanceUncheckedCreateNestedManyWithoutCustomerInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUncheckedCreateNestedOneWithoutCustomerInput
+}
+
+export type CustomerCreateOrConnectWithoutSavingsTransactionsInput = {
+  where: Prisma.CustomerWhereUniqueInput
+  create: Prisma.XOR<Prisma.CustomerCreateWithoutSavingsTransactionsInput, Prisma.CustomerUncheckedCreateWithoutSavingsTransactionsInput>
+}
+
+export type CustomerUpsertWithoutSavingsTransactionsInput = {
+  update: Prisma.XOR<Prisma.CustomerUpdateWithoutSavingsTransactionsInput, Prisma.CustomerUncheckedUpdateWithoutSavingsTransactionsInput>
+  create: Prisma.XOR<Prisma.CustomerCreateWithoutSavingsTransactionsInput, Prisma.CustomerUncheckedCreateWithoutSavingsTransactionsInput>
+  where?: Prisma.CustomerWhereInput
+}
+
+export type CustomerUpdateToOneWithWhereWithoutSavingsTransactionsInput = {
+  where?: Prisma.CustomerWhereInput
+  data: Prisma.XOR<Prisma.CustomerUpdateWithoutSavingsTransactionsInput, Prisma.CustomerUncheckedUpdateWithoutSavingsTransactionsInput>
+}
+
+export type CustomerUpdateWithoutSavingsTransactionsInput = {
+  code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone2?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sales?: Prisma.SalesUpdateManyWithoutCustomerNestedInput
+  advances?: Prisma.CustomerAdvanceUpdateManyWithoutCustomerNestedInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUpdateOneWithoutCustomerNestedInput
+}
+
+export type CustomerUncheckedUpdateWithoutSavingsTransactionsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone2?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sales?: Prisma.SalesUncheckedUpdateManyWithoutCustomerNestedInput
+  advances?: Prisma.CustomerAdvanceUncheckedUpdateManyWithoutCustomerNestedInput
+  savingsAccount?: Prisma.CustomerSavingsAccountUncheckedUpdateOneWithoutCustomerNestedInput
 }
 
 
@@ -688,11 +910,13 @@ export type CustomerUncheckedUpdateWithoutAdvancesInput = {
 export type CustomerCountOutputType = {
   sales: number
   advances: number
+  savingsTransactions: number
 }
 
 export type CustomerCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   sales?: boolean | CustomerCountOutputTypeCountSalesArgs
   advances?: boolean | CustomerCountOutputTypeCountAdvancesArgs
+  savingsTransactions?: boolean | CustomerCountOutputTypeCountSavingsTransactionsArgs
 }
 
 /**
@@ -719,6 +943,13 @@ export type CustomerCountOutputTypeCountAdvancesArgs<ExtArgs extends runtime.Typ
   where?: Prisma.CustomerAdvanceWhereInput
 }
 
+/**
+ * CustomerCountOutputType without action
+ */
+export type CustomerCountOutputTypeCountSavingsTransactionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.CustomerSavingsTransactionWhereInput
+}
+
 
 export type CustomerSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -734,6 +965,8 @@ export type CustomerSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   updatedAt?: boolean
   sales?: boolean | Prisma.Customer$salesArgs<ExtArgs>
   advances?: boolean | Prisma.Customer$advancesArgs<ExtArgs>
+  savingsAccount?: boolean | Prisma.Customer$savingsAccountArgs<ExtArgs>
+  savingsTransactions?: boolean | Prisma.Customer$savingsTransactionsArgs<ExtArgs>
   _count?: boolean | Prisma.CustomerCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["customer"]>
 
@@ -783,6 +1016,8 @@ export type CustomerOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs =
 export type CustomerInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   sales?: boolean | Prisma.Customer$salesArgs<ExtArgs>
   advances?: boolean | Prisma.Customer$advancesArgs<ExtArgs>
+  savingsAccount?: boolean | Prisma.Customer$savingsAccountArgs<ExtArgs>
+  savingsTransactions?: boolean | Prisma.Customer$savingsTransactionsArgs<ExtArgs>
   _count?: boolean | Prisma.CustomerCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type CustomerIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -793,6 +1028,8 @@ export type $CustomerPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
   objects: {
     sales: Prisma.$SalesPayload<ExtArgs>[]
     advances: Prisma.$CustomerAdvancePayload<ExtArgs>[]
+    savingsAccount: Prisma.$CustomerSavingsAccountPayload<ExtArgs> | null
+    savingsTransactions: Prisma.$CustomerSavingsTransactionPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1202,6 +1439,8 @@ export interface Prisma__CustomerClient<T, Null = never, ExtArgs extends runtime
   readonly [Symbol.toStringTag]: "PrismaPromise"
   sales<T extends Prisma.Customer$salesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Customer$salesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SalesPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   advances<T extends Prisma.Customer$advancesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Customer$advancesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CustomerAdvancePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  savingsAccount<T extends Prisma.Customer$savingsAccountArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Customer$savingsAccountArgs<ExtArgs>>): Prisma.Prisma__CustomerSavingsAccountClient<runtime.Types.Result.GetResult<Prisma.$CustomerSavingsAccountPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  savingsTransactions<T extends Prisma.Customer$savingsTransactionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Customer$savingsTransactionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CustomerSavingsTransactionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1678,6 +1917,49 @@ export type Customer$advancesArgs<ExtArgs extends runtime.Types.Extensions.Inter
   take?: number
   skip?: number
   distinct?: Prisma.CustomerAdvanceScalarFieldEnum | Prisma.CustomerAdvanceScalarFieldEnum[]
+}
+
+/**
+ * Customer.savingsAccount
+ */
+export type Customer$savingsAccountArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the CustomerSavingsAccount
+   */
+  select?: Prisma.CustomerSavingsAccountSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the CustomerSavingsAccount
+   */
+  omit?: Prisma.CustomerSavingsAccountOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CustomerSavingsAccountInclude<ExtArgs> | null
+  where?: Prisma.CustomerSavingsAccountWhereInput
+}
+
+/**
+ * Customer.savingsTransactions
+ */
+export type Customer$savingsTransactionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the CustomerSavingsTransaction
+   */
+  select?: Prisma.CustomerSavingsTransactionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the CustomerSavingsTransaction
+   */
+  omit?: Prisma.CustomerSavingsTransactionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CustomerSavingsTransactionInclude<ExtArgs> | null
+  where?: Prisma.CustomerSavingsTransactionWhereInput
+  orderBy?: Prisma.CustomerSavingsTransactionOrderByWithRelationInput | Prisma.CustomerSavingsTransactionOrderByWithRelationInput[]
+  cursor?: Prisma.CustomerSavingsTransactionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.CustomerSavingsTransactionScalarFieldEnum | Prisma.CustomerSavingsTransactionScalarFieldEnum[]
 }
 
 /**

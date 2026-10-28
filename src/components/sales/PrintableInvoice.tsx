@@ -467,7 +467,7 @@ export function PrintableInvoice({ sale, settings, onClose, onEdit, autoPrint }:
                                   {new Date(p.paymentDate).toLocaleDateString("fr-DZ")}
                                 </span>
                                 <span className="text-slate-600 print:text-black ml-1">
-                                  ({p.method === "cash" ? "Espèces" : p.method === "cib" ? "CIB" : p.method === "check" ? "Chèque" : "Virement"})
+                                  ({p.method === "savings" ? "Épargne Client" : p.method === "cash" ? "Espèces" : p.method === "cib" ? "CIB" : p.method === "check" ? "Chèque" : "Virement"})
                                 </span>
                                 <span className="font-mono text-slate-500 print:text-black ml-1">[{p.reference}]</span>
                               </div>
@@ -711,7 +711,9 @@ export function PrintablePaymentReceipt({
             <p>
               <span className="text-slate-500 print:text-black font-bold uppercase text-[11px]">Mode de règlement : </span>
               <span className="font-bold text-slate-900 print:text-black uppercase">
-                {payment.method === "cash"
+                {payment.method === "savings"
+                  ? "Épargne / Avoir Client"
+                  : payment.method === "cash"
                   ? "Espèces (Comptant)"
                   : payment.method === "cib"
                   ? "Carte CIB / Edahabia"
