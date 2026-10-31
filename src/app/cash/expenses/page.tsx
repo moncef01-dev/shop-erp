@@ -11,7 +11,13 @@ export const dynamic = "force-dynamic";
 
 export default async function ExpensesPage() {
   const data = await getCashDashboardData();
-  const expenses = data.ledger.filter((i) => i.source === "expense");
+  const expenses = data.ledger.filter(
+    (i) =>
+      i.source === "expense" &&
+      i.rawCategory !== "capital" &&
+      i.category !== "Fonds Propres / Prélèvement" &&
+      i.category !== "Apport personnel exploitant"
+  );
 
   return (
     <div className="max-w-7xl mx-auto">

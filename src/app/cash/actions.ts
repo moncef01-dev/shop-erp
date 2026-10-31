@@ -1018,6 +1018,7 @@ export interface CashLedgerItem {
   type: "encaissement" | "decaissement" | "transfer";
   source: "sale" | "purchase" | "expense" | "income" | "transfer";
   category: string;
+  rawCategory?: string;
   description: string;
   partyName: string;
   docReference?: string | null;
@@ -1111,7 +1112,7 @@ export interface CashDashboardData {
   expensesCount: number;
 }
 
-function formatExpenseCategory(cat: string): string {
+function formatExpenseCategory(cat: string, type: "expense" | "income" = "expense"): string {
   switch (cat) {
     case "transport":
       return "Transport & Livraison";
@@ -1126,7 +1127,9 @@ function formatExpenseCategory(cat: string): string {
     case "salary":
       return "Salaires & Avances";
     case "capital":
-      return "Apport personnel exploitant";
+      return type === "income"
+        ? "Apport personnel exploitant"
+        : "Fonds Propres / Prélèvement";
     case "refund":
       return "Remboursement reçu";
     case "misc_income":
@@ -1340,6 +1343,7 @@ export async function getCashDashboardData(filters?: {
   // 5.3 Dépenses d'exploitation et encaissements exceptionnels (depuis expenses)
   for (const e of expenses) {
     const isIncome = e.type === "income";
+    const expType = isIncome ? "income" : "expense";
     ledgerItems.push({
       id: isIncome ? `inc-${e.id}` : `exp-${e.id}`,
       rawId: e.id,
@@ -1348,7 +1352,8 @@ export async function getCashDashboardData(filters?: {
       createdAt: e.createdAt.toISOString(),
       type: isIncome ? "encaissement" : "decaissement",
       source: isIncome ? "income" : "expense",
-      category: formatExpenseCategory(e.category),
+      category: formatExpenseCategory(e.category, expType),
+      rawCategory: e.category,
       description: e.description,
       partyName: e.beneficiary || "Interne Magasin",
       docReference: e.receiptNumber,
@@ -2010,7 +2015,11 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
         if (catLower.includes("salaire")) {
           opType = "Paiement Salaire";
           badgeClass = "bg-orange-50 text-orange-700 border-orange-200";
-        } else if (catLower.includes("retrait") || catLower.includes("prélèvement")) {
+        } else if (
+          catLower.includes("retrait") ||
+          catLower.includes("prélèvement") ||
+          catLower === "capital"
+        ) {
           opType = "Prélèvement Exploitant";
           badgeClass = "bg-rose-50 text-rose-700 border-rose-200";
         }

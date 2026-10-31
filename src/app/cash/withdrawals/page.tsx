@@ -12,7 +12,10 @@ export const dynamic = "force-dynamic";
 export default async function WithdrawalsPage() {
   const data = await getCashDashboardData();
   const withdrawals = data.ledger.filter(
-    (i) => i.source === "expense" && i.category === "Fonds Propres / Prélèvement"
+    (i) =>
+      i.source === "expense" &&
+      (i.rawCategory === "capital" ||
+        i.category === "Fonds Propres / Prélèvement")
   );
 
   return (
