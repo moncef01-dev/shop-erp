@@ -179,6 +179,8 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
             supplier: true,
           },
         },
+        supplier: true,
+        account: true,
       },
     }),
 
@@ -444,7 +446,12 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
           customer: py.sale.customer,
         },
       });
-    } else if (py.purchaseId && py.purchase) {
+    } else if (py.supplierId || py.purchaseId || (py.reference && py.reference.startsWith("PAYF"))) {
+      const supp = py.supplier || py.purchase?.supplier || null;
+      const suppName = supp?.name || "Fournisseur";
+      const accName = py.account?.name || null;
+      const purchaseRef = py.purchase?.reference || null;
+
       docs.push({
         id: `payment-purchase-${py.id}`,
         rawId: py.id,
@@ -452,7 +459,7 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
         typeLabel: "Reçu de Règlement Fournisseur",
         reference: py.reference || `PAYF-${py.id}`,
         date: py.paymentDate.toISOString(),
-        partyName: py.purchase.supplier?.name || "Fournisseur",
+        partyName: suppName,
         partyType: "supplier",
         amount: py.amount,
         status: py.status,
@@ -465,20 +472,34 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
           method: py.method,
           paymentDate: py.paymentDate.toISOString(),
           notes: py.notes,
+          accountName: accName,
+          purchaseReference: purchaseRef,
+          supplier: supp
+            ? {
+                id: supp.id,
+                code: supp.code,
+                name: supp.name,
+                phone: supp.phone,
+                email: supp.email,
+                address: supp.address,
+              }
+            : null,
         },
-        purchasePayload: {
-          id: py.purchase.id,
-          reference: py.purchase.reference,
-          status: py.purchase.status,
-          receiptStatus: py.purchase.receiptStatus,
-          paymentStatus: py.purchase.paymentStatus,
-          purchaseDate: py.purchase.purchaseDate.toISOString(),
-          subtotal: py.purchase.subtotal,
-          discount: py.purchase.discount,
-          totalAmount: py.purchase.totalAmount,
-          paidAmount: py.purchase.paidAmount,
-          supplier: py.purchase.supplier,
-        },
+        purchasePayload: py.purchase
+          ? {
+              id: py.purchase.id,
+              reference: py.purchase.reference,
+              status: py.purchase.status,
+              receiptStatus: py.purchase.receiptStatus,
+              paymentStatus: py.purchase.paymentStatus,
+              purchaseDate: py.purchase.purchaseDate.toISOString(),
+              subtotal: py.purchase.subtotal,
+              discount: py.purchase.discount,
+              totalAmount: py.purchase.totalAmount,
+              paidAmount: py.purchase.paidAmount,
+              supplier: py.purchase.supplier || supp,
+            }
+          : undefined,
       });
     }
   }
@@ -842,6 +863,8 @@ export async function getUnifiedDocumentById(
           include: {
             sale: { include: { customer: true } },
             purchase: { include: { supplier: true } },
+            supplier: true,
+            account: true,
           },
         });
         if (!py) return null;
@@ -879,7 +902,12 @@ export async function getUnifiedDocumentById(
               customer: py.sale.customer,
             },
           };
-        } else if (py.purchaseId && py.purchase) {
+        } else if (py.supplierId || py.purchaseId || (py.reference && py.reference.startsWith("PAYF"))) {
+          const supp = py.supplier || py.purchase?.supplier || null;
+          const suppName = supp?.name || "Fournisseur";
+          const accName = py.account?.name || null;
+          const purchaseRef = py.purchase?.reference || null;
+
           return {
             id: `payment-purchase-${py.id}`,
             rawId: py.id,
@@ -887,7 +915,7 @@ export async function getUnifiedDocumentById(
             typeLabel: "Reçu de Règlement Fournisseur",
             reference: py.reference || `PAYF-${py.id}`,
             date: py.paymentDate.toISOString(),
-            partyName: py.purchase.supplier?.name || "Fournisseur",
+            partyName: suppName,
             partyType: "supplier",
             amount: py.amount,
             status: py.status,
@@ -900,20 +928,34 @@ export async function getUnifiedDocumentById(
               method: py.method,
               paymentDate: py.paymentDate.toISOString(),
               notes: py.notes,
+              accountName: accName,
+              purchaseReference: purchaseRef,
+              supplier: supp
+                ? {
+                    id: supp.id,
+                    code: supp.code,
+                    name: supp.name,
+                    phone: supp.phone,
+                    email: supp.email,
+                    address: supp.address,
+                  }
+                : null,
             },
-            purchasePayload: {
-              id: py.purchase.id,
-              reference: py.purchase.reference,
-              status: py.purchase.status,
-              receiptStatus: py.purchase.receiptStatus,
-              paymentStatus: py.purchase.paymentStatus,
-              purchaseDate: py.purchase.purchaseDate.toISOString(),
-              subtotal: py.purchase.subtotal,
-              discount: py.purchase.discount,
-              totalAmount: py.purchase.totalAmount,
-              paidAmount: py.purchase.paidAmount,
-              supplier: py.purchase.supplier,
-            },
+            purchasePayload: py.purchase
+              ? {
+                  id: py.purchase.id,
+                  reference: py.purchase.reference,
+                  status: py.purchase.status,
+                  receiptStatus: py.purchase.receiptStatus,
+                  paymentStatus: py.purchase.paymentStatus,
+                  purchaseDate: py.purchase.purchaseDate.toISOString(),
+                  subtotal: py.purchase.subtotal,
+                  discount: py.purchase.discount,
+                  totalAmount: py.purchase.totalAmount,
+                  paidAmount: py.purchase.paidAmount,
+                  supplier: py.purchase.supplier || supp,
+                }
+              : undefined,
           };
         }
         return null;

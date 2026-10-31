@@ -406,13 +406,23 @@ export async function getDashboardData(
     // Calcul autoritaire identique à cash/actions.ts
     // Encaissements espèces liés à la session ou sans session depuis l'ouverture
     const now = new Date();
+    const defaultCaisse =
+      (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
+      (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+    const caisseId = activeSession.accountId || defaultCaisse?.id;
+
     const sessionPayments = await prisma.payment.findMany({
       where: {
         status: { not: "cancelled" },
         method: "cash",
-        OR: [
-          { sessionId: activeSession.id },
-          { sessionId: null, paymentDate: { gte: activeSession.openedAt, lte: now } },
+        AND: [
+          { OR: [{ accountId: caisseId }, { accountId: null }] },
+          {
+            OR: [
+              { sessionId: activeSession.id },
+              { sessionId: null, paymentDate: { gte: activeSession.openedAt, lte: now } },
+            ],
+          },
         ],
       },
       select: { amount: true, saleId: true, purchaseId: true },
@@ -428,9 +438,14 @@ export async function getDashboardData(
     const sessionExpenses = await prisma.expense.findMany({
       where: {
         method: "cash",
-        OR: [
-          { sessionId: activeSession.id },
-          { sessionId: null, date: { gte: activeSession.openedAt, lte: now } },
+        AND: [
+          { OR: [{ accountId: caisseId }, { accountId: null }] },
+          {
+            OR: [
+              { sessionId: activeSession.id },
+              { sessionId: null, date: { gte: activeSession.openedAt, lte: now } },
+            ],
+          },
         ],
       },
       select: { amount: true, type: true },

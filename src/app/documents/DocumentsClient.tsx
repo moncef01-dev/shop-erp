@@ -78,7 +78,7 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
   } | null>(null);
   const [activeSupplierPaymentModal, setActiveSupplierPaymentModal] = useState<{
     payment: PrintableSupplierPayment;
-    purchase: PrintablePurchase;
+    purchase?: PrintablePurchase | null;
   } | null>(null);
   const [activeCashSessionModal, setActiveCashSessionModal] = useState<UnifiedDocumentItem["cashSessionPayload"] | null>(null);
   const [activeExpenseModal, setActiveExpenseModal] = useState<UnifiedDocumentItem["expensePayload"] | null>(null);
@@ -165,7 +165,7 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
       (doc.type === "purchase" && !doc.purchasePayload) ||
       (doc.type === "receipt" && (!doc.receiptPayload || !doc.purchasePayload)) ||
       (doc.type === "payment_client" && (!doc.paymentPayload || !doc.salePayload)) ||
-      (doc.type === "payment_supplier" && (!doc.supplierPaymentPayload || !doc.purchasePayload)) ||
+      (doc.type === "payment_supplier" && !doc.supplierPaymentPayload) ||
       (doc.type === "cash_session" && !doc.cashSessionPayload) ||
       (doc.type === "expense" && !doc.expensePayload) ||
       (doc.type === "transfer" && !doc.transferPayload);
@@ -200,10 +200,10 @@ export function DocumentsClient({ initialData }: { initialData: DocumentsDashboa
         }
         break;
       case "payment_supplier":
-        if (targetDoc.supplierPaymentPayload && targetDoc.purchasePayload) {
+        if (targetDoc.supplierPaymentPayload) {
           setActiveSupplierPaymentModal({
             payment: targetDoc.supplierPaymentPayload,
-            purchase: targetDoc.purchasePayload,
+            purchase: targetDoc.purchasePayload || null,
           });
         }
         break;

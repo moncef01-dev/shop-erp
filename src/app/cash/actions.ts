@@ -128,14 +128,28 @@ export async function openCashSessionAction(
 
     await assertPeriodNotLocked(openedAt, "Ouverture de session de caisse");
 
+    const defaultCaisse =
+      (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
+      (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+    const caisseId = defaultCaisse?.id;
+
     if (includePendingCash) {
       const [pendingPayments, pendingExpenses] = await Promise.all([
         prisma.payment.findMany({
-          where: { sessionId: null, method: "cash", status: { not: "cancelled" } },
+          where: {
+            sessionId: null,
+            method: "cash",
+            status: { not: "cancelled" },
+            OR: [{ accountId: caisseId }, { accountId: null }],
+          },
           select: { paymentDate: true },
         }),
         prisma.expense.findMany({
-          where: { sessionId: null, method: "cash" },
+          where: {
+            sessionId: null,
+            method: "cash",
+            OR: [{ accountId: caisseId }, { accountId: null }],
+          },
           select: { date: true },
         }),
       ]);
@@ -185,11 +199,20 @@ export async function openCashSessionAction(
 
       if (includePendingCash) {
         await tx.payment.updateMany({
-          where: { sessionId: null, method: "cash", status: { not: "cancelled" } },
+          where: {
+            sessionId: null,
+            method: "cash",
+            status: { not: "cancelled" },
+            OR: [{ accountId: caisseId }, { accountId: null }],
+          },
           data: { sessionId: created.id },
         });
         await tx.expense.updateMany({
-          where: { sessionId: null, method: "cash" },
+          where: {
+            sessionId: null,
+            method: "cash",
+            OR: [{ accountId: caisseId }, { accountId: null }],
+          },
           data: { sessionId: created.id },
         });
       }
@@ -377,7 +400,7 @@ export async function closeCashSessionAction(
     const defaultCaisse =
       (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
       (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
-    const caisseId = defaultCaisse?.id;
+    const caisseId = session.accountId || defaultCaisse?.id;
 
     // Calcul autoritaire côté serveur sur la fenêtre [openedAt, now] et les opérations rattachées
     // 1. Encaissements physiques (Ventes et encaissements en espèces)
@@ -387,15 +410,19 @@ export async function closeCashSessionAction(
         method: "cash",
         purchaseId: null,
         supplierId: null,
-        OR: [
-          { sessionId: sessionId },
+        AND: [
+          { OR: [{ accountId: caisseId }, { accountId: null }] },
           {
-            sessionId: null,
             OR: [
-              { paymentDate: { gte: session.openedAt, lte: now } },
-              { createdAt: { gte: session.openedAt, lte: now } },
+              { sessionId: sessionId },
+              {
+                sessionId: null,
+                OR: [
+                  { paymentDate: { gte: session.openedAt, lte: now } },
+                  { createdAt: { gte: session.openedAt, lte: now } },
+                ],
+              },
             ],
-            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
           },
         ],
       },
@@ -410,6 +437,7 @@ export async function closeCashSessionAction(
         method: "cash",
         AND: [
           { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
+          { OR: [{ accountId: caisseId }, { accountId: null }] },
           {
             OR: [
               { sessionId: sessionId },
@@ -419,7 +447,6 @@ export async function closeCashSessionAction(
                   { paymentDate: { gte: session.openedAt, lte: now } },
                   { createdAt: { gte: session.openedAt, lte: now } },
                 ],
-                AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
               },
             ],
           },
@@ -434,15 +461,19 @@ export async function closeCashSessionAction(
       where: {
         status: { not: "cancelled" },
         method: "cash",
-        OR: [
-          { sessionId: sessionId },
+        AND: [
+          { OR: [{ accountId: caisseId }, { accountId: null }] },
           {
-            sessionId: null,
             OR: [
-              { paymentDate: { gte: session.openedAt, lte: now } },
-              { createdAt: { gte: session.openedAt, lte: now } },
+              { sessionId: sessionId },
+              {
+                sessionId: null,
+                OR: [
+                  { paymentDate: { gte: session.openedAt, lte: now } },
+                  { createdAt: { gte: session.openedAt, lte: now } },
+                ],
+              },
             ],
-            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
           },
         ],
       },
@@ -454,15 +485,19 @@ export async function closeCashSessionAction(
     const expenses = await prisma.expense.findMany({
       where: {
         method: "cash",
-        OR: [
-          { sessionId: sessionId },
+        AND: [
+          { OR: [{ accountId: caisseId }, { accountId: null }] },
           {
-            sessionId: null,
             OR: [
-              { date: { gte: session.openedAt, lte: now } },
-              { createdAt: { gte: session.openedAt, lte: now } },
+              { sessionId: sessionId },
+              {
+                sessionId: null,
+                OR: [
+                  { date: { gte: session.openedAt, lte: now } },
+                  { createdAt: { gte: session.openedAt, lte: now } },
+                ],
+              },
             ],
-            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
           },
         ],
       },
@@ -896,10 +931,12 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
 
     // Détermination du compte de trésorerie affecté
     let accountId: number | null = accountIdStr ? parseInt(accountIdStr, 10) : null;
+    let selectedAccount: { id: number; name: string; type: string; isDefault: boolean; isActive: boolean } | null = null;
     if (accountId) {
       const acc = await prisma.treasuryAccount.findUnique({ where: { id: accountId } });
       if (!acc) return { success: false, error: "Compte de trésorerie sélectionné introuvable." };
       if (!acc.isActive) return { success: false, error: `Le compte "${acc.name}" est inactif.` };
+      selectedAccount = acc;
       if (type === "expense") {
         const available = await calculateAccountBalance(accountId);
         if (available < amount) {
@@ -914,21 +951,34 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
     } else {
       if (method === "cash") {
         const def = await prisma.treasuryAccount.findFirst({ where: { isDefault: true } });
-        if (def) accountId = def.id;
+        if (def) {
+          accountId = def.id;
+          selectedAccount = def;
+        }
       } else if (method === "transfer") {
         const defBank = await prisma.treasuryAccount.findFirst({ where: { code: "ACC-BANQUE" } });
-        if (defBank) accountId = defBank.id;
+        if (defBank) {
+          accountId = defBank.id;
+          selectedAccount = defBank;
+        }
       }
     }
 
-    // Si règlement en espèces, rattacher automatiquement à la session ouverte s'il y en a une
+    // Si règlement en espèces affectant la caisse journalière, rattacher automatiquement à la session ouverte s'il y en a une
+    // Règle stricte : Le Coffre magasin et les autres comptes ne doivent JAMAIS recevoir de sessionId de caisse
     let sessionId: number | null = null;
     if (method === "cash") {
-      const activeSession = await prisma.cashSession.findFirst({
-        where: { status: "open" },
-      });
-      if (activeSession) {
-        sessionId = activeSession.id;
+      const isDailyCash = selectedAccount
+        ? (selectedAccount.isDefault || selectedAccount.type === "cash")
+        : true;
+
+      if (isDailyCash) {
+        const activeSession = await prisma.cashSession.findFirst({
+          where: { status: "open" },
+        });
+        if (activeSession) {
+          sessionId = activeSession.id;
+        }
       }
     }
 

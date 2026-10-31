@@ -869,11 +869,16 @@ export async function recordSupplierPaymentAction(formData: FormData): Promise<P
       const payRef = await generateNextSupplierPaymentReference(tx);
       const paymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
 
-      // Rattachement session si espèces
+      // Rattachement session si espèces affectant la caisse journalière
       let sessionId: number | null = null;
       if (method === "cash") {
-        const activeSession = await tx.cashSession.findFirst({ where: { status: "open" } });
-        if (activeSession) sessionId = activeSession.id;
+        const isDailyCash = sourceAccount
+          ? (sourceAccount.isDefault || sourceAccount.type === "cash")
+          : true;
+        if (isDailyCash) {
+          const activeSession = await tx.cashSession.findFirst({ where: { status: "open" } });
+          if (activeSession) sessionId = activeSession.id;
+        }
       }
 
       const baseNotes = notes?.trim() || (purchase ? `Règlement commande fournisseur ${purchase.reference}` : "Règlement fournisseur");

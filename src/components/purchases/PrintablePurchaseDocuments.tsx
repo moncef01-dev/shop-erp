@@ -62,6 +62,16 @@ export interface PrintableSupplierPayment {
   method?: string;
   paymentDate: string | Date;
   notes?: string | null;
+  accountName?: string | null;
+  purchaseReference?: string | null;
+  supplier?: {
+    id: number;
+    code?: string | null;
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+  } | null;
 }
 
 export interface PrintablePurchase {
@@ -637,7 +647,7 @@ export function PrintableSupplierPaymentReceipt({
   autoPrint,
 }: {
   payment: PrintableSupplierPayment;
-  purchase: PrintablePurchase;
+  purchase?: PrintablePurchase | null;
   settings?: ShopSettingsData | null;
   onClose: () => void;
   autoPrint?: boolean;
@@ -655,7 +665,19 @@ export function PrintableSupplierPaymentReceipt({
     }
   }, [autoPrint]);
 
-  const balance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const supplier = purchase?.supplier || payment.supplier || null;
+  const supplierName = supplier?.name || "Fournisseur";
+  const linkedRef = purchase?.reference || payment.purchaseReference || null;
+  const hasPurchaseBreakdown = Boolean(purchase && purchase.totalAmount > 0);
+  const balance = hasPurchaseBreakdown && purchase ? Math.max(0, purchase.totalAmount - purchase.paidAmount) : 0;
 
   return (
     <PrintPortal>
@@ -716,14 +738,24 @@ export function PrintableSupplierPaymentReceipt({
           <div className="my-4 space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-slate-600 print:text-black font-bold uppercase text-[11px]">Bénéficiaire / Fournisseur :</span>
-              <span className="font-black text-slate-900 print:text-black text-sm uppercase">{purchase.supplier?.name || "Fournisseur"}</span>
+              <span className="font-black text-slate-900 print:text-black text-sm uppercase">{supplierName}</span>
+            </div>
+            {supplier?.phone && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600 print:text-black font-bold uppercase text-[11px]">Téléphone :</span>
+                <span className="font-mono font-bold text-slate-800 print:text-black">{supplier.phone}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 print:text-black font-bold uppercase text-[11px]">
+                {linkedRef ? "Commande fournisseur liée :" : "Nature de l'imputation :"}
+              </span>
+              <span className="font-mono font-black text-slate-900 print:text-black">
+                {linkedRef || "Règlement dette / acompte fournisseur"}
+              </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-slate-600 print:text-black font-bold uppercase text-[11px]">Commande fournisseur liée :</span>
-              <span className="font-mono font-black text-slate-900 print:text-black">{purchase.reference}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600 print:text-black font-bold uppercase text-[11px]">Mode de paiement :</span>
+              <span className="text-slate-600 print:text-black font-bold uppercase text-[11px]">Mode de paiement &amp; Source :</span>
               <span className="font-bold text-slate-900 print:text-black uppercase text-[11px]">
                 {payment.method === "cash"
                   ? "Espèces (Décaissement Caisse)"
@@ -732,6 +764,7 @@ export function PrintableSupplierPaymentReceipt({
                   : payment.method === "transfer"
                   ? "Virement bancaire"
                   : payment.method || "Espèces"}
+                {payment.accountName ? ` — Compte : ${payment.accountName}` : ""}
               </span>
             </div>
             {payment.notes && (
@@ -751,22 +784,24 @@ export function PrintableSupplierPaymentReceipt({
             </span>
           </div>
 
-          <div className="bg-slate-50 print:bg-white p-3 rounded-lg border-2 border-slate-900 print:border-black text-xs space-y-1.5 mb-6">
-            <div className="flex justify-between">
-              <span className="text-slate-600 print:text-black font-medium">Total initial commande :</span>
-              <span className="font-mono font-bold text-slate-900 print:text-black">{purchase.totalAmount.toLocaleString("fr-DZ")} DA</span>
+          {hasPurchaseBreakdown && purchase && (
+            <div className="bg-slate-50 print:bg-white p-3 rounded-lg border-2 border-slate-900 print:border-black text-xs space-y-1.5 mb-6">
+              <div className="flex justify-between">
+                <span className="text-slate-600 print:text-black font-medium">Total initial commande :</span>
+                <span className="font-mono font-bold text-slate-900 print:text-black">{purchase.totalAmount.toLocaleString("fr-DZ")} DA</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600 print:text-black font-medium">Total cumulé réglé :</span>
+                <span className="font-mono font-bold text-slate-900 print:text-black">
+                  {purchase.paidAmount.toLocaleString("fr-DZ")} DA
+                </span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-slate-400 print:border-black font-black text-slate-900 print:text-black">
+                <span className="uppercase">Nouveau solde restant dû :</span>
+                <span className="font-mono text-sm">{balance.toLocaleString("fr-DZ")} DA {balance === 0 ? "[SOLDE SOLDÉ]" : "[RESTE DÛ]"}</span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-600 print:text-black font-medium">Total cumulé réglé :</span>
-              <span className="font-mono font-bold text-slate-900 print:text-black">
-                {purchase.paidAmount.toLocaleString("fr-DZ")} DA
-              </span>
-            </div>
-            <div className="flex justify-between pt-1 border-t border-slate-400 print:border-black font-black text-slate-900 print:text-black">
-              <span className="uppercase">Nouveau solde restant dû :</span>
-              <span className="font-mono text-sm">{balance.toLocaleString("fr-DZ")} DA {balance === 0 ? "[SOLDE SOLDÉ]" : "[RESTE DÛ]"}</span>
-            </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-8 pt-4 border-t-2 border-slate-900 print:border-black text-center">
             <div>
