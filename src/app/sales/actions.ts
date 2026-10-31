@@ -179,6 +179,7 @@ export interface SaleItemInput {
   quantity: number;
   unitPrice: number;
   discount?: number;
+  color?: string | null;
 }
 
 export interface CreateSaleInput {
@@ -335,6 +336,7 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
             saleId: sale.id,
             productId: item.productId,
             locationId: item.locationId,
+            color: item.color ? item.color.trim() : null,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             discount: item.discount,
@@ -1020,6 +1022,7 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
             saleId: existingSale.id,
             productId: item.productId,
             locationId: item.locationId,
+            color: item.color ? item.color.trim() : null,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             discount: item.discount,

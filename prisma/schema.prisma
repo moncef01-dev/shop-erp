@@ -214,6 +214,7 @@ model SaleItem {
   unitPrice  Float
   discount   Float     @default(0)
   subtotal   Float
+  color      String?
 
   @@index([saleId])
   @@index([productId])

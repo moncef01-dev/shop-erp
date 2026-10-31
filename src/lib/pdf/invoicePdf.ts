@@ -130,22 +130,23 @@ function renderInvoicePage(
 
   // 3. Tableau des Articles
   const tableHeaders = isInternal
-    ? ["Réf / SKU", "Désignation & Modèle", "Dépôt", "Qté", "P.U (DA)", "Remise", "Total Net (DA)"]
-    : ["Réf / SKU", "Désignation & Modèle", "Qté", "P.U (DA)", "Remise", "Total Net (DA)"];
+    ? ["Réf / SKU", "Désignation & Modèle", "Dépôt", "Couleur", "Qté", "P.U (DA)", "Remise", "Total Net (DA)"]
+    : ["Réf / SKU", "Désignation & Modèle", "Couleur", "Qté", "P.U (DA)", "Remise", "Total Net (DA)"];
 
   const tableBody = (sale.items || []).map((item) => {
     const sku = item.product?.sku || "—";
     let name = item.product?.name || "Article Mobilier";
     if (item.product?.model) name += ` (${item.product.model})`;
     const locationName = item.location?.name || "Magasin";
+    const color = item.color?.trim() || item.product?.color?.trim() || "—";
     const qty = item.quantity;
     const pu = formatDAPdf(item.unitPrice);
     const disc = (item.discount || 0) > 0 ? formatDAPdf(item.discount || 0) : "—";
     const total = formatDAPdf(item.subtotal);
 
     return isInternal
-      ? [sku, name, locationName, String(qty), pu, disc, total]
-      : [sku, name, String(qty), pu, disc, total];
+      ? [sku, name, locationName, color, String(qty), pu, disc, total]
+      : [sku, name, color, String(qty), pu, disc, total];
   });
 
   autoTable(doc, {
@@ -174,21 +175,23 @@ function renderInvoicePage(
     },
     columnStyles: isInternal
       ? {
-          0: { cellWidth: 24, font: "courier", fontStyle: "bold" },
+          0: { cellWidth: 22, font: "courier", fontStyle: "bold" },
           1: { cellWidth: "auto", fontStyle: "bold" },
-          2: { cellWidth: 26 },
-          3: { cellWidth: 12, halign: "center", fontStyle: "bold" },
-          4: { cellWidth: 22, halign: "right" },
-          5: { cellWidth: 18, halign: "right" },
-          6: { cellWidth: 24, halign: "right", fontStyle: "bold" },
+          2: { cellWidth: 24 },
+          3: { cellWidth: 20 },
+          4: { cellWidth: 12, halign: "center", fontStyle: "bold" },
+          5: { cellWidth: 20, halign: "right" },
+          6: { cellWidth: 16, halign: "right" },
+          7: { cellWidth: 24, halign: "right", fontStyle: "bold" },
         }
       : {
-          0: { cellWidth: 28, font: "courier", fontStyle: "bold" },
+          0: { cellWidth: 26, font: "courier", fontStyle: "bold" },
           1: { cellWidth: "auto", fontStyle: "bold" },
-          2: { cellWidth: 14, halign: "center", fontStyle: "bold" },
-          3: { cellWidth: 25, halign: "right" },
-          4: { cellWidth: 20, halign: "right" },
-          5: { cellWidth: 28, halign: "right", fontStyle: "bold" },
+          2: { cellWidth: 24 },
+          3: { cellWidth: 14, halign: "center", fontStyle: "bold" },
+          4: { cellWidth: 24, halign: "right" },
+          5: { cellWidth: 18, halign: "right" },
+          6: { cellWidth: 26, halign: "right", fontStyle: "bold" },
         },
     margin: { left: 14, right: 14 },
   });

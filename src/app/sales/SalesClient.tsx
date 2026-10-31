@@ -286,10 +286,12 @@ export function SalesClient({ initialData }: SalesClientProps) {
         ? sale.items.map((it, idx) => {
             const prodId = ((it as any).productId || (it as any).product?.id || products.find((p) => p.sku === it.product?.sku)?.id || 0) as number;
             const locId = ((it as any).locationId || (it as any).location?.id || defaultLocation) as number;
+            const itemColor = ((it as any).color || (it as any).product?.color || "") as string;
             return {
               id: `edit-line-${idx + 1}-${Date.now()}`,
               productId: prodId,
               locationId: locId,
+              color: itemColor,
               quantity: String(it.quantity),
               unitPrice: String(it.unitPrice),
               discount: String(it.discount || 0),
@@ -300,6 +302,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
               id: `edit-line-1-${Date.now()}`,
               productId: products[0]?.id || 0,
               locationId: defaultLocation,
+              color: products[0]?.color || "",
               quantity: "1",
               unitPrice: String(products[0]?.sellingPrice ?? 0),
               discount: "0",
@@ -382,14 +385,17 @@ export function SalesClient({ initialData }: SalesClientProps) {
 
   const handleAddEditLine = () => {
     nextLineIdRef.current += 1;
+    const pId = products[0]?.id || 0;
+    const prod = products.find((p) => p.id === pId);
     setEditLines((prev) => [
       ...prev,
       {
         id: `edit-line-${nextLineIdRef.current}-${Date.now()}`,
-        productId: products[0]?.id || 0,
+        productId: pId,
         locationId: defaultLocation,
+        color: prod?.color || "",
         quantity: "1",
-        unitPrice: String(products[0]?.sellingPrice ?? 0),
+        unitPrice: String(prod?.sellingPrice ?? 0),
         discount: "0",
       },
     ]);
@@ -405,7 +411,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
 
   const handleUpdateEditLine = (
     lineId: string,
-    field: "productId" | "locationId" | "quantity" | "unitPrice" | "discount",
+    field: "productId" | "locationId" | "color" | "quantity" | "unitPrice" | "discount",
     value: string | number
   ) => {
     setEditLines((prev) =>
@@ -420,11 +426,12 @@ export function SalesClient({ initialData }: SalesClientProps) {
               p?.sellingPrice !== null && p?.sellingPrice !== undefined
                 ? String(p.sellingPrice)
                 : line.unitPrice,
+            color: line.color ? line.color : (p?.color || ""),
           };
         }
         return {
           ...line,
-          [field]: value,
+          [field]: String(value),
         };
       })
     );
@@ -474,6 +481,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
       items: editLines.map((l) => ({
         productId: l.productId,
         locationId: l.locationId,
+        color: l.color?.trim() || null,
         quantity: parseInt(l.quantity, 10),
         unitPrice: parseFloat(l.unitPrice) || 0,
         discount: parseFloat(l.discount) || 0,
@@ -500,6 +508,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
     id: string;
     productId: number;
     locationId: number;
+    color: string;
     quantity: string;
     unitPrice: string;
     discount: string;
@@ -519,6 +528,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
       id: "line-1",
       productId: products[0]?.id || 0,
       locationId: defaultLocation,
+      color: products[0]?.color || "",
       quantity: "1",
       unitPrice: String(products[0]?.sellingPrice ?? 0),
       discount: "0",
@@ -640,7 +650,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
 
   const handleUpdateLine = (
     lineId: string,
-    field: "productId" | "locationId" | "quantity" | "unitPrice" | "discount",
+    field: "productId" | "locationId" | "color" | "quantity" | "unitPrice" | "discount",
     value: string | number
   ) => {
     setFormLines((prev) =>
@@ -652,6 +662,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
             ...line,
             productId: Number(value),
             unitPrice: String(prod?.sellingPrice ?? 0),
+            color: line.color ? line.color : (prod?.color || ""),
           };
         }
         if (field === "locationId") {
@@ -693,6 +704,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
       id: `line-${nextLineIdRef.current++}`,
       productId: pId,
       locationId: defaultLocation,
+      color: prod?.color || "",
       quantity: "1",
       unitPrice: String(prod?.sellingPrice ?? 0),
       discount: "0",
@@ -740,6 +752,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
         index: i,
         productId: l.productId,
         locationId: l.locationId,
+        color: l.color?.trim() || null,
         quantity: isNaN(q) ? 0 : q,
         unitPrice: isNaN(p) ? 0 : p,
         discount: isNaN(d) ? 0 : d,
@@ -794,6 +807,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
       items: parsedLines.map((l) => ({
         productId: l.productId,
         locationId: l.locationId,
+        color: l.color,
         quantity: l.quantity,
         unitPrice: l.unitPrice,
         discount: l.discount,
@@ -1080,6 +1094,22 @@ export function SalesClient({ initialData }: SalesClientProps) {
 
   return (
     <div className="space-y-6">
+      <datalist id="sale-colors-list">
+        <option value="Blanc" />
+        <option value="Noir" />
+        <option value="Gris" />
+        <option value="Gris Clair" />
+        <option value="Gris Anthracite" />
+        <option value="Beige" />
+        <option value="Bleu" />
+        <option value="Bleu Canard" />
+        <option value="Marron" />
+        <option value="Chêne" />
+        <option value="Chêne Clair" />
+        <option value="Noyer" />
+        <option value="Doré" />
+        <option value="Vert" />
+      </datalist>
       {/* ── Top Header ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -1590,6 +1620,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
                     <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
                       <th className="py-2.5 px-3">Meuble / Référence</th>
                       <th className="py-2.5 px-3">Dépôt Source</th>
+                      <th className="py-2.5 px-3 w-32">Couleur</th>
                       <th className="py-2.5 px-3 w-28 text-center">Qté</th>
                       <th className="py-2.5 px-3 w-36 text-right">Prix Unitaire (DA)</th>
                       <th className="py-2.5 px-3 w-28 text-right">Remise (DA)</th>
@@ -1642,6 +1673,17 @@ export function SalesClient({ initialData }: SalesClientProps) {
                                 Dispo : {available} unité(s)
                               </span>
                             </div>
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            <input
+                              type="text"
+                              list="sale-colors-list"
+                              placeholder="Couleur"
+                              value={line.color || ""}
+                              onChange={(e) => handleUpdateLine(line.id, "color", e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded bg-white font-medium focus:outline-hidden focus:ring-1 focus:ring-amber-500 placeholder:text-slate-400"
+                            />
                           </td>
 
                           <td className="py-2.5 px-3">
@@ -3195,6 +3237,7 @@ export function SalesClient({ initialData }: SalesClientProps) {
                       <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
                         <th className="py-2 px-3">Article / Référence</th>
                         <th className="py-2 px-3 w-48">Dépôt</th>
+                        <th className="py-2 px-3 w-32">Couleur</th>
                         <th className="py-2 px-2 w-24 text-center">Qté</th>
                         <th className="py-2 px-3 w-32 text-right">P.U (DA)</th>
                         <th className="py-2 px-2 w-24 text-right">Remise (DA)</th>
@@ -3245,6 +3288,17 @@ export function SalesClient({ initialData }: SalesClientProps) {
                               >
                                 Dispo : {available}
                               </span>
+                            </td>
+
+                            <td className="py-2 px-3">
+                              <input
+                                type="text"
+                                list="sale-colors-list"
+                                placeholder="Couleur"
+                                value={line.color || ""}
+                                onChange={(e) => handleUpdateEditLine(line.id, "color", e.target.value)}
+                                className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white font-medium focus:ring-1 focus:ring-amber-500 placeholder:text-slate-400"
+                              />
                             </td>
 
                             <td className="py-2 px-2">

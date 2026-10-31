@@ -7,6 +7,7 @@ import { downloadInvoicePdf, type InvoiceCopyType } from "@/lib/pdf/invoicePdf";
 import { PrintPortal } from "@/components/common/PrintPortal";
 
 export interface PrintableSaleItem {
+  color?: string | null;
   id?: number;
   product?: {
     sku?: string;
@@ -398,6 +399,7 @@ export function PrintableInvoice({ sale, settings, onClose, onEdit, autoPrint }:
                         <th className="py-2.5 px-3 print:border-r print:border-black">Réf / SKU</th>
                         <th className="py-2.5 px-3 print:border-r print:border-black">Désignation du Meuble</th>
                         {isInternalCopy && <th className="py-2.5 px-3 print:border-r print:border-black">Dépôt</th>}
+                        <th className="py-2.5 px-3 print:border-r print:border-black">Couleur</th>
                         <th className="py-2.5 px-3 text-center print:border-r print:border-black">Qté</th>
                         <th className="py-2.5 px-3 text-right print:border-r print:border-black">P.U (DA)</th>
                         <th className="py-2.5 px-3 text-right print:border-r print:border-black">Remise</th>
@@ -413,9 +415,9 @@ export function PrintableInvoice({ sale, settings, onClose, onEdit, autoPrint }:
                           </td>
                           <td className="py-2.5 px-3 print:border-r print:border-black">
                             <p className="font-bold text-slate-900 print:text-black">{item.product?.name}</p>
-                            {(item.product?.model || item.product?.color) && (
+                            {item.product?.model && (
                               <p className="text-[11px] text-slate-600 print:text-black font-medium">
-                                {[item.product?.model, item.product?.color].filter(Boolean).join(" • ")}
+                                {item.product.model}
                               </p>
                             )}
                           </td>
@@ -424,6 +426,9 @@ export function PrintableInvoice({ sale, settings, onClose, onEdit, autoPrint }:
                               {item.location?.name || "Dépôt principal"}
                             </td>
                           )}
+                          <td className="py-2.5 px-3 text-slate-700 print:text-black font-medium print:border-r print:border-black">
+                            {item.color?.trim() || item.product?.color?.trim() || "—"}
+                          </td>
                           <td className="py-2.5 px-3 text-center font-mono font-black text-slate-900 print:text-black print:border-r print:border-black">
                             {item.quantity}
                           </td>

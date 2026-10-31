@@ -2772,7 +2772,8 @@ export const SaleItemScalarFieldEnum = {
   quantity: 'quantity',
   unitPrice: 'unitPrice',
   discount: 'discount',
-  subtotal: 'subtotal'
+  subtotal: 'subtotal',
+  color: 'color'
 } as const
 
 export type SaleItemScalarFieldEnum = (typeof SaleItemScalarFieldEnum)[keyof typeof SaleItemScalarFieldEnum]

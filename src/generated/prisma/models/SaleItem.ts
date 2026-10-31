@@ -57,6 +57,7 @@ export type SaleItemMinAggregateOutputType = {
   unitPrice: number | null
   discount: number | null
   subtotal: number | null
+  color: string | null
 }
 
 export type SaleItemMaxAggregateOutputType = {
@@ -68,6 +69,7 @@ export type SaleItemMaxAggregateOutputType = {
   unitPrice: number | null
   discount: number | null
   subtotal: number | null
+  color: string | null
 }
 
 export type SaleItemCountAggregateOutputType = {
@@ -79,6 +81,7 @@ export type SaleItemCountAggregateOutputType = {
   unitPrice: number
   discount: number
   subtotal: number
+  color: number
   _all: number
 }
 
@@ -114,6 +117,7 @@ export type SaleItemMinAggregateInputType = {
   unitPrice?: true
   discount?: true
   subtotal?: true
+  color?: true
 }
 
 export type SaleItemMaxAggregateInputType = {
@@ -125,6 +129,7 @@ export type SaleItemMaxAggregateInputType = {
   unitPrice?: true
   discount?: true
   subtotal?: true
+  color?: true
 }
 
 export type SaleItemCountAggregateInputType = {
@@ -136,6 +141,7 @@ export type SaleItemCountAggregateInputType = {
   unitPrice?: true
   discount?: true
   subtotal?: true
+  color?: true
   _all?: true
 }
 
@@ -234,6 +240,7 @@ export type SaleItemGroupByOutputType = {
   unitPrice: number
   discount: number
   subtotal: number
+  color: string | null
   _count: SaleItemCountAggregateOutputType | null
   _avg: SaleItemAvgAggregateOutputType | null
   _sum: SaleItemSumAggregateOutputType | null
@@ -268,6 +275,7 @@ export type SaleItemWhereInput = {
   unitPrice?: Prisma.FloatFilter<"SaleItem"> | number
   discount?: Prisma.FloatFilter<"SaleItem"> | number
   subtotal?: Prisma.FloatFilter<"SaleItem"> | number
+  color?: Prisma.StringNullableFilter<"SaleItem"> | string | null
   sale?: Prisma.XOR<Prisma.SalesScalarRelationFilter, Prisma.SalesWhereInput>
   product?: Prisma.XOR<Prisma.ProductScalarRelationFilter, Prisma.ProductWhereInput>
   location?: Prisma.XOR<Prisma.LocationNullableScalarRelationFilter, Prisma.LocationWhereInput> | null
@@ -282,6 +290,7 @@ export type SaleItemOrderByWithRelationInput = {
   unitPrice?: Prisma.SortOrder
   discount?: Prisma.SortOrder
   subtotal?: Prisma.SortOrder
+  color?: Prisma.SortOrderInput | Prisma.SortOrder
   sale?: Prisma.SalesOrderByWithRelationInput
   product?: Prisma.ProductOrderByWithRelationInput
   location?: Prisma.LocationOrderByWithRelationInput
@@ -299,6 +308,7 @@ export type SaleItemWhereUniqueInput = Prisma.AtLeast<{
   unitPrice?: Prisma.FloatFilter<"SaleItem"> | number
   discount?: Prisma.FloatFilter<"SaleItem"> | number
   subtotal?: Prisma.FloatFilter<"SaleItem"> | number
+  color?: Prisma.StringNullableFilter<"SaleItem"> | string | null
   sale?: Prisma.XOR<Prisma.SalesScalarRelationFilter, Prisma.SalesWhereInput>
   product?: Prisma.XOR<Prisma.ProductScalarRelationFilter, Prisma.ProductWhereInput>
   location?: Prisma.XOR<Prisma.LocationNullableScalarRelationFilter, Prisma.LocationWhereInput> | null
@@ -313,6 +323,7 @@ export type SaleItemOrderByWithAggregationInput = {
   unitPrice?: Prisma.SortOrder
   discount?: Prisma.SortOrder
   subtotal?: Prisma.SortOrder
+  color?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.SaleItemCountOrderByAggregateInput
   _avg?: Prisma.SaleItemAvgOrderByAggregateInput
   _max?: Prisma.SaleItemMaxOrderByAggregateInput
@@ -332,6 +343,7 @@ export type SaleItemScalarWhereWithAggregatesInput = {
   unitPrice?: Prisma.FloatWithAggregatesFilter<"SaleItem"> | number
   discount?: Prisma.FloatWithAggregatesFilter<"SaleItem"> | number
   subtotal?: Prisma.FloatWithAggregatesFilter<"SaleItem"> | number
+  color?: Prisma.StringNullableWithAggregatesFilter<"SaleItem"> | string | null
 }
 
 export type SaleItemCreateInput = {
@@ -339,6 +351,7 @@ export type SaleItemCreateInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
   sale: Prisma.SalesCreateNestedOneWithoutItemsInput
   product: Prisma.ProductCreateNestedOneWithoutSaleItemsInput
   location?: Prisma.LocationCreateNestedOneWithoutSaleItemsInput
@@ -353,6 +366,7 @@ export type SaleItemUncheckedCreateInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
 }
 
 export type SaleItemUpdateInput = {
@@ -360,6 +374,7 @@ export type SaleItemUpdateInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sale?: Prisma.SalesUpdateOneRequiredWithoutItemsNestedInput
   product?: Prisma.ProductUpdateOneRequiredWithoutSaleItemsNestedInput
   location?: Prisma.LocationUpdateOneWithoutSaleItemsNestedInput
@@ -374,6 +389,7 @@ export type SaleItemUncheckedUpdateInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SaleItemCreateManyInput = {
@@ -385,6 +401,7 @@ export type SaleItemCreateManyInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
 }
 
 export type SaleItemUpdateManyMutationInput = {
@@ -392,6 +409,7 @@ export type SaleItemUpdateManyMutationInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SaleItemUncheckedUpdateManyInput = {
@@ -403,6 +421,7 @@ export type SaleItemUncheckedUpdateManyInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SaleItemListRelationFilter = {
@@ -424,6 +443,7 @@ export type SaleItemCountOrderByAggregateInput = {
   unitPrice?: Prisma.SortOrder
   discount?: Prisma.SortOrder
   subtotal?: Prisma.SortOrder
+  color?: Prisma.SortOrder
 }
 
 export type SaleItemAvgOrderByAggregateInput = {
@@ -446,6 +466,7 @@ export type SaleItemMaxOrderByAggregateInput = {
   unitPrice?: Prisma.SortOrder
   discount?: Prisma.SortOrder
   subtotal?: Prisma.SortOrder
+  color?: Prisma.SortOrder
 }
 
 export type SaleItemMinOrderByAggregateInput = {
@@ -457,6 +478,7 @@ export type SaleItemMinOrderByAggregateInput = {
   unitPrice?: Prisma.SortOrder
   discount?: Prisma.SortOrder
   subtotal?: Prisma.SortOrder
+  color?: Prisma.SortOrder
 }
 
 export type SaleItemSumOrderByAggregateInput = {
@@ -601,6 +623,7 @@ export type SaleItemCreateWithoutProductInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
   sale: Prisma.SalesCreateNestedOneWithoutItemsInput
   location?: Prisma.LocationCreateNestedOneWithoutSaleItemsInput
 }
@@ -613,6 +636,7 @@ export type SaleItemUncheckedCreateWithoutProductInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
 }
 
 export type SaleItemCreateOrConnectWithoutProductInput = {
@@ -652,6 +676,7 @@ export type SaleItemScalarWhereInput = {
   unitPrice?: Prisma.FloatFilter<"SaleItem"> | number
   discount?: Prisma.FloatFilter<"SaleItem"> | number
   subtotal?: Prisma.FloatFilter<"SaleItem"> | number
+  color?: Prisma.StringNullableFilter<"SaleItem"> | string | null
 }
 
 export type SaleItemCreateWithoutLocationInput = {
@@ -659,6 +684,7 @@ export type SaleItemCreateWithoutLocationInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
   sale: Prisma.SalesCreateNestedOneWithoutItemsInput
   product: Prisma.ProductCreateNestedOneWithoutSaleItemsInput
 }
@@ -671,6 +697,7 @@ export type SaleItemUncheckedCreateWithoutLocationInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
 }
 
 export type SaleItemCreateOrConnectWithoutLocationInput = {
@@ -703,6 +730,7 @@ export type SaleItemCreateWithoutSaleInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
   product: Prisma.ProductCreateNestedOneWithoutSaleItemsInput
   location?: Prisma.LocationCreateNestedOneWithoutSaleItemsInput
 }
@@ -715,6 +743,7 @@ export type SaleItemUncheckedCreateWithoutSaleInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
 }
 
 export type SaleItemCreateOrConnectWithoutSaleInput = {
@@ -750,6 +779,7 @@ export type SaleItemCreateManyProductInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
 }
 
 export type SaleItemUpdateWithoutProductInput = {
@@ -757,6 +787,7 @@ export type SaleItemUpdateWithoutProductInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sale?: Prisma.SalesUpdateOneRequiredWithoutItemsNestedInput
   location?: Prisma.LocationUpdateOneWithoutSaleItemsNestedInput
 }
@@ -769,6 +800,7 @@ export type SaleItemUncheckedUpdateWithoutProductInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SaleItemUncheckedUpdateManyWithoutProductInput = {
@@ -779,6 +811,7 @@ export type SaleItemUncheckedUpdateManyWithoutProductInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SaleItemCreateManyLocationInput = {
@@ -789,6 +822,7 @@ export type SaleItemCreateManyLocationInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
 }
 
 export type SaleItemUpdateWithoutLocationInput = {
@@ -796,6 +830,7 @@ export type SaleItemUpdateWithoutLocationInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sale?: Prisma.SalesUpdateOneRequiredWithoutItemsNestedInput
   product?: Prisma.ProductUpdateOneRequiredWithoutSaleItemsNestedInput
 }
@@ -808,6 +843,7 @@ export type SaleItemUncheckedUpdateWithoutLocationInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SaleItemUncheckedUpdateManyWithoutLocationInput = {
@@ -818,6 +854,7 @@ export type SaleItemUncheckedUpdateManyWithoutLocationInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SaleItemCreateManySaleInput = {
@@ -828,6 +865,7 @@ export type SaleItemCreateManySaleInput = {
   unitPrice: number
   discount?: number
   subtotal: number
+  color?: string | null
 }
 
 export type SaleItemUpdateWithoutSaleInput = {
@@ -835,6 +873,7 @@ export type SaleItemUpdateWithoutSaleInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   product?: Prisma.ProductUpdateOneRequiredWithoutSaleItemsNestedInput
   location?: Prisma.LocationUpdateOneWithoutSaleItemsNestedInput
 }
@@ -847,6 +886,7 @@ export type SaleItemUncheckedUpdateWithoutSaleInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SaleItemUncheckedUpdateManyWithoutSaleInput = {
@@ -857,6 +897,7 @@ export type SaleItemUncheckedUpdateManyWithoutSaleInput = {
   unitPrice?: Prisma.FloatFieldUpdateOperationsInput | number
   discount?: Prisma.FloatFieldUpdateOperationsInput | number
   subtotal?: Prisma.FloatFieldUpdateOperationsInput | number
+  color?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 
@@ -870,6 +911,7 @@ export type SaleItemSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   unitPrice?: boolean
   discount?: boolean
   subtotal?: boolean
+  color?: boolean
   sale?: boolean | Prisma.SalesDefaultArgs<ExtArgs>
   product?: boolean | Prisma.ProductDefaultArgs<ExtArgs>
   location?: boolean | Prisma.SaleItem$locationArgs<ExtArgs>
@@ -884,6 +926,7 @@ export type SaleItemSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   unitPrice?: boolean
   discount?: boolean
   subtotal?: boolean
+  color?: boolean
   sale?: boolean | Prisma.SalesDefaultArgs<ExtArgs>
   product?: boolean | Prisma.ProductDefaultArgs<ExtArgs>
   location?: boolean | Prisma.SaleItem$locationArgs<ExtArgs>
@@ -898,6 +941,7 @@ export type SaleItemSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   unitPrice?: boolean
   discount?: boolean
   subtotal?: boolean
+  color?: boolean
   sale?: boolean | Prisma.SalesDefaultArgs<ExtArgs>
   product?: boolean | Prisma.ProductDefaultArgs<ExtArgs>
   location?: boolean | Prisma.SaleItem$locationArgs<ExtArgs>
@@ -912,9 +956,10 @@ export type SaleItemSelectScalar = {
   unitPrice?: boolean
   discount?: boolean
   subtotal?: boolean
+  color?: boolean
 }
 
-export type SaleItemOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "saleId" | "productId" | "locationId" | "quantity" | "unitPrice" | "discount" | "subtotal", ExtArgs["result"]["saleItem"]>
+export type SaleItemOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "saleId" | "productId" | "locationId" | "quantity" | "unitPrice" | "discount" | "subtotal" | "color", ExtArgs["result"]["saleItem"]>
 export type SaleItemInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   sale?: boolean | Prisma.SalesDefaultArgs<ExtArgs>
   product?: boolean | Prisma.ProductDefaultArgs<ExtArgs>
@@ -947,6 +992,7 @@ export type $SaleItemPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     unitPrice: number
     discount: number
     subtotal: number
+    color: string | null
   }, ExtArgs["result"]["saleItem"]>
   composites: {}
 }
@@ -1381,6 +1427,7 @@ export interface SaleItemFieldRefs {
   readonly unitPrice: Prisma.FieldRef<"SaleItem", 'Float'>
   readonly discount: Prisma.FieldRef<"SaleItem", 'Float'>
   readonly subtotal: Prisma.FieldRef<"SaleItem", 'Float'>
+  readonly color: Prisma.FieldRef<"SaleItem", 'String'>
 }
     
 
