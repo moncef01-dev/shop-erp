@@ -1263,7 +1263,7 @@ export async function getAccountMovements(
       reference: p.reference || `PAYF-${p.id}`,
       type: "SUPPLIER_PAYMENT",
       typeLabel: "Paiement Fournisseur",
-      description: `Règlement fournisseur — ${supp}`,
+      description: p.notes?.trim() ? p.notes.trim() : `Règlement fournisseur — ${supp}`,
       party: supp,
       inflow: 0,
       outflow: p.amount,
@@ -1291,12 +1291,21 @@ export async function getAccountMovements(
   });
   for (const e of expenses) {
     const isIncome = e.type === "income";
+    let typeLabel = isIncome ? "Recette Exceptionnelle" : "Dépense d'Exploitation";
+    if (isIncome && e.category === "capital") {
+      typeLabel = "Apport Exploitant / Recette";
+    } else if (!isIncome && e.category === "salary") {
+      typeLabel = "Paiement Salaire";
+    } else if (!isIncome && e.category === "capital") {
+      typeLabel = "Prélèvement Exploitant";
+    }
+
     movements.push({
       id: `exp-${e.id}`,
       date: e.date.toISOString(),
       reference: e.reference,
       type: isIncome ? "INCOME" : "EXPENSE",
-      typeLabel: isIncome ? "Recette Exceptionnelle" : "Dépense d'Exploitation",
+      typeLabel,
       description: e.description,
       party: e.beneficiary || "Interne",
       inflow: isIncome ? e.amount : 0,
@@ -1407,14 +1416,41 @@ export async function getAccountMovements(
     }
   }
 
-  // Tri chronologique croissant pour calculer la running balance standard
-  movements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Tri chronologique croissant unifié :
+  // 1. Date et heure effectives de l'opération (croissant, oldest first)
+  // 2. Horodatage réel de saisie (createdAt) comme clé de départage
+  // 3. Identifiant unique stable en dernier recours
+  movements.sort((a, b) => {
+    const timeA = new Date(a.date).getTime();
+    const timeB = new Date(b.date).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (createdA !== createdB) return createdA - createdB;
+    return a.id.localeCompare(b.id);
+  });
 
+  // Calcul du solde progressif (running balance) séquentiel
   let running = account.openingBalance;
   for (const m of movements) {
-    running = running + m.inflow - m.outflow;
-    m.runningBalance = Math.round(running * 100) / 100;
+    running = Math.round((running + m.inflow - m.outflow) * 100) / 100;
+    m.runningBalance = running;
   }
+
+  // Ligne de solde initial / ouverture (première entrée du relevé, comptée une seule fois)
+  const openingItem: AccountMovementItem = {
+    id: `open-${account.id}`,
+    date: account.openingDate.toISOString(),
+    reference: "INITIAL",
+    type: "OPENING",
+    typeLabel: "Solde d'ouverture",
+    description: "Solde initial du compte",
+    party: "Système",
+    inflow: account.openingBalance,
+    outflow: 0,
+    runningBalance: account.openingBalance,
+    createdAt: account.openingDate.toISOString(),
+  };
 
   // Filtrage éventuel par plage de dates
   let filtered = movements;
@@ -1427,8 +1463,14 @@ export async function getAccountMovements(
     filtered = filtered.filter((m) => new Date(m.date).getTime() <= e);
   }
 
-  // Tri décroissant pour affichage UI
-  filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Timeline chronologique unifiée : solde initial en premier si non exclu par le filtre de date
+  const shouldIncludeOpening =
+    !filters?.startDate ||
+    new Date(account.openingDate).getTime() >= new Date(filters.startDate).setHours(0, 0, 0, 0);
+
+  const unifiedTimeline: AccountMovementItem[] = shouldIncludeOpening
+    ? [openingItem, ...filtered]
+    : filtered;
 
   const currentBalance = await calculateAccountBalance(accountId);
 
@@ -1449,7 +1491,7 @@ export async function getAccountMovements(
       totalTransfersIn: transfersIn.reduce((s, t) => s + t.amount, 0),
       totalTransfersOut: transfersOut.reduce((s, t) => s + t.amount, 0),
     },
-    movements: filtered,
+    movements: unifiedTimeline,
     openingBalance: account.openingBalance,
     finalBalance: currentBalance,
   };

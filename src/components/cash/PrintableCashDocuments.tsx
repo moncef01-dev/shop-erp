@@ -30,6 +30,63 @@ export function formatDateTime(dateStr: string | Date): string {
   });
 }
 
+export function formatMovementDateTime(
+  dateStr: string | Date,
+  createdAtStr?: string | null
+): {
+  operationDateDisplay: string;
+  createdDateDisplay: string | null;
+  showCreatedAt: boolean;
+} {
+  const d = new Date(dateStr);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (isNaN(d.getTime())) {
+    return { operationDateDisplay: "—", createdDateDisplay: null, showCreatedAt: false };
+  }
+
+  const isDateOnly =
+    d.getUTCHours() === 0 &&
+    d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 &&
+    d.getUTCMilliseconds() === 0;
+
+  let operationDateDisplay = "";
+  if (isDateOnly) {
+    const day = pad(d.getUTCDate());
+    const month = pad(d.getUTCMonth() + 1);
+    const year = d.getUTCFullYear();
+    operationDateDisplay = `${day}/${month}/${year} (Heure non enregistrée)`;
+  } else {
+    const day = pad(d.getDate());
+    const month = pad(d.getMonth() + 1);
+    const year = d.getFullYear();
+    const hours = pad(d.getHours());
+    const minutes = pad(d.getMinutes());
+    const seconds = pad(d.getSeconds());
+    operationDateDisplay = `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+  }
+
+  let createdDateDisplay: string | null = null;
+  let showCreatedAt = false;
+  if (createdAtStr) {
+    const cd = new Date(createdAtStr);
+    if (!isNaN(cd.getTime())) {
+      const cDay = pad(cd.getDate());
+      const cMonth = pad(cd.getMonth() + 1);
+      const cYear = cd.getFullYear();
+      const cHours = pad(cd.getHours());
+      const cMinutes = pad(cd.getMinutes());
+      const cSeconds = pad(cd.getSeconds());
+      createdDateDisplay = `${cDay}/${cMonth}/${cYear} ${cHours}:${cMinutes}:${cSeconds}`;
+      if (isDateOnly || Math.abs(d.getTime() - cd.getTime()) >= 60000) {
+        showCreatedAt = true;
+      }
+    }
+  }
+
+  return { operationDateDisplay, createdDateDisplay, showCreatedAt };
+}
+
 export function formatMethodLabel(m: string): string {
   switch (m) {
     case "cash":
@@ -820,11 +877,12 @@ export function PrintableTreasuryAccountStatement({
     outflow: number;
     runningBalance: number;
     method?: string;
+    createdAt?: string;
   }[];
   settings?: ShopSettingsData | null;
   onClose: () => void;
 }) {
-  const totalInflows = items.reduce((acc, i) => acc + i.inflow, 0);
+  const totalInflows = items.filter((i) => i.type !== "OPENING").reduce((acc, i) => acc + i.inflow, 0);
   const totalOutflows = items.reduce((acc, i) => acc + i.outflow, 0);
 
   return (
@@ -900,7 +958,7 @@ export function PrintableTreasuryAccountStatement({
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-100 text-slate-700 print:bg-white print:text-black print:border-b-2 print:border-black font-bold uppercase border-b border-slate-200">
                 <tr>
-                  <th className="py-2.5 px-3 print:border-r print:border-black font-bold print:text-black">Date</th>
+                  <th className="py-2.5 px-3 print:border-r print:border-black font-bold print:text-black">Date &amp; Heure</th>
                   <th className="py-2.5 px-3 print:border-r print:border-black font-mono font-bold print:text-black">Réf</th>
                   <th className="py-2.5 px-3 print:border-r print:border-black font-bold print:text-black">Type &amp; Description</th>
                   <th className="py-2.5 px-3 print:border-r print:border-black font-bold print:text-black">Tiers / Info</th>
@@ -917,10 +975,18 @@ export function PrintableTreasuryAccountStatement({
                     </td>
                   </tr>
                 ) : (
-                  items.map((it) => (
-                    <tr key={it.id} className="print:border-b print:border-black">
+                  items.map((it) => {
+                    const dt = formatMovementDateTime(it.date, it.createdAt);
+                    const isOpening = it.type === "OPENING";
+                    return (
+                    <tr key={it.id} className={`print:border-b print:border-black ${isOpening ? "bg-amber-50/40 print:bg-slate-50 font-medium" : ""}`}>
                       <td className="py-2 px-3 font-mono text-slate-600 print:text-black print:border-r print:border-black font-medium">
-                        {new Date(it.date).toLocaleDateString("fr-DZ")}
+                        <span className="block">{dt.operationDateDisplay}</span>
+                        {dt.showCreatedAt && dt.createdDateDisplay && (
+                          <span className="text-[10px] text-slate-500 print:text-black block font-sans">
+                            Enregistré le : {dt.createdDateDisplay}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 px-3 font-mono font-bold text-slate-800 print:text-black print:border-r print:border-black">{it.reference}</td>
                       <td className="py-2 px-3 print:border-r print:border-black">
@@ -938,7 +1004,8 @@ export function PrintableTreasuryAccountStatement({
                         {formatDA(it.runningBalance)}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

@@ -29,7 +29,11 @@ import {
   type AccountMovementItem,
 } from "../treasury-actions";
 import { TreasuryNavigationTabs } from "@/components/cash/TreasuryNavigationTabs";
-import { formatDA } from "@/components/cash/PrintableCashDocuments";
+import {
+  formatDA,
+  formatMovementDateTime,
+  PrintableTreasuryAccountStatement,
+} from "@/components/cash/PrintableCashDocuments";
 
 interface AccountsClientProps {
   initialAccounts: TreasuryAccountData[];
@@ -54,6 +58,7 @@ export function AccountsClient({ initialAccounts }: AccountsClientProps) {
     finalBalance: number;
   } | null>(null);
   const [isLoadingMovements, setIsLoadingMovements] = useState(false);
+  const [isPrintingStatement, setIsPrintingStatement] = useState(false);
 
   // New Account Form
   const [newAccName, setNewAccName] = useState("");
@@ -681,7 +686,7 @@ export function AccountsClient({ initialAccounts }: AccountsClientProps) {
                 <table className="w-full text-left text-xs text-slate-600">
                   <thead className="bg-slate-50 text-[11px] font-semibold text-slate-700 uppercase tracking-wider sticky top-0">
                     <tr>
-                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Date &amp; Heure</th>
                       <th className="py-2.5 px-3">Réf</th>
                       <th className="py-2.5 px-3">Nature de l&apos;opération</th>
                       <th className="py-2.5 px-3 text-right text-emerald-700">Entrée (+)</th>
@@ -690,45 +695,77 @@ export function AccountsClient({ initialAccounts }: AccountsClientProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {movementsData.movements.map((m) => (
-                      <tr key={m.id} className="hover:bg-slate-50/70">
-                        <td className="py-2 px-3 text-slate-500">
-                          {new Date(m.date).toLocaleDateString("fr-DZ")}
-                        </td>
-                        <td className="py-2 px-3 font-mono font-semibold text-slate-800">
-                          {m.reference}
-                        </td>
-                        <td className="py-2 px-3">
-                          <span className="font-medium text-slate-900 block">{m.typeLabel}</span>
-                          <span className="text-[11px] text-slate-400">{m.description}</span>
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono text-emerald-700 font-semibold">
-                          {m.inflow > 0 ? `+${formatDA(m.inflow)}` : "-"}
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono text-rose-700 font-semibold">
-                          {m.outflow > 0 ? `-${formatDA(m.outflow)}` : "-"}
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
-                          {formatDA(m.runningBalance)}
-                        </td>
-                      </tr>
-                    ))}
+                    {movementsData.movements.map((m) => {
+                      const dt = formatMovementDateTime(m.date, m.createdAt);
+                      const isOpening = m.type === "OPENING";
+                      return (
+                        <tr
+                          key={m.id}
+                          className={isOpening ? "bg-amber-50/50 font-medium" : "hover:bg-slate-50/70"}
+                        >
+                          <td className="py-2 px-3 text-slate-500">
+                            <span className="font-mono text-slate-700 block font-medium">
+                              {dt.operationDateDisplay}
+                            </span>
+                            {dt.showCreatedAt && dt.createdDateDisplay && (
+                              <span className="text-[10px] text-slate-400 block font-sans">
+                                Enregistré le : {dt.createdDateDisplay}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 font-mono font-semibold text-slate-800">
+                            {m.reference}
+                          </td>
+                          <td className="py-2 px-3">
+                            <span className="font-medium text-slate-900 block">{m.typeLabel}</span>
+                            <span className="text-[11px] text-slate-400">{m.description}</span>
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-emerald-700 font-semibold">
+                            {m.inflow > 0 ? `+${formatDA(m.inflow)}` : "-"}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-rose-700 font-semibold">
+                            {m.outflow > 0 ? `-${formatDA(m.outflow)}` : "-"}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                            {formatDA(m.runningBalance)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
             </div>
 
-            <div className="flex items-center justify-end pt-3 border-t border-slate-200 shrink-0">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsPrintingStatement(true)}
+                disabled={!movementsData || movementsData.movements.length === 0}
+                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+              >
+                <Printer className="h-4 w-4 text-slate-600" />
+                Imprimer le Relevé (A4)
+              </button>
               <button
                 type="button"
                 onClick={() => setViewingAccount(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition cursor-pointer"
               >
                 Fermer
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Relevé Imprimable A4 */}
+      {isPrintingStatement && viewingAccount && movementsData && (
+        <PrintableTreasuryAccountStatement
+          account={movementsData.account || viewingAccount}
+          items={movementsData.movements}
+          onClose={() => setIsPrintingStatement(false)}
+        />
       )}
     </div>
   );
