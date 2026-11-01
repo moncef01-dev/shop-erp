@@ -555,6 +555,390 @@ export async function createPurchaseOrderAction(payload: CreatePurchaseInput): P
   }
 }
 
+// ─── MODIFICATION D'UNE COMMANDE D'ACHAT (UPDATE PURCHASE ORDER) ─────────────
+
+export interface UpdatePurchaseItemInput {
+  id?: number; // ID de la ligne existante purchase_item (facultatif si nouvelle ligne)
+  productId: number;
+  locationId?: number | null;
+  quantity: number;
+  unitCost: number;
+  sku?: string;
+  name?: string;
+  model?: string | null;
+  color?: string | null;
+}
+
+export interface UpdatePurchaseOrderInput {
+  purchaseId: number;
+  purchaseDate?: string;
+  expectedDeliveryDate?: string | null;
+  notes?: string | null;
+  discount?: number;
+  items: UpdatePurchaseItemInput[];
+}
+
+export async function updatePurchaseOrderAction(
+  payload: UpdatePurchaseOrderInput
+): Promise<PurchaseActionResponse> {
+  try {
+    const {
+      purchaseId,
+      purchaseDate,
+      expectedDeliveryDate = null,
+      notes = null,
+      discount = 0,
+      items,
+    } = payload;
+
+    if (!purchaseId) {
+      return { success: false, error: "Identifiant de commande manquant." };
+    }
+
+    if (!items || items.length === 0) {
+      return { success: false, error: "Veuillez conserver au moins une ligne d'article dans la commande." };
+    }
+
+    // Récupérer la commande existante
+    const existingPurchase = await prisma.purchase.findUnique({
+      where: { id: purchaseId },
+      include: {
+        supplier: true,
+        items: {
+          include: {
+            product: true,
+            receiptItems: true,
+          },
+        },
+        receipts: {
+          include: {
+            items: true,
+          },
+        },
+        payments: {
+          where: { status: { not: "cancelled" } },
+        },
+      },
+    });
+
+    if (!existingPurchase) {
+      return { success: false, error: "Commande fournisseur introuvable." };
+    }
+
+    if (existingPurchase.status === "cancelled") {
+      return { success: false, error: "Impossible de modifier une commande d'achat annulée." };
+    }
+
+    const effectiveDate = purchaseDate ? new Date(purchaseDate) : existingPurchase.purchaseDate;
+    await assertDatesNotLocked(
+      [existingPurchase.purchaseDate, effectiveDate, new Date()],
+      "Modification de bon de commande fournisseur"
+    );
+
+    // Validation préalable stricte des lignes
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (!it.productId) {
+        return { success: false, error: `Ligne ${i + 1} : Produit obligatoire.` };
+      }
+      if (!Number.isInteger(it.quantity) || it.quantity <= 0) {
+        return { success: false, error: `Ligne ${i + 1} : La quantité doit être un entier strictement positif.` };
+      }
+      if (typeof it.unitCost !== "number" || it.unitCost < 0) {
+        return { success: false, error: `Ligne ${i + 1} : Le prix d'achat unitaire ne peut pas être négatif.` };
+      }
+    }
+
+    // Calculs stricts des montants
+    let subtotal = 0;
+    const validatedItems = items.map((it) => {
+      const lineSubtotal = it.quantity * it.unitCost;
+      subtotal += lineSubtotal;
+      return {
+        ...it,
+        subtotal: lineSubtotal,
+      };
+    });
+
+    const safeDiscount = Math.max(0, discount || 0);
+    const totalAmount = Math.max(0, subtotal - safeDiscount);
+
+    // Contrôle garde-fou sur les paiements déjà enregistrés
+    const totalAlreadyPaid = existingPurchase.paidAmount;
+    if (totalAmount < totalAlreadyPaid) {
+      return {
+        success: false,
+        error: `Le nouveau montant total de la commande (${totalAmount.toLocaleString(
+          "fr-DZ"
+        )} DA) ne peut pas être inférieur au montant déjà réglé (${totalAlreadyPaid.toLocaleString(
+          "fr-DZ"
+        )} DA). Veuillez d'abord annuler ou régulariser les versements excédentaires.`,
+      };
+    }
+
+    const newPaymentStatus =
+      totalAlreadyPaid >= totalAmount && totalAmount > 0
+        ? "paid"
+        : totalAlreadyPaid > 0
+        ? "partial"
+        : "unpaid";
+
+    // Exécution transactionnelle atomique
+    const result = await prisma.$transaction(async (tx) => {
+      const defaultLoc = await tx.location.findFirst({
+        where: { isActive: true },
+        orderBy: [{ isDefault: "desc" }, { id: "asc" }],
+      });
+      const fallbackLocationId = defaultLoc?.id ?? 1;
+
+      const wasReceived =
+        existingPurchase.receiptStatus !== "pending" ||
+        existingPurchase.items.some((it) => it.receivedQuantity > 0);
+
+      const submittedKeptIds = new Set(
+        validatedItems.map((it) => it.id).filter((id): id is number => typeof id === "number" && id > 0)
+      );
+
+      // 1. Traitement des lignes supprimées
+      const removedItems = existingPurchase.items.filter((it) => !submittedKeptIds.has(it.id));
+      for (const rem of removedItems) {
+        if (rem.receivedQuantity > 0) {
+          // Si l'article avait déjà été réceptionné en stock, ajuster le stock physique (déstockage)
+          const locId = rem.locationId || fallbackLocationId;
+          const currentStock = await tx.productStock.findUnique({
+            where: { productId_locationId: { productId: rem.productId, locationId: locId } },
+          });
+
+          const availableQty = currentStock?.quantity ?? 0;
+          if (availableQty < rem.receivedQuantity) {
+            throw new Error(
+              `Impossible de supprimer l'article "${rem.product.name}" : stock disponible insuffisant (${availableQty} unité(s)) pour déstocker les ${rem.receivedQuantity} unité(s) réceptionnées.`
+            );
+          }
+
+          // Décrémenter le stock dépôt
+          await tx.productStock.update({
+            where: { productId_locationId: { productId: rem.productId, locationId: locId } },
+            data: { quantity: availableQty - rem.receivedQuantity },
+          });
+
+          // Mettre à jour le stock total du produit
+          const allStocks = await tx.productStock.findMany({
+            where: { productId: rem.productId },
+            select: { quantity: true },
+          });
+          const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
+          await tx.product.update({
+            where: { id: rem.productId },
+            data: { stock: newTotal },
+          });
+
+          // Mouvement d'ajustement explicite
+          await tx.stockMovement.create({
+            data: {
+              reference: `MVT-AJT-${existingPurchase.reference}-${rem.product.sku}`,
+              type: "ADJUSTMENT",
+              productId: rem.productId,
+              fromLocationId: locId,
+              toLocationId: null,
+              quantity: rem.receivedQuantity,
+              unitCost: rem.unitCost,
+              stockBefore: availableQty,
+              stockAfter: availableQty - rem.receivedQuantity,
+              reason: `Ajustement suite suppression ligne sur commande ${existingPurchase.reference}`,
+              notes: `Suppression article ${rem.product.name} (${rem.receivedQuantity} pièce(s) sorties du stock)`,
+              purchaseId: existingPurchase.id,
+            },
+          });
+        }
+
+        // Supprimer les lignes de réception associées puis la ligne
+        await tx.purchaseReceiptItem.deleteMany({
+          where: { purchaseItemId: rem.id },
+        });
+        await tx.purchaseItem.delete({
+          where: { id: rem.id },
+        });
+      }
+
+      // 2. Traitement des lignes conservées / modifiées
+      for (const itemInput of validatedItems) {
+        if (itemInput.id && submittedKeptIds.has(itemInput.id)) {
+          const oldLine = existingPurchase.items.find((it) => it.id === itemInput.id);
+          if (!oldLine) continue;
+
+          let newReceivedQty = oldLine.receivedQuantity;
+
+          // Si la commande était déjà réceptionnée et que la quantité a diminué en-dessous du reçu
+          if (wasReceived && itemInput.quantity !== oldLine.quantity) {
+            if (itemInput.quantity < oldLine.receivedQuantity) {
+              const diffToDeduct = oldLine.receivedQuantity - itemInput.quantity;
+              const locId = oldLine.locationId || itemInput.locationId || fallbackLocationId;
+
+              const currentStock = await tx.productStock.findUnique({
+                where: { productId_locationId: { productId: oldLine.productId, locationId: locId } },
+              });
+              const availableQty = currentStock?.quantity ?? 0;
+              if (availableQty < diffToDeduct) {
+                throw new Error(
+                  `Stock insuffisant pour réduire la quantité de "${oldLine.product.name}" : ${diffToDeduct} unité(s) à déstocker mais seulement ${availableQty} en stock.`
+                );
+              }
+
+              // Décrémenter ProductStock
+              await tx.productStock.update({
+                where: { productId_locationId: { productId: oldLine.productId, locationId: locId } },
+                data: { quantity: availableQty - diffToDeduct },
+              });
+
+              // Mettre à jour stock global produit
+              const allStocks = await tx.productStock.findMany({
+                where: { productId: oldLine.productId },
+                select: { quantity: true },
+              });
+              const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
+              await tx.product.update({
+                where: { id: oldLine.productId },
+                data: { stock: newTotal },
+              });
+
+              // Mouvement explicite d'ajustement
+              await tx.stockMovement.create({
+                data: {
+                  reference: `MVT-AJT-${existingPurchase.reference}-${oldLine.product.sku}`,
+                  type: "ADJUSTMENT",
+                  productId: oldLine.productId,
+                  fromLocationId: locId,
+                  toLocationId: null,
+                  quantity: diffToDeduct,
+                  unitCost: itemInput.unitCost,
+                  stockBefore: availableQty,
+                  stockAfter: availableQty - diffToDeduct,
+                  reason: `Ajustement quantité suite modification commande ${existingPurchase.reference}`,
+                  notes: `Réduction de ${oldLine.receivedQuantity} à ${itemInput.quantity} (${diffToDeduct} unité(s) déstockées)`,
+                  purchaseId: existingPurchase.id,
+                },
+              });
+
+              newReceivedQty = itemInput.quantity;
+            }
+          }
+
+          // Mettre à jour la ligne de commande
+          await tx.purchaseItem.update({
+            where: { id: oldLine.id },
+            data: {
+              productId: itemInput.productId,
+              locationId: itemInput.locationId || oldLine.locationId || fallbackLocationId,
+              quantity: itemInput.quantity,
+              receivedQuantity: newReceivedQty,
+              unitCost: itemInput.unitCost,
+              subtotal: itemInput.subtotal,
+            },
+          });
+
+          // Mettre à jour le coût unitaire sur les lignes de bon de réception associées
+          await tx.purchaseReceiptItem.updateMany({
+            where: { purchaseItemId: oldLine.id },
+            data: {
+              unitCost: itemInput.unitCost,
+            },
+          });
+
+          // Mettre à jour les désignations / modèles / couleurs sur le produit si renseignés
+          if (itemInput.name || itemInput.model !== undefined || itemInput.color !== undefined) {
+            const prodUpdate: { name?: string; model?: string | null; color?: string | null } = {};
+            if (itemInput.name?.trim()) prodUpdate.name = itemInput.name.trim();
+            if (itemInput.model !== undefined) prodUpdate.model = itemInput.model?.trim() || null;
+            if (itemInput.color !== undefined) prodUpdate.color = itemInput.color?.trim() || null;
+            if (Object.keys(prodUpdate).length > 0) {
+              await tx.product.update({
+                where: { id: itemInput.productId },
+                data: prodUpdate,
+              });
+            }
+          }
+        } else {
+          // 3. Nouvelle ligne ajoutée
+          await tx.purchaseItem.create({
+            data: {
+              purchaseId: existingPurchase.id,
+              productId: itemInput.productId,
+              locationId: itemInput.locationId || fallbackLocationId,
+              quantity: itemInput.quantity,
+              receivedQuantity: 0,
+              unitCost: itemInput.unitCost,
+              subtotal: itemInput.subtotal,
+            },
+          });
+        }
+      }
+
+      // 4. Recalcul des statuts de réception et commande
+      const allCurrentItems = await tx.purchaseItem.findMany({
+        where: { purchaseId: existingPurchase.id },
+      });
+      const totQty = allCurrentItems.reduce((acc, it) => acc + it.quantity, 0);
+      const totRcv = allCurrentItems.reduce((acc, it) => acc + it.receivedQuantity, 0);
+
+      let finalReceiptStatus = "pending";
+      if (totRcv >= totQty && totQty > 0) {
+        finalReceiptStatus = "received";
+      } else if (totRcv > 0) {
+        finalReceiptStatus = "partial";
+      }
+
+      let finalStatus = existingPurchase.status;
+      if (finalReceiptStatus === "received") {
+        finalStatus = "received";
+      } else if (finalReceiptStatus === "partial") {
+        finalStatus = "partially_received";
+      } else if (existingPurchase.status === "received" || existingPurchase.status === "partially_received") {
+        finalStatus = "ordered";
+      }
+
+      // 5. Mise à jour de l'en-tête de la commande
+      const updatedPurchase = await tx.purchase.update({
+        where: { id: existingPurchase.id },
+        data: {
+          subtotal,
+          discount: safeDiscount,
+          totalAmount,
+          paymentStatus: newPaymentStatus,
+          receiptStatus: finalReceiptStatus,
+          status: finalStatus,
+          notes: notes?.trim() || null,
+          purchaseDate: purchaseDate ? new Date(purchaseDate) : existingPurchase.purchaseDate,
+          expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
+          updatedAt: new Date(),
+        },
+        include: {
+          items: { include: { product: true } },
+          supplier: true,
+          payments: true,
+        },
+      });
+
+      return updatedPurchase;
+    });
+
+    safeRevalidate("/purchases");
+    safeRevalidate("/suppliers");
+    safeRevalidate("/products");
+    safeRevalidate("/documents");
+
+    return {
+      success: true,
+      message: `Bon de commande ${result.reference} mis à jour avec succès. Nouveau total : ${result.totalAmount.toLocaleString("fr-DZ")} DA.`,
+      data: result,
+    };
+  } catch (err: unknown) {
+    console.error("Erreur modification bon de commande:", err);
+    const msg = err instanceof Error ? err.message : "Erreur lors de la modification de la commande.";
+    return { success: false, error: msg };
+  }
+}
+
 // ─── RÉCEPTION DES MARCHANDISES & ENTRÉE EN STOCK (RECEIVING) ─────────────────
 
 export interface ReceiveItemLine {

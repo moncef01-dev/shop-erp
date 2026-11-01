@@ -25,7 +25,9 @@ import {
   Receipt,
   Filter,
   RotateCcw,
+  Ban,
 } from "lucide-react";
+import { CancelSupplierPaymentModal, type CancellablePaymentData } from "@/components/suppliers/CancelSupplierPaymentModal";
 import {
   recordSupplierInitialDebtAction,
   recordSupplierPaymentMultiAccountAction,
@@ -64,6 +66,7 @@ export function SuppliersClient({
   const [selectedSupplierForStatement, setSelectedSupplierForStatement] = useState<number | null>(null);
   const [statementData, setStatementData] = useState<SupplierStatementData | null>(null);
   const [isLoadingStatement, setIsLoadingStatement] = useState(false);
+  const [cancellingPayment, setCancellingPayment] = useState<CancellablePaymentData | null>(null);
 
   // Filtres de date pour le relevé
   const [statementStartDate, setStatementStartDate] = useState("");
@@ -845,12 +848,13 @@ export function SuppliersClient({
                         <th className="py-2.5 px-3 text-right text-emerald-800 print:text-black print:border-r print:border-black font-bold">Débit (-)</th>
                         <th className="py-2.5 px-3 text-right text-slate-900 print:text-black print:border-r print:border-black font-bold">Crédit (+)</th>
                         <th className="py-2.5 px-3 text-right font-black text-rose-900 print:text-black">Reste Dû</th>
+                        <th className="py-2.5 px-3 text-center print:hidden font-bold">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 print:divide-black">
                       {statementData.events.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-12 text-center text-slate-500 print:text-black italic">
+                          <td colSpan={8} className="py-12 text-center text-slate-500 print:text-black italic">
                             Aucun mouvement enregistré pour ce fournisseur sur cette période.
                           </td>
                         </tr>
@@ -889,6 +893,11 @@ export function SuppliersClient({
                                   Retour (Avoir)
                                 </span>
                               )}
+                              {ev.type === "SUPPLIER_REFUND" && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-black bg-cyan-100 text-cyan-900 print:bg-white print:text-black print:border print:border-black">
+                                  Remboursement Reçu
+                                </span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 text-slate-700 print:text-black print:border-r print:border-black">
                               <span className="font-bold text-slate-900 print:text-black block">{ev.description}</span>
@@ -919,6 +928,34 @@ export function SuppliersClient({
                                 </span>
                               ) : (
                                 <span className="text-emerald-700 print:text-black font-bold">0 DA</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-center print:hidden">
+                              {ev.type === "PAYMENT" && ev.rawPaymentId && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setCancellingPayment({
+                                      id: ev.rawPaymentId!,
+                                      reference: ev.reference,
+                                      amount: ev.debit,
+                                      method: ev.method || "cash",
+                                      status: ev.status || "completed",
+                                      paymentDate: ev.date,
+                                      partyName: statementData.supplier.name,
+                                      supplierName: statementData.supplier.name,
+                                      docReference: ev.purchaseReference,
+                                      accountName: ev.accountName,
+                                      accountId: ev.accountId,
+                                      sessionId: ev.sessionId,
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded transition cursor-pointer"
+                                  title="Annuler le versement"
+                                >
+                                  <Ban className="h-3 w-3" />
+                                  <span>Annuler</span>
+                                </button>
                               )}
                             </td>
                           </tr>
@@ -1445,6 +1482,23 @@ export function SuppliersClient({
             </form>
           </div>
         </div>
+      )}
+      {/* Modal d'Annulation de Paiement Fournisseur */}
+      {cancellingPayment && (
+        <CancelSupplierPaymentModal
+          isOpen={Boolean(cancellingPayment)}
+          onClose={() => setCancellingPayment(null)}
+          payment={cancellingPayment}
+          accounts={treasuryAccounts}
+          onSuccess={(msg) => {
+            setCancellingPayment(null);
+            showNotification("success", msg);
+            if (selectedSupplierForStatement) {
+              handleOpenStatement(selectedSupplierForStatement);
+            }
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );

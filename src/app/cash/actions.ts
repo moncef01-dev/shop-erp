@@ -1082,6 +1082,8 @@ export interface CashLedgerItem {
   accountName?: string | null;
   fromAccountId?: number | null;
   toAccountId?: number | null;
+  status?: string;
+  supplierId?: number | null;
 }
 
 export interface TreasuryChannelSummary {
@@ -1311,6 +1313,8 @@ export async function getCashDashboardData(filters?: {
         sessionRef: p.session?.reference,
         accountId: p.accountId,
         accountName: p.account?.name || null,
+        status: p.status,
+        supplierId: p.supplierId || p.purchase?.supplierId || null,
       });
     } else if (p.purchaseId !== null || p.supplierId !== null) {
       // 5.2 Décaissements fournisseurs (depuis payments où purchaseId != null ou supplierId != null)
@@ -1336,6 +1340,8 @@ export async function getCashDashboardData(filters?: {
         sessionRef: p.session?.reference,
         accountId: p.accountId,
         accountName: p.account?.name || null,
+        status: p.status,
+        supplierId: p.supplierId || p.purchase?.supplierId || null,
       });
     } else {
       // 5.2.1 Paiements directs (ex: encaissement direct)
@@ -1360,6 +1366,8 @@ export async function getCashDashboardData(filters?: {
         sessionRef: p.session?.reference,
         accountId: p.accountId,
         accountName: p.account?.name || null,
+        status: p.status,
+        supplierId: p.supplierId || p.purchase?.supplierId || null,
       });
     }
   }

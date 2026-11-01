@@ -13,7 +13,9 @@ import {
   AlertCircle,
   Building2,
   Wallet,
+  Ban,
 } from "lucide-react";
+import { CancelSupplierPaymentModal, type CancellablePaymentData } from "@/components/suppliers/CancelSupplierPaymentModal";
 import {
   recordSupplierPaymentMultiAccountAction,
   type SupplierDetailsWithBalance,
@@ -42,6 +44,7 @@ export function SupplierPaymentsClient({
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [accountFilter, setAccountFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [cancellingPayment, setCancellingPayment] = useState<CancellablePaymentData | null>(null);
 
   // New Supplier Payment Form
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>(
@@ -253,12 +256,13 @@ export function SupplierPaymentsClient({
                 <th className="py-3 px-4">Mode</th>
                 <th className="py-3 px-4">Observation</th>
                 <th className="py-3 px-4 text-right">Montant Versé</th>
+                <th className="py-3 px-4 text-center w-28">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredPayments.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
+                  <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
                     Aucun paiement fournisseur enregistré.
                   </td>
                 </tr>
@@ -293,6 +297,39 @@ export function SupplierPaymentsClient({
                     </td>
                     <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 text-sm">
                       {formatDA(p.amount)}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {p.status === "cancelled" ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                          Annulé
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCancellingPayment({
+                              id: p.rawId,
+                              reference: p.reference,
+                              amount: p.amount,
+                              method: p.method,
+                              status: p.status || "completed",
+                              paymentDate: p.date,
+                              partyName: p.partyName,
+                              supplierName: p.partyName,
+                              docReference: p.docReference,
+                              accountName: p.accountName,
+                              accountId: p.accountId,
+                              sessionId: p.sessionId,
+                              sessionRef: p.sessionRef,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer"
+                          title="Annuler le versement"
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                          <span>Annuler</span>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -459,6 +496,20 @@ export function SupplierPaymentsClient({
             </form>
           </div>
         </div>
+      )}
+      {/* Modal d'Annulation de Paiement Fournisseur */}
+      {cancellingPayment && (
+        <CancelSupplierPaymentModal
+          isOpen={Boolean(cancellingPayment)}
+          onClose={() => setCancellingPayment(null)}
+          payment={cancellingPayment}
+          accounts={accounts}
+          onSuccess={(msg) => {
+            setCancellingPayment(null);
+            showNotification("success", msg);
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );

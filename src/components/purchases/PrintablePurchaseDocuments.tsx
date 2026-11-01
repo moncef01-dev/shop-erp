@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Printer, X } from "lucide-react";
+import { Printer, X, Edit, Ban } from "lucide-react";
 import type { ShopSettingsData } from "@/app/settings/actions";
 import { PrintPortal } from "@/components/common/PrintPortal";
 
@@ -108,11 +108,13 @@ export function PrintablePurchaseOrder({
   settings,
   onClose,
   autoPrint,
+  onEdit,
 }: {
   purchase: PrintablePurchase;
   settings?: ShopSettingsData | null;
   onClose: () => void;
   autoPrint?: boolean;
+  onEdit?: (purchase: PrintablePurchase) => void;
 }) {
   const handlePrint = () => {
     window.print();
@@ -142,6 +144,18 @@ export function PrintablePurchaseOrder({
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {onEdit && purchase.status !== "cancelled" && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onEdit(purchase);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-sm"
+              >
+                <Edit className="h-4 w-4 text-amber-400" />
+                Modifier le bon
+              </button>
+            )}
             <button
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-sm"
@@ -645,12 +659,14 @@ export function PrintableSupplierPaymentReceipt({
   settings,
   onClose,
   autoPrint,
+  onCancel,
 }: {
   payment: PrintableSupplierPayment;
   purchase?: PrintablePurchase | null;
   settings?: ShopSettingsData | null;
   onClose: () => void;
   autoPrint?: boolean;
+  onCancel?: (payment: PrintableSupplierPayment) => void;
 }) {
   const handlePrint = () => {
     window.print();
@@ -691,6 +707,17 @@ export function PrintableSupplierPaymentReceipt({
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {onCancel && payment.id && (
+              <button
+                type="button"
+                onClick={() => onCancel(payment)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-xs"
+                title="Annuler ce versement"
+              >
+                <Ban className="h-4 w-4" />
+                Annuler le Versement
+              </button>
+            )}
             <button
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-sm"

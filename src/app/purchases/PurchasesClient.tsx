@@ -19,9 +19,12 @@ import {
   Ban,
   Eye,
   Edit2,
+  Edit,
   Power,
   Package,
 } from "lucide-react";
+import { EditPurchaseOrderModal } from "@/components/purchases/EditPurchaseOrderModal";
+import { CancelSupplierPaymentModal, type CancellablePaymentData } from "@/components/suppliers/CancelSupplierPaymentModal";
 import { PurchaseArticleSearchSelector } from "@/components/purchases/PurchaseArticleSearchSelector";
 import {
   createSupplierAction,
@@ -155,6 +158,10 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
   // Cancel Modal
   const [cancellingPurchase, setCancellingPurchase] = useState<PrintablePurchase | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+
+  // Edit Purchase Order Modal
+  const [editingPurchase, setEditingPurchase] = useState<PrintablePurchase | null>(null);
+  const [cancellingPayment, setCancellingPayment] = useState<CancellablePaymentData | null>(null);
 
   // Print States
   const [shouldAutoPrint, setShouldAutoPrint] = useState(false);
@@ -1044,10 +1051,21 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
                               <button
                                 onClick={() => setPrintingOrder(p)}
                                 title="Imprimer le bon de commande A4"
-                                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition"
+                                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition cursor-pointer"
                               >
                                 <Printer className="h-4 w-4" />
                               </button>
+
+                              {/* Bouton Modifier le bon */}
+                              {p.status !== "cancelled" && (
+                                <button
+                                  onClick={() => setEditingPurchase(p)}
+                                  title="Modifier le bon de commande"
+                                  className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-md transition cursor-pointer"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                              )}
 
                               {/* Bouton Réceptionner Marchandises */}
                               {p.status !== "cancelled" && p.receiptStatus !== "received" && (
@@ -2282,6 +2300,22 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
             router.refresh();
           }}
           autoPrint={shouldAutoPrint}
+          onEdit={(purchase) => setEditingPurchase(purchase)}
+        />
+      )}
+
+      {/* ─── MODAL DE MODIFICATION DU BON DE COMMANDE ───────────────────────── */}
+      {editingPurchase && (
+        <EditPurchaseOrderModal
+          isOpen={Boolean(editingPurchase)}
+          onClose={() => setEditingPurchase(null)}
+          purchase={editingPurchase}
+          products={products}
+          locations={locations}
+          onSuccess={(msg) => {
+            setNotification({ type: "success", text: msg });
+            router.refresh();
+          }}
         />
       )}
 
@@ -2310,6 +2344,38 @@ export function PurchasesClient({ initialData }: PurchasesClientProps) {
             router.refresh();
           }}
           autoPrint={shouldAutoPrint}
+          onCancel={(pay) => {
+            if (pay.id) {
+              setCancellingPayment({
+                id: pay.id,
+                reference: pay.reference || `PAYF-${pay.id}`,
+                amount: pay.amount,
+                method: pay.method || "cash",
+                status: "completed",
+                paymentDate: pay.paymentDate,
+                partyName: pay.supplier?.name || printingPayment.purchase?.supplier?.name || "Fournisseur",
+                supplierName: pay.supplier?.name || printingPayment.purchase?.supplier?.name || "Fournisseur",
+                docReference: pay.purchaseReference || printingPayment.purchase?.reference || null,
+                accountName: pay.accountName,
+              });
+            }
+          }}
+        />
+      )}
+
+      {/* Modal d'Annulation de Paiement Fournisseur */}
+      {cancellingPayment && (
+        <CancelSupplierPaymentModal
+          isOpen={Boolean(cancellingPayment)}
+          onClose={() => setCancellingPayment(null)}
+          payment={cancellingPayment}
+          accounts={(initialData.treasuryAccounts as any) || []}
+          onSuccess={(msg) => {
+            setCancellingPayment(null);
+            setPrintingPayment(null);
+            setNotification({ type: "success", text: msg });
+            router.refresh();
+          }}
         />
       )}
 

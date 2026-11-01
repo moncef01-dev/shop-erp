@@ -4,13 +4,13 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { PrismaTransactionClient } from "@/lib/inventory-transaction";
 import { calculateAccountBalance } from "@/app/cash/treasury-actions";
-import { assertPeriodNotLocked } from "@/lib/period-lock";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
 
 export interface SupplierStatementEvent {
   id: string;
   date: string;
   reference: string;
-  type: "INITIAL_DEBT" | "PURCHASE_INVOICE" | "PAYMENT" | "ADJUSTMENT" | "RETURN";
+  type: "INITIAL_DEBT" | "PURCHASE_INVOICE" | "PAYMENT" | "ADJUSTMENT" | "RETURN" | "SUPPLIER_REFUND";
   typeLabel: string;
   description: string;
   debit: number; // Montant diminuant la dette envers le fournisseur (Paiement / Règlement / Retour)
@@ -19,6 +19,11 @@ export interface SupplierStatementEvent {
   accountName?: string | null;
   method?: string | null;
   notes?: string | null;
+  rawPaymentId?: number;
+  status?: string;
+  sessionId?: number | null;
+  accountId?: number | null;
+  purchaseReference?: string | null;
 }
 
 export interface SupplierDetailsWithBalance {
@@ -768,6 +773,277 @@ export async function recordSupplierPaymentMultiAccountAction(
   }
 }
 
+// ─── ANNULATION / REMBOURSEMENT D'UN VERSEMENT FOURNISSEUR ──────────────────
+
+export interface CancelSupplierPaymentInput {
+  paymentId: number;
+  cancellationType: "mistake" | "refund";
+  reason: string;
+  refundAccountId?: number;
+  refundDate?: string;
+  refundAmount?: number;
+  refundMethod?: string;
+}
+
+export async function cancelSupplierPaymentAction(
+  payload: CancelSupplierPaymentInput
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: any;
+}> {
+  try {
+    const {
+      paymentId,
+      cancellationType,
+      reason,
+      refundAccountId,
+      refundDate,
+      refundAmount,
+      refundMethod,
+    } = payload;
+
+    const trimmedReason = reason?.trim();
+    if (!trimmedReason || trimmedReason.length < 3) {
+      return { success: false, error: "Le motif d'annulation est obligatoire (au moins 3 caractères)." };
+    }
+
+    if (!paymentId) {
+      return { success: false, error: "Identifiant de versement manquant." };
+    }
+
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        supplier: true,
+        purchase: true,
+        session: true,
+        account: true,
+      },
+    });
+
+    if (!payment) {
+      return { success: false, error: "Versement introuvable." };
+    }
+
+    if (payment.status === "cancelled") {
+      return { success: false, error: "Ce versement fournisseur est déjà annulé." };
+    }
+
+    if (payment.notes?.includes("[Remboursé") || payment.notes?.includes("[ANNULATION")) {
+      return { success: false, error: "Ce versement fournisseur a déjà fait l'objet d'une annulation ou d'un remboursement." };
+    }
+
+    await assertDatesNotLocked(
+      [payment.paymentDate, new Date()],
+      "Annulation de versement fournisseur"
+    );
+
+    const now = new Date();
+    const nowStr = now.toLocaleDateString("fr-DZ");
+
+    const result = await prisma.$transaction(async (tx) => {
+      if (cancellationType === "mistake") {
+        // ── CAS A : PAIEMENT ENREGISTRÉ PAR ERREUR (AUCUN MOUVEMENT PHYSIQUE) ──
+        // On ne crée pas de flux d'entrée factice.
+        // La session fermée éventuelle est strictement préservée (ses totaux figés restent intacts).
+        const auditNote = `[ANNULATION PAR ERREUR DE SAISIE le ${nowStr} : ${trimmedReason}${
+          payment.sessionId ? ` — Session passée ${payment.session?.reference || payment.sessionId} préservée` : ""
+        }]`;
+
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: "cancelled",
+            notes: payment.notes ? `${payment.notes}\n${auditNote}` : auditNote,
+            updatedAt: now,
+          },
+        });
+
+        // Rétablissement du montant payé sur la commande d'achat associée
+        if (payment.purchaseId) {
+          const p = await tx.purchase.findUnique({ where: { id: payment.purchaseId } });
+          if (p) {
+            const newPaid = Math.max(0, p.paidAmount - payment.amount);
+            const newStatus =
+              newPaid >= p.totalAmount && p.totalAmount > 0
+                ? "paid"
+                : newPaid > 0
+                ? "partial"
+                : "unpaid";
+            await tx.purchase.update({
+              where: { id: p.id },
+              data: {
+                paidAmount: newPaid,
+                paymentStatus: newStatus,
+                updatedAt: now,
+              },
+            });
+          }
+        } else if (payment.supplierId) {
+          // Paiement global : dé-ventiler des commandes non soldées
+          let toRevert = payment.amount;
+          const paidPurchases = await tx.purchase.findMany({
+            where: { supplierId: payment.supplierId, paidAmount: { gt: 0 } },
+            orderBy: { purchaseDate: "desc" },
+          });
+
+          for (const p of paidPurchases) {
+            if (toRevert <= 0) break;
+            const apply = Math.min(toRevert, p.paidAmount);
+            const newPaid = p.paidAmount - apply;
+            const newStatus =
+              newPaid >= p.totalAmount && p.totalAmount > 0
+                ? "paid"
+                : newPaid > 0
+                ? "partial"
+                : "unpaid";
+            await tx.purchase.update({
+              where: { id: p.id },
+              data: {
+                paidAmount: newPaid,
+                paymentStatus: newStatus,
+                updatedAt: now,
+              },
+            });
+            toRevert -= apply;
+          }
+        }
+
+        return { type: "mistake", payment };
+      } else {
+        // ── CAS B : REMBOURSEMENT EFFECTIF DU FOURNISSEUR (L'ARGENT A ÉTÉ RENDU) ──
+        if (!refundAccountId) {
+          throw new Error("Veuillez sélectionner le compte de trésorerie qui a réceptionné les fonds remboursés.");
+        }
+
+        const destAccount = await tx.treasuryAccount.findUnique({
+          where: { id: refundAccountId },
+        });
+        if (!destAccount) throw new Error("Compte de trésorerie de destination introuvable.");
+        if (!destAccount.isActive) throw new Error(`Le compte "${destAccount.name}" est inactif.`);
+
+        const actualRefund = Number(refundAmount ?? payment.amount);
+        if (isNaN(actualRefund) || actualRefund <= 0 || actualRefund > payment.amount) {
+          throw new Error(
+            `Le montant remboursé (${actualRefund.toLocaleString("fr-DZ")} DA) doit être compris entre 1 DA et le montant du versement (${payment.amount.toLocaleString("fr-DZ")} DA).`
+          );
+        }
+
+        const effRefundDate = refundDate ? new Date(refundDate) : now;
+        await assertPeriodNotLocked(effRefundDate, "Remboursement effectif fournisseur");
+
+        // Rattachement à la session de caisse si compte Caisse
+        let activeSessionId: number | null = null;
+        if (destAccount.type === "cash" || destAccount.isDefault) {
+          const activeSession = await tx.cashSession.findFirst({
+            where: { status: "open" },
+          });
+          if (activeSession) {
+            activeSessionId = activeSession.id;
+          }
+        }
+
+        // Générer référence unique du remboursement REF-YYYYMM-XXXX
+        const yearMonth = now.toISOString().slice(0, 7).replace("-", "");
+        const refundCount = await tx.expense.count({
+          where: { reference: { startsWith: `REF-${yearMonth}-` } },
+        });
+        const refundRef = `REF-${yearMonth}-${String(refundCount + 1).padStart(4, "0")}`;
+
+        // 1. Transaction d'entrée réelle en trésorerie (Compte augmenté EXACTEMENT UNE FOIS)
+        await tx.expense.create({
+          data: {
+            reference: refundRef,
+            type: "income",
+            category: "other",
+            description: `Remboursement versement fournisseur ${payment.reference || `PAYF-${payment.id}`}`,
+            amount: actualRefund,
+            method: refundMethod || payment.method || "cash",
+            accountId: destAccount.id,
+            sessionId: activeSessionId,
+            receiptNumber: payment.reference || `PAYF-${payment.id}`,
+            beneficiary: payment.supplier?.name || "Fournisseur",
+            notes: `Remboursement réel perçu du fournisseur suite annulation du versement ${payment.reference || `PAYF-${payment.id}`}. Motif : ${trimmedReason}`,
+            date: effRefundDate,
+          },
+        });
+
+        // 2. Rétablissement de la dette fournisseur via supplier_debts
+        const debtRef = `DET-${refundRef}`;
+        await tx.supplierDebt.create({
+          data: {
+            reference: debtRef,
+            supplierId: payment.supplierId!,
+            amount: actualRefund,
+            type: "supplier_refund",
+            description: `Rétablissement dette suite remboursement réel du versement ${payment.reference || `PAYF-${payment.id}`}`,
+            date: effRefundDate,
+            notes: `Remboursement ${refundRef} perçu sur compte "${destAccount.name}". Motif : ${trimmedReason}`,
+          },
+        });
+
+        // 3. Mise à jour de la note du versement initial pour traçabilité intégrale
+        const auditNote = `[Remboursé le ${effRefundDate.toLocaleDateString("fr-DZ")} par ${refundRef} (${actualRefund.toLocaleString("fr-DZ")} DA sur ${destAccount.name}) : ${trimmedReason}]`;
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            notes: payment.notes ? `${payment.notes}\n${auditNote}` : auditNote,
+            updatedAt: now,
+          },
+        });
+
+        // 4. Rétablissement du reste dû de la commande si liée
+        if (payment.purchaseId) {
+          const p = await tx.purchase.findUnique({ where: { id: payment.purchaseId } });
+          if (p) {
+            const newPaid = Math.max(0, p.paidAmount - actualRefund);
+            const newStatus =
+              newPaid >= p.totalAmount && p.totalAmount > 0
+                ? "paid"
+                : newPaid > 0
+                ? "partial"
+                : "unpaid";
+            await tx.purchase.update({
+              where: { id: p.id },
+              data: {
+                paidAmount: newPaid,
+                paymentStatus: newStatus,
+                updatedAt: now,
+              },
+            });
+          }
+        }
+
+        return { type: "refund", refundRef, amount: actualRefund, destAccount };
+      }
+    });
+
+    safeRevalidate();
+
+    const newDebtInfo = payment.supplierId ? await calculateSupplierDebt(payment.supplierId) : null;
+
+    const successMsg =
+      result.type === "mistake"
+        ? `Le versement ${payment.reference} (${payment.amount.toLocaleString("fr-DZ")} DA) a été annulé pour erreur de saisie. Les soldes fournisseur et trésorerie ont été rétablis sans flux factice.`
+        : `Le remboursement réel ${result.refundRef} de ${result.amount?.toLocaleString("fr-DZ")} DA a été enregistré sur le compte "${result.destAccount?.name}". La dette fournisseur a été réajustée.`;
+
+    return {
+      success: true,
+      message: successMsg,
+      data: {
+        result,
+        newDebtInfo,
+      },
+    };
+  } catch (err: unknown) {
+    console.error("Erreur annulation versement fournisseur:", err);
+    const msg = err instanceof Error ? err.message : "Erreur lors de l'annulation du versement.";
+    return { success: false, error: msg };
+  }
+}
+
 // ─── RELEVÉ DE COMPTE FOURNISSEUR (AUXILIARY LEDGER) ──────────────────────────
 
 export async function getSupplierStatement(
@@ -789,6 +1065,7 @@ export async function getSupplierStatement(
   });
   for (const d of debts) {
     const isReturn = d.type === "supplier_return" || d.type === "return";
+    const isRefund = d.type === "supplier_refund";
     if (isReturn) {
       events.push({
         id: `return-${d.id}`,
@@ -799,6 +1076,19 @@ export async function getSupplierStatement(
         description: d.description || `Retour marchandise (${d.reference})`,
         debit: d.amount,
         credit: 0,
+        runningBalance: 0,
+        notes: d.notes,
+      });
+    } else if (isRefund) {
+      events.push({
+        id: `refund-${d.id}`,
+        date: d.date.toISOString(),
+        reference: d.reference,
+        type: "SUPPLIER_REFUND",
+        typeLabel: "Remboursement perçu du fournisseur",
+        description: d.description || `Remboursement fournisseur (${d.reference})`,
+        debit: 0,
+        credit: d.amount,
         runningBalance: 0,
         notes: d.notes,
       });
@@ -859,6 +1149,7 @@ export async function getSupplierStatement(
   for (const pay of payments) {
     events.push({
       id: `pay-${pay.id}`,
+      rawPaymentId: pay.id,
       date: pay.paymentDate.toISOString(),
       reference: pay.reference || `PAYF-${pay.id}`,
       type: "PAYMENT",
@@ -872,16 +1163,21 @@ export async function getSupplierStatement(
       accountName: pay.account?.name || (pay.method === "cash" ? "Caisse journalière" : "Compte bancaire"),
       method: pay.method,
       notes: pay.notes,
+      status: pay.status,
+      sessionId: pay.sessionId,
+      accountId: pay.accountId,
+      purchaseReference: pay.purchase?.reference || null,
     });
   }
 
   // Tri chronologique croissant pour calcul de la balance courante
-  // Priorité le même jour : 1 = Dette antérieure, 2 = Achat, 3 = Retour, 4 = Paiement
+  // Priorité le même jour : 1 = Dette antérieure, 2 = Achat, 3 = Retour, 4 = Paiement, 4.5 = Remboursement
   const typeAscPriority: Record<string, number> = {
     INITIAL_DEBT: 1,
     PURCHASE_INVOICE: 2,
     RETURN: 3,
     PAYMENT: 4,
+    SUPPLIER_REFUND: 4.5,
     ADJUSTMENT: 5,
   };
 
@@ -911,6 +1207,7 @@ export async function getSupplierStatement(
 
   // Tri décroissant pour affichage standard (plus récent en premier)
   const typeDescPriority: Record<string, number> = {
+    SUPPLIER_REFUND: 0.5,
     PAYMENT: 1,
     RETURN: 2,
     PURCHASE_INVOICE: 3,
