@@ -1463,14 +1463,42 @@ export async function getAccountMovements(
     filtered = filtered.filter((m) => new Date(m.date).getTime() <= e);
   }
 
-  // Timeline chronologique unifiée : solde initial en premier si non exclu par le filtre de date
+  // Vérifier si le relevé concerne spécifiquement le Coffre magasin
+  const isCoffreMagasin = account.code === "ACC-COFFRE-MAGASIN";
+
+  if (isCoffreMagasin) {
+    // Tri décroissant spécifique au Coffre magasin : PLUS RÉCENT EN HAUT (NEWEST → OLDEST)
+    // 1. Date et heure effectives de l'opération (décroissant, plus récent en premier) avec fallback sur createdAt si date invalide
+    // 2. Horodatage de saisie (createdAt) comme clé de départage déterministe (décroissant)
+    // 3. Identifiant unique stable en dernier recours (décroissant)
+    const getMovementSortTime = (m: AccountMovementItem) => {
+      const d = new Date(m.date).getTime();
+      const c = m.createdAt ? new Date(m.createdAt).getTime() : 0;
+      return isNaN(d) || d === 0 ? c : d;
+    };
+
+    filtered.sort((a, b) => {
+      const timeA = getMovementSortTime(a);
+      const timeB = getMovementSortTime(b);
+      if (timeA !== timeB) return timeB - timeA;
+      const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (createdA !== createdB) return createdB - createdA;
+      return b.id.localeCompare(a.id);
+    });
+  }
+
+  // Timeline chronologique unifiée :
+  // - Pour le Coffre magasin : les opérations les plus récentes figurent en haut, les plus anciennes progressivement en dessous,
+  //   et le solde initial d'ouverture (INITIAL) apparaît tout en bas du relevé.
+  // - Pour les autres comptes : conservation stricte de l'ordre historique croissant (solde d'ouverture en tête).
   const shouldIncludeOpening =
     !filters?.startDate ||
     new Date(account.openingDate).getTime() >= new Date(filters.startDate).setHours(0, 0, 0, 0);
 
-  const unifiedTimeline: AccountMovementItem[] = shouldIncludeOpening
-    ? [openingItem, ...filtered]
-    : filtered;
+  const unifiedTimeline: AccountMovementItem[] = isCoffreMagasin
+    ? (shouldIncludeOpening ? [...filtered, openingItem] : filtered)
+    : (shouldIncludeOpening ? [openingItem, ...filtered] : filtered);
 
   const currentBalance = await calculateAccountBalance(accountId);
 
