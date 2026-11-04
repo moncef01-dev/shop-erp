@@ -1066,7 +1066,7 @@ export interface CashLedgerItem {
   date: string;
   createdAt?: string;
   type: "encaissement" | "decaissement" | "transfer";
-  source: "sale" | "purchase" | "expense" | "income" | "transfer";
+  source: "sale" | "purchase" | "expense" | "income" | "transfer" | "supplier_additional_payment";
   category: string;
   rawCategory?: string;
   description: string;
@@ -1427,6 +1427,56 @@ export async function getCashDashboardData(filters?: {
     });
   }
 
+  // 5.5 Versements supplémentaires fournisseur
+  try {
+    const suppAddPayments = await prisma.supplierAdditionalPayment.findMany({
+      include: {
+        supplier: { select: { name: true } },
+        treasuryAccount: { select: { id: true, name: true, type: true, isDefault: true } },
+        session: { select: { reference: true } },
+        reversalOf: { select: { reference: true } },
+      },
+    });
+
+    for (const ap of suppAddPayments) {
+      const isFromCash =
+        ap.treasuryAccountId === defaultCashAccId ||
+        ap.treasuryAccount.type === "cash" ||
+        ap.treasuryAccount.isDefault;
+      const isReversal = ap.isReversal;
+
+      ledgerItems.push({
+        id: `supp-add-${ap.id}`,
+        rawId: ap.id,
+        reference: ap.reference,
+        date: ap.date.toISOString(),
+        createdAt: ap.createdAt.toISOString(),
+        type: isReversal ? "encaissement" : "decaissement",
+        source: "supplier_additional_payment",
+        category: isReversal ? "Annulation Versement" : "Versement Fournisseur",
+        description:
+          ap.description ||
+          (isReversal
+            ? `Contrepassation versement ${ap.reversalOf?.reference || ""} — ${ap.supplier.name}`
+            : `Versement supplémentaire fournisseur — ${ap.supplier.name}`),
+        partyName: ap.supplier.name,
+        docReference: ap.reversalOf?.reference || null,
+        method: ap.paymentMethod,
+        amount: ap.amount,
+        notes: ap.notes,
+        affectsCash: isFromCash,
+        sessionId: ap.sessionId,
+        sessionRef: ap.session?.reference,
+        accountId: ap.treasuryAccountId,
+        accountName: ap.treasuryAccount.name,
+        status: ap.status,
+      });
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("no such table")) throw err;
+  }
+
   // 5.4 Mouvements de virements internes entre comptes (sans impacter chiffre d'affaires ni charges)
   for (const t of transfers) {
     const isFromCash = t.fromAccountId === defaultCashAccId;
@@ -1670,7 +1720,7 @@ export interface DailyCashJournalItem {
   runningBalance: number;
   method: string;
   docReference?: string | null;
-  source: "sale" | "purchase" | "advance" | "expense" | "income" | "transfer";
+  source: "sale" | "purchase" | "advance" | "expense" | "income" | "transfer" | "supplier_additional_payment";
   sessionId?: number | null;
 }
 
@@ -2007,7 +2057,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     outflow: number;
     method: string;
     docReference?: string | null;
-    source: "sale" | "purchase" | "advance" | "expense" | "income" | "transfer";
+    source: "sale" | "purchase" | "advance" | "expense" | "income" | "transfer" | "supplier_additional_payment";
     sessionId?: number | null;
   }
 
@@ -2125,6 +2175,47 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
         sessionId: p.sessionId,
       });
     }
+  }
+
+  // 7.6 Versements supplémentaires fournisseurs
+  try {
+    const dailySuppAdd = await prisma.supplierAdditionalPayment.findMany({
+      where: {
+        OR: [{ treasuryAccountId: caisseId }, { sessionId: { not: null } }],
+      },
+      include: {
+        supplier: { select: { name: true } },
+        reversalOf: { select: { reference: true } },
+      },
+    });
+
+    for (const ap of dailySuppAdd) {
+      if (matchesDay(ap.date, ap.sessionId)) {
+        const isRev = ap.isReversal;
+        rawItems.push({
+          id: `supp-add-${ap.id}`,
+          sortTime: getSortTime(ap.date, ap.createdAt),
+          timestamp: (ap.createdAt || ap.date).toISOString(),
+          dateFormatted: formatItemDateTime(ap.date, ap.createdAt),
+          reference: ap.reference,
+          operationType: isRev ? "Annulation Versement Fournisseur" : "Versement Supplémentaire Fournisseur",
+          operationBadgeClass: isRev
+            ? "bg-purple-50 text-purple-700 border-purple-200"
+            : "bg-indigo-50 text-indigo-700 border-indigo-200",
+          description: ap.description || `Versement fournisseur ${ap.supplier.name}`,
+          partyName: ap.supplier.name,
+          inflow: isRev ? ap.amount : 0,
+          outflow: isRev ? 0 : ap.amount,
+          method: ap.paymentMethod,
+          docReference: ap.reversalOf?.reference || null,
+          source: "supplier_additional_payment",
+          sessionId: ap.sessionId,
+        });
+      }
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("no such table")) throw err;
   }
 
   // 7.5 Virements internes touchant la caisse (Entrées ou Sorties)

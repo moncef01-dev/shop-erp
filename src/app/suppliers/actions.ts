@@ -45,6 +45,7 @@ export interface SupplierDetailsWithBalance {
   paymentsCount: number;
   lastPaymentDate: string | null;
   lastPurchaseDate: string | null;
+  additionalPaymentsTotal?: number;
 }
 
 export interface SupplierStatementData {
@@ -58,6 +59,7 @@ export interface SupplierStatementData {
     totalReturns?: number;
     outstandingDebt: number;
     outstandingCredit?: number;
+    additionalPaymentsTotal?: number;
   };
 }
 

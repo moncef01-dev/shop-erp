@@ -163,6 +163,7 @@ model Supplier {
   purchases Purchase[]
   payments  Payment[]
   debts     SupplierDebt[]
+  additionalPayments SupplierAdditionalPayment[]
 
   @@index([isActive])
   @@map("suppliers")
@@ -424,6 +425,7 @@ model CashSession {
   customerAdvances  CustomerAdvance[]
   transfers         TreasuryTransfer[]
   savingsTransactions CustomerSavingsTransaction[]
+  supplierAdditionalPayments SupplierAdditionalPayment[]
 
   @@index([accountId])
   @@index([status])
@@ -479,6 +481,7 @@ model TreasuryAccount {
   customerAdvances CustomerAdvance[]
   cashSessions     CashSession[]
   savingsTransactions CustomerSavingsTransaction[]
+  supplierAdditionalPayments SupplierAdditionalPayment[]
 
   @@index([type])
   @@index([isActive])
@@ -704,4 +707,40 @@ model CustomerSavingsTransaction {
   @@index([date])
   @@index([sessionId])
   @@map("customer_savings_transactions")
+}
+
+
+// ─── SUPPLIER ADDITIONAL PAYMENTS (NON-DEBT PAYMENTS) ─────────────────────────
+
+model SupplierAdditionalPayment {
+  id                   Int               @id @default(autoincrement())
+  reference            String            @unique
+  supplierId           Int
+  supplier             Supplier          @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  amount               Float
+  treasuryAccountId    Int
+  treasuryAccount      TreasuryAccount   @relation(fields: [treasuryAccountId], references: [id], onDelete: Restrict)
+  paymentMethod        String            @default("cash") // "cash", "bank_transfer", "check", "safe_transfer", "other"
+  date                 DateTime          @default(now())
+  status               String            @default("completed") // "completed", "reversed"
+  notes                String?
+  description          String?
+  isReversal           Boolean           @default(false)
+  reversalOfId         Int?              @unique
+  reversalOf           SupplierAdditionalPayment? @relation("AdditionalPaymentReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversal             SupplierAdditionalPayment? @relation("AdditionalPaymentReversal")
+  reversedAt           DateTime?
+  reversalReason       String?
+  idempotencyKey       String?           @unique
+  sessionId            Int?
+  session              CashSession?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@index([supplierId, date])
+  @@index([treasuryAccountId, date])
+  @@index([sessionId])
+  @@index([status])
+  @@index([isReversal])
+  @@map("supplier_additional_payments")
 }

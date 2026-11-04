@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   receiveStockForPurchaseItem,
   reverseStockForCancelledPurchase,
-  PrismaTransactionClient,
+  type PrismaTransactionClient,
 } from "@/lib/inventory-transaction";
 import { calculateSupplierDebt } from "@/app/suppliers/actions";
 import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";

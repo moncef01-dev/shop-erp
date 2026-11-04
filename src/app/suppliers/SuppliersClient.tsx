@@ -18,16 +18,15 @@ import {
   DollarSign,
   Phone,
   MapPin,
-  Calendar,
   Landmark,
-  ShieldCheck,
-  Wallet,
-  Receipt,
-  Filter,
   RotateCcw,
   Ban,
 } from "lucide-react";
 import { CancelSupplierPaymentModal, type CancellablePaymentData } from "@/components/suppliers/CancelSupplierPaymentModal";
+import { SupplierAdditionalPaymentModal } from "@/components/suppliers/SupplierAdditionalPaymentModal";
+import { SupplierAdditionalPaymentSection, type SupplierAdditionalPaymentHistoryItem } from "@/components/suppliers/SupplierAdditionalPaymentSection";
+import { getSupplierAdditionalPaymentTotal, getSupplierAdditionalPaymentHistory } from "./additional-payment-actions";
+import { HandCoins } from "lucide-react";
 import {
   recordSupplierInitialDebtAction,
   recordSupplierPaymentMultiAccountAction,
@@ -50,12 +49,14 @@ interface SuppliersClientProps {
     totalPaidAmount: number;
   };
   treasuryAccounts: TreasuryAccountData[];
+  activeCashSession?: { id: number; reference: string; status: string } | null;
 }
 
 export function SuppliersClient({
   initialSuppliers,
   initialMetrics,
   treasuryAccounts,
+  activeCashSession,
 }: SuppliersClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -75,6 +76,11 @@ export function SuppliersClient({
   // Modals state
   const [isCreateSupplierOpen, setIsCreateSupplierOpen] = useState(false);
   const [isInitialDebtOpen, setIsInitialDebtOpen] = useState(false);
+  const [isAdditionalPaymentOpen, setIsAdditionalPaymentOpen] = useState(false);
+  const [additionalPaymentSupplierId, setAdditionalPaymentSupplierId] = useState<number | null>(null);
+  const [additionalTotal, setAdditionalTotal] = useState<number>(0);
+  const [additionalHistory, setAdditionalHistory] = useState<SupplierAdditionalPaymentHistoryItem[]>([]);
+  const [activeStatementTab, setActiveStatementTab] = useState<"statement" | "additional_payments">("statement");
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
 
   // Form states pour Dette Initiale
@@ -138,11 +144,17 @@ export function SuppliersClient({
     setStatementData(null);
     setIsLoadingStatement(true);
     try {
-      const data = await getSupplierStatement(supplierId, {
-        startDate: start || undefined,
-        endDate: end || undefined,
-      });
+      const [data, total, hist] = await Promise.all([
+        getSupplierStatement(supplierId, {
+          startDate: start || undefined,
+          endDate: end || undefined,
+        }),
+        getSupplierAdditionalPaymentTotal(supplierId),
+        getSupplierAdditionalPaymentHistory(supplierId),
+      ]);
       setStatementData(data);
+      setAdditionalTotal(total);
+      setAdditionalHistory(hist as unknown as SupplierAdditionalPaymentHistoryItem[]);
     } catch {
       showNotification("error", "Impossible de charger le compte fournisseur.");
       setSelectedSupplierForStatement(null);
@@ -150,6 +162,20 @@ export function SuppliersClient({
       setIsLoadingStatement(false);
     }
   }, []);
+
+  const refreshAdditionalData = async (supplierId: number) => {
+    try {
+      const [total, hist] = await Promise.all([
+        getSupplierAdditionalPaymentTotal(supplierId),
+        getSupplierAdditionalPaymentHistory(supplierId),
+      ]);
+      setAdditionalTotal(total);
+      setAdditionalHistory(hist as unknown as SupplierAdditionalPaymentHistoryItem[]);
+      router.refresh();
+    } catch (err) {
+      console.error("Erreur rafraîchissement versements supplémentaires:", err);
+    }
+  };
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -376,6 +402,19 @@ export function SuppliersClient({
           >
             <CreditCard className="h-4 w-4" />
             Payer une dette fournisseur
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAdditionalPaymentSupplierId(selectedSupplierForStatement || null);
+              setIsAdditionalPaymentOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition cursor-pointer"
+            title="Donner de l'argent au fournisseur (indépendant de la dette)"
+          >
+            <HandCoins className="h-4 w-4" />
+            Donner de l&apos;argent au fournisseur
           </button>
         </div>
       </div>
@@ -623,6 +662,18 @@ export function SuppliersClient({
                         >
                           + Dette
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdditionalPaymentSupplierId(s.id);
+                            setIsAdditionalPaymentOpen(true);
+                          }}
+                          title="Donner de l'argent à ce fournisseur (hors dette)"
+                          className="px-2 py-1 text-[11px] font-bold text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded transition cursor-pointer flex items-center gap-1"
+                        >
+                          <HandCoins className="h-3 w-3 text-indigo-700" />
+                          Donner
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -736,6 +787,18 @@ export function SuppliersClient({
                     </button>
 
                     <button
+                      type="button"
+                      onClick={() => {
+                        setAdditionalPaymentSupplierId(statementData.supplier.id);
+                        setIsAdditionalPaymentOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition cursor-pointer"
+                    >
+                      <HandCoins className="h-4 w-4" />
+                      Donner de l&apos;argent au fournisseur
+                    </button>
+
+                    <button
                       onClick={() => window.print()}
                       title="Imprimer le relevé"
                       className="inline-flex items-center gap-1 p-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition cursor-pointer"
@@ -752,8 +815,8 @@ export function SuppliersClient({
                   </div>
                 </div>
 
-                {/* Synthèse du compte (Cartes financières) */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4 shrink-0">
+                {/* Synthèse du compte (Cartes financières côte à côte) */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 my-4 shrink-0">
                   <div className="bg-slate-50 print:bg-white p-3 rounded-xl border border-slate-200 print:border-2 print:border-black">
                     <span className="text-[11px] font-black text-slate-500 print:text-black uppercase tracking-wider block">Dette Initiale Antérieure</span>
                     <span className="font-mono font-bold text-base text-slate-800 print:text-black mt-1 block">
@@ -772,9 +835,10 @@ export function SuppliersClient({
                       {formatDA(statementData.summary.totalPaid)}
                     </span>
                   </div>
+                  {/* Indicateur Dette Fournisseur */}
                   {statementData.summary.outstandingDebt > 0 ? (
                     <div className="bg-rose-50/90 print:bg-white p-3 rounded-xl border border-rose-300 print:border-2 print:border-black shadow-2xs">
-                      <span className="text-[11px] font-black text-rose-800 print:text-black uppercase tracking-wider block">Reste Dû au Fournisseur</span>
+                      <span className="text-[11px] font-black text-rose-800 print:text-black uppercase tracking-wider block">Dette Fournisseur (Reste Dû)</span>
                       <span className="font-mono font-black text-lg text-rose-800 print:text-black mt-1 block">
                         {formatDA(statementData.summary.outstandingDebt)}
                       </span>
@@ -788,14 +852,68 @@ export function SuppliersClient({
                     </div>
                   ) : (
                     <div className="bg-emerald-50/90 print:bg-white p-3 rounded-xl border border-emerald-300 print:border-2 print:border-black shadow-2xs">
-                      <span className="text-[11px] font-black text-emerald-800 print:text-black uppercase tracking-wider block">Solde Fournisseur</span>
+                      <span className="text-[11px] font-black text-emerald-800 print:text-black uppercase tracking-wider block">Dette Fournisseur</span>
                       <span className="font-mono font-black text-lg text-emerald-800 print:text-black mt-1 block">
                         0 DA (Soldé)
                       </span>
                     </div>
                   )}
+                  {/* Indicateur Argent versé au fournisseur (Violet/Indigo distinct, côte à côte) */}
+                  <div className="bg-indigo-50/90 print:bg-white p-3 rounded-xl border border-indigo-300 print:border-2 print:border-black shadow-2xs">
+                    <span className="text-[11px] font-black text-indigo-800 print:text-black uppercase tracking-wider block flex items-center justify-between">
+                      <span>Argent versé au fournisseur</span>
+                      <span className="text-[9px] bg-indigo-200/80 text-indigo-900 px-1.5 py-0.5 rounded font-bold">HORS DETTE</span>
+                    </span>
+                    <span className="font-mono font-black text-lg text-indigo-900 print:text-black mt-1 block">
+                      {formatDA(additionalTotal)}
+                    </span>
+                  </div>
                 </div>
 
+                {/* Onglets de navigation dans la fiche fournisseur */}
+                <div className="flex items-center gap-2 border-b border-slate-200 mb-4 print:hidden shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStatementTab("statement")}
+                    className={`px-4 py-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+                      activeStatementTab === "statement"
+                        ? "border-amber-600 text-amber-700 bg-amber-50/40"
+                        : "border-transparent text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Relevé des Achats & Dettes ({statementData.events.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveStatementTab("additional_payments")}
+                    className={`px-4 py-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+                      activeStatementTab === "additional_payments"
+                        ? "border-indigo-600 text-indigo-700 bg-indigo-50/40"
+                        : "border-transparent text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <HandCoins className="h-4 w-4" />
+                    Versements Supplémentaires Hors Dette ({additionalHistory.length})
+                  </button>
+                </div>
+
+{activeStatementTab === "additional_payments" ? (
+                  <div className="overflow-y-auto flex-1 min-h-0 pr-1">
+                    <SupplierAdditionalPaymentSection
+                      supplierId={statementData.supplier.id}
+                      supplierName={statementData.supplier.name}
+                      totalGiven={additionalTotal}
+                      history={additionalHistory}
+                      onOpenNewModal={() => {
+                        setAdditionalPaymentSupplierId(statementData.supplier.id);
+                        setIsAdditionalPaymentOpen(true);
+                      }}
+                      onRefresh={() => refreshAdditionalData(statementData.supplier.id)}
+                    />
+                  </div>
+                ) : (
+                  <>
                 {/* Filtre de date pour l'historique */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 mb-2 shrink-0">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 print:text-black flex items-center gap-1.5">
@@ -992,6 +1110,8 @@ export function SuppliersClient({
                     </button>
                   </div>
                 </div>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -1483,6 +1603,31 @@ export function SuppliersClient({
           </div>
         </div>
       )}
+      {/* Modal Donner de l'argent au fournisseur (Hors Dette) */}
+      {isAdditionalPaymentOpen && (
+        <SupplierAdditionalPaymentModal
+          key={additionalPaymentSupplierId ? `supp-${additionalPaymentSupplierId}` : "general-modal"}
+          isOpen={isAdditionalPaymentOpen}
+          onClose={() => setIsAdditionalPaymentOpen(false)}
+          suppliers={initialSuppliers}
+          selectedSupplierId={additionalPaymentSupplierId}
+          accounts={treasuryAccounts}
+          activeCashSession={activeCashSession}
+          onSuccess={async (savedSupplierId) => {
+            showNotification(
+              "success",
+              "Versement au fournisseur enregistré avec succès (dette fournisseur inchangée)."
+            );
+            setIsAdditionalPaymentOpen(false);
+            if (selectedSupplierForStatement === savedSupplierId) {
+              await refreshAdditionalData(savedSupplierId);
+              handleOpenStatement(savedSupplierId);
+            }
+            router.refresh();
+          }}
+        />
+      )}
+
       {/* Modal d'Annulation de Paiement Fournisseur */}
       {cancellingPayment && (
         <CancelSupplierPaymentModal

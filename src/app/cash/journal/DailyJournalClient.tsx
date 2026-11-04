@@ -127,6 +127,7 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
     if (source === "advance") return <Coins className="h-3.5 w-3.5 text-teal-600" />;
     if (source === "purchase") return <Truck className="h-3.5 w-3.5 text-rose-600" />;
     if (source === "transfer") return <ArrowLeftRight className="h-3.5 w-3.5 text-indigo-600" />;
+    if (source === "supplier_additional_payment") return <Coins className="h-3.5 w-3.5 text-indigo-600" />;
     if (source === "income") return <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />;
     if (opType.includes("Salaire") || opType.includes("Exploitant"))
       return <UserCheck className="h-3.5 w-3.5 text-amber-600" />;

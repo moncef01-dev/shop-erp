@@ -92,10 +92,16 @@ export async function assertPeriodNotLocked(
 ): Promise<void> {
   const db = txClient || prisma;
   const month = getMonthFromDate(date);
-  const period = await db.monthlyClosingPeriod.findUnique({
-    where: { month },
-    select: { isLocked: true, status: true, finalSnapshotRef: true },
-  });
+  let period = null;
+  try {
+    period = await db.monthlyClosingPeriod.findUnique({
+      where: { month },
+      select: { isLocked: true, status: true, finalSnapshotRef: true },
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("no such table")) throw err;
+  }
 
   if (period?.isLocked || period?.status === "FINAL") {
     throw new PeriodLockedError(month, period.finalSnapshotRef, actionDescription);

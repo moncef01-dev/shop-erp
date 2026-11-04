@@ -54,7 +54,8 @@ export interface AccountMovementItem {
     | "SUPPLIER_PAYMENT"
     | "EXPENSE"
     | "INCOME"
-    | "CUSTOMER_ADVANCE";
+    | "CUSTOMER_ADVANCE"
+    | "SUPPLIER_ADDITIONAL_PAYMENT";
   typeLabel: string;
   description: string;
   party: string;
@@ -292,10 +293,55 @@ export async function calculateAccountBalance(
       bal += (trIn._sum.amount ?? 0) - (trOut._sum.amount ?? 0);
       bal += (payIn._sum.amount ?? 0) + (advIn._sum.amount ?? 0) + (incIn._sum.amount ?? 0);
       bal -= (suppOut._sum.amount ?? 0) + (expOut._sum.amount ?? 0);
+
+      // Versements supplémentaires fournisseur
+      try {
+        const [suppAddOut, suppAddRevIn] = await Promise.all([
+          db.supplierAdditionalPayment.aggregate({
+            where: {
+              treasuryAccountId: accountId,
+              isReversal: false,
+              OR: [
+                { sessionId: activeSession.id },
+                {
+                  sessionId: null,
+                  OR: [
+                    { date: { gte: sessionStart } },
+                    { createdAt: { gte: sessionStart } },
+                  ],
+                },
+              ],
+            },
+            _sum: { amount: true },
+          }),
+          db.supplierAdditionalPayment.aggregate({
+            where: {
+              treasuryAccountId: accountId,
+              isReversal: true,
+              status: "completed",
+              OR: [
+                { sessionId: activeSession.id },
+                {
+                  sessionId: null,
+                  OR: [
+                    { date: { gte: sessionStart } },
+                    { createdAt: { gte: sessionStart } },
+                  ],
+                },
+              ],
+            },
+            _sum: { amount: true },
+          }),
+        ]);
+        bal -= (suppAddOut._sum.amount ?? 0);
+        bal += (suppAddRevIn._sum.amount ?? 0);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("no such table")) throw err;
+      }
       return Math.round(bal * 100) / 100;
     } else if (latestClosedSession && latestClosedSession.closedAt) {
-      // Lorsqu'une session est fermée, le tiroir de caisse repart à 0 DA (pas de report automatique)
-      let bal = 0;
+      let bal = latestClosedSession.retainedAmount ?? latestClosedSession.closingAmount ?? 0;
       const closedAt = latestClosedSession.closedAt;
 
       const [trIn, trOut, payIn, advIn, incIn, suppOut, expOut] = await Promise.all([
@@ -375,6 +421,36 @@ export async function calculateAccountBalance(
       bal += (trIn._sum.amount ?? 0) - (trOut._sum.amount ?? 0);
       bal += (payIn._sum.amount ?? 0) + (advIn._sum.amount ?? 0) + (incIn._sum.amount ?? 0);
       bal -= (suppOut._sum.amount ?? 0) + (expOut._sum.amount ?? 0);
+
+      // Versements supplémentaires après clôture
+      try {
+        const [suppAddOut, suppAddRevIn] = await Promise.all([
+          db.supplierAdditionalPayment.aggregate({
+            where: {
+              treasuryAccountId: accountId,
+              isReversal: false,
+              sessionId: null,
+              OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
+            },
+            _sum: { amount: true },
+          }),
+          db.supplierAdditionalPayment.aggregate({
+            where: {
+              treasuryAccountId: accountId,
+              isReversal: true,
+              status: "completed",
+              sessionId: null,
+              OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
+            },
+            _sum: { amount: true },
+          }),
+        ]);
+        bal -= (suppAddOut._sum.amount ?? 0);
+        bal += (suppAddRevIn._sum.amount ?? 0);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("no such table")) throw err;
+      }
       return Math.round(bal * 100) / 100;
     }
   }
@@ -476,6 +552,32 @@ export async function calculateAccountBalance(
   balance += (transfersIn._sum.amount ?? 0) - (transfersOut._sum.amount ?? 0);
   balance += (salePaymentsIn._sum.amount ?? 0) + (advancesIn._sum.amount ?? 0) + (incomes._sum.amount ?? 0);
   balance -= (supplierPaymentsOut._sum.amount ?? 0) + (expensesOut._sum.amount ?? 0);
+
+  // Versements supplémentaires fournisseur (comptes généraux)
+  try {
+    const [suppAddOut, suppAddRevIn] = await Promise.all([
+      db.supplierAdditionalPayment.aggregate({
+        where: {
+          treasuryAccountId: accountId,
+          isReversal: false,
+        },
+        _sum: { amount: true },
+      }),
+      db.supplierAdditionalPayment.aggregate({
+        where: {
+          treasuryAccountId: accountId,
+          isReversal: true,
+          status: "completed",
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+    balance -= (suppAddOut._sum.amount ?? 0);
+    balance += (suppAddRevIn._sum.amount ?? 0);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("no such table")) throw err;
+  }
 
   return Math.round(balance * 100) / 100;
 }
@@ -700,6 +802,7 @@ export async function createTreasuryTransferAction(payload: {
   amount: number;
   paymentMethod?: string;
   motif: string;
+  observation?: string;
   notes?: string;
   date?: string;
   sessionId?: number;
@@ -710,7 +813,7 @@ export async function createTreasuryTransferAction(payload: {
     const toAccountId = Number(payload.toAccountId ?? payload.destinationAccountId);
     const amount = Number(payload.amount);
     const paymentMethod = payload.paymentMethod || "cash";
-    const motif = (payload.motif || (payload as any).observation || payload.notes)?.trim();
+    const motif = (payload.motif || payload.observation || payload.notes)?.trim();
     const notes = payload.notes?.trim() || null;
     let date = new Date();
     if (payload.date) {
@@ -1318,6 +1421,55 @@ export async function getAccountMovements(
     });
   }
 
+  // 7. Versements supplémentaires fournisseurs et contrepassations
+  try {
+    const additionalPayments = await prisma.supplierAdditionalPayment.findMany({
+      where: { treasuryAccountId: accountId },
+      include: {
+        supplier: { select: { name: true } },
+        reversalOf: { select: { reference: true } },
+      },
+    });
+    for (const ap of additionalPayments) {
+      if (!ap.isReversal) {
+        movements.push({
+          id: `supp-add-${ap.id}`,
+          date: ap.date.toISOString(),
+          reference: ap.reference,
+          type: "SUPPLIER_ADDITIONAL_PAYMENT",
+          typeLabel: "Versement supplémentaire fournisseur",
+          description: ap.description || `Versement supplémentaire fournisseur — ${ap.supplier.name}`,
+          party: ap.supplier.name,
+          inflow: 0,
+          outflow: ap.amount,
+          runningBalance: 0,
+          method: ap.paymentMethod,
+          sessionId: ap.sessionId,
+          createdAt: ap.createdAt.toISOString(),
+        });
+      } else {
+        movements.push({
+          id: `supp-add-rev-${ap.id}`,
+          date: ap.date.toISOString(),
+          reference: ap.reference,
+          type: "SUPPLIER_ADDITIONAL_PAYMENT",
+          typeLabel: "Annulation versement supplémentaire",
+          description: ap.description || `Contrepassation versement ${ap.reversalOf?.reference || ""} — ${ap.supplier.name}`,
+          party: ap.supplier.name,
+          inflow: ap.amount,
+          outflow: 0,
+          runningBalance: 0,
+          method: ap.paymentMethod,
+          sessionId: ap.sessionId,
+          createdAt: ap.createdAt.toISOString(),
+        });
+      }
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("no such table")) throw err;
+  }
+
   // Pour le compte de caisse journalière (type "cash" ou isDefault),
   // si aucune date de début spécifique n'est demandée et qu'une session clôturée existe,
   // le relevé part du montant arrêté lors de la dernière clôture.
@@ -1464,7 +1616,7 @@ export async function getAccountMovements(
   }
 
   // Vérifier si le relevé concerne spécifiquement le Coffre magasin
-  const isCoffreMagasin = account.code === "ACC-COFFRE-MAGASIN";
+  const isCoffreMagasin = account.code === "ACC-COFFRE-MAGASIN" || account.type === "safe" || account.code.startsWith("ACC-COFFRE");
 
   if (isCoffreMagasin) {
     // Tri décroissant spécifique au Coffre magasin : PLUS RÉCENT EN HAUT (NEWEST → OLDEST)
