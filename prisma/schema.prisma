@@ -164,6 +164,7 @@ model Supplier {
   payments  Payment[]
   debts     SupplierDebt[]
   additionalPayments SupplierAdditionalPayment[]
+  additionalPaymentAllocations SupplierAdditionalPaymentAllocation[]
 
   @@index([isActive])
   @@map("suppliers")
@@ -324,6 +325,7 @@ model Purchase {
   receipts             PurchaseReceipt[]
   payments             Payment[]
   movements            StockMovement[]
+  additionalPaymentAllocations SupplierAdditionalPaymentAllocation[]
 
   @@index([supplierId])
   @@index([status])
@@ -525,6 +527,8 @@ model SupplierDebt {
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  additionalPaymentAllocations SupplierAdditionalPaymentAllocation[]
 
   @@index([supplierId])
   @@index([date])
@@ -734,6 +738,7 @@ model SupplierAdditionalPayment {
   idempotencyKey       String?           @unique
   sessionId            Int?
   session              CashSession?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  allocations          SupplierAdditionalPaymentAllocation[]
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
@@ -744,3 +749,41 @@ model SupplierAdditionalPayment {
   @@index([isReversal])
   @@map("supplier_additional_payments")
 }
+
+// ─── SUPPLIER ADDITIONAL PAYMENT ALLOCATIONS (IMPUTATIONS SUR DETTE) ──────────
+
+model SupplierAdditionalPaymentAllocation {
+  id               Int                       @id @default(autoincrement())
+  reference        String                    @unique
+  paymentId        Int
+  payment          SupplierAdditionalPayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  supplierId       Int
+  supplier         Supplier                  @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseId       Int?
+  purchase         Purchase?                 @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  supplierDebtId   Int?
+  supplierDebt     SupplierDebt?             @relation(fields: [supplierDebtId], references: [id], onDelete: SetNull)
+  amount           Float
+  date             DateTime                  @default(now())
+  status           String                    @default("completed") // "completed", "reversed"
+  notes            String?
+  description      String?
+  isReversal       Boolean                   @default(false)
+  reversalOfId     Int?                      @unique
+  reversalOf       SupplierAdditionalPaymentAllocation? @relation("AllocationReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversal         SupplierAdditionalPaymentAllocation? @relation("AllocationReversal")
+  reversedAt       DateTime?
+  reversalReason   String?
+  idempotencyKey   String?                   @unique
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([supplierId, date])
+  @@index([paymentId])
+  @@index([purchaseId])
+  @@index([supplierDebtId])
+  @@index([status])
+  @@index([isReversal])
+  @@map("supplier_additional_payment_allocations")
+}
+

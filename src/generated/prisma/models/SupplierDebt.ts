@@ -265,6 +265,7 @@ export type SupplierDebtWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"SupplierDebt"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"SupplierDebt"> | Date | string
   supplier?: Prisma.XOR<Prisma.SupplierScalarRelationFilter, Prisma.SupplierWhereInput>
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationListRelationFilter
 }
 
 export type SupplierDebtOrderByWithRelationInput = {
@@ -279,6 +280,7 @@ export type SupplierDebtOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   supplier?: Prisma.SupplierOrderByWithRelationInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationOrderByRelationAggregateInput
 }
 
 export type SupplierDebtWhereUniqueInput = Prisma.AtLeast<{
@@ -296,6 +298,7 @@ export type SupplierDebtWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"SupplierDebt"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"SupplierDebt"> | Date | string
   supplier?: Prisma.XOR<Prisma.SupplierScalarRelationFilter, Prisma.SupplierWhereInput>
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationListRelationFilter
 }, "id" | "reference">
 
 export type SupplierDebtOrderByWithAggregationInput = {
@@ -342,6 +345,7 @@ export type SupplierDebtCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   supplier: Prisma.SupplierCreateNestedOneWithoutDebtsInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutSupplierDebtInput
 }
 
 export type SupplierDebtUncheckedCreateInput = {
@@ -355,6 +359,7 @@ export type SupplierDebtUncheckedCreateInput = {
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutSupplierDebtInput
 }
 
 export type SupplierDebtUpdateInput = {
@@ -367,6 +372,7 @@ export type SupplierDebtUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   supplier?: Prisma.SupplierUpdateOneRequiredWithoutDebtsNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutSupplierDebtNestedInput
 }
 
 export type SupplierDebtUncheckedUpdateInput = {
@@ -380,6 +386,7 @@ export type SupplierDebtUncheckedUpdateInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutSupplierDebtNestedInput
 }
 
 export type SupplierDebtCreateManyInput = {
@@ -480,6 +487,11 @@ export type SupplierDebtSumOrderByAggregateInput = {
   amount?: Prisma.SortOrder
 }
 
+export type SupplierDebtNullableScalarRelationFilter = {
+  is?: Prisma.SupplierDebtWhereInput | null
+  isNot?: Prisma.SupplierDebtWhereInput | null
+}
+
 export type SupplierDebtCreateNestedManyWithoutSupplierInput = {
   create?: Prisma.XOR<Prisma.SupplierDebtCreateWithoutSupplierInput, Prisma.SupplierDebtUncheckedCreateWithoutSupplierInput> | Prisma.SupplierDebtCreateWithoutSupplierInput[] | Prisma.SupplierDebtUncheckedCreateWithoutSupplierInput[]
   connectOrCreate?: Prisma.SupplierDebtCreateOrConnectWithoutSupplierInput | Prisma.SupplierDebtCreateOrConnectWithoutSupplierInput[]
@@ -522,6 +534,22 @@ export type SupplierDebtUncheckedUpdateManyWithoutSupplierNestedInput = {
   deleteMany?: Prisma.SupplierDebtScalarWhereInput | Prisma.SupplierDebtScalarWhereInput[]
 }
 
+export type SupplierDebtCreateNestedOneWithoutAdditionalPaymentAllocationsInput = {
+  create?: Prisma.XOR<Prisma.SupplierDebtCreateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierDebtUncheckedCreateWithoutAdditionalPaymentAllocationsInput>
+  connectOrCreate?: Prisma.SupplierDebtCreateOrConnectWithoutAdditionalPaymentAllocationsInput
+  connect?: Prisma.SupplierDebtWhereUniqueInput
+}
+
+export type SupplierDebtUpdateOneWithoutAdditionalPaymentAllocationsNestedInput = {
+  create?: Prisma.XOR<Prisma.SupplierDebtCreateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierDebtUncheckedCreateWithoutAdditionalPaymentAllocationsInput>
+  connectOrCreate?: Prisma.SupplierDebtCreateOrConnectWithoutAdditionalPaymentAllocationsInput
+  upsert?: Prisma.SupplierDebtUpsertWithoutAdditionalPaymentAllocationsInput
+  disconnect?: Prisma.SupplierDebtWhereInput | boolean
+  delete?: Prisma.SupplierDebtWhereInput | boolean
+  connect?: Prisma.SupplierDebtWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.SupplierDebtUpdateToOneWithWhereWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierDebtUpdateWithoutAdditionalPaymentAllocationsInput>, Prisma.SupplierDebtUncheckedUpdateWithoutAdditionalPaymentAllocationsInput>
+}
+
 export type SupplierDebtCreateWithoutSupplierInput = {
   reference: string
   amount: number
@@ -531,6 +559,7 @@ export type SupplierDebtCreateWithoutSupplierInput = {
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutSupplierDebtInput
 }
 
 export type SupplierDebtUncheckedCreateWithoutSupplierInput = {
@@ -543,6 +572,7 @@ export type SupplierDebtUncheckedCreateWithoutSupplierInput = {
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutSupplierDebtInput
 }
 
 export type SupplierDebtCreateOrConnectWithoutSupplierInput = {
@@ -586,6 +616,72 @@ export type SupplierDebtScalarWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"SupplierDebt"> | Date | string
 }
 
+export type SupplierDebtCreateWithoutAdditionalPaymentAllocationsInput = {
+  reference: string
+  amount: number
+  type?: string
+  description: string
+  date?: Date | string
+  notes?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  supplier: Prisma.SupplierCreateNestedOneWithoutDebtsInput
+}
+
+export type SupplierDebtUncheckedCreateWithoutAdditionalPaymentAllocationsInput = {
+  id?: number
+  reference: string
+  supplierId: number
+  amount: number
+  type?: string
+  description: string
+  date?: Date | string
+  notes?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type SupplierDebtCreateOrConnectWithoutAdditionalPaymentAllocationsInput = {
+  where: Prisma.SupplierDebtWhereUniqueInput
+  create: Prisma.XOR<Prisma.SupplierDebtCreateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierDebtUncheckedCreateWithoutAdditionalPaymentAllocationsInput>
+}
+
+export type SupplierDebtUpsertWithoutAdditionalPaymentAllocationsInput = {
+  update: Prisma.XOR<Prisma.SupplierDebtUpdateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierDebtUncheckedUpdateWithoutAdditionalPaymentAllocationsInput>
+  create: Prisma.XOR<Prisma.SupplierDebtCreateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierDebtUncheckedCreateWithoutAdditionalPaymentAllocationsInput>
+  where?: Prisma.SupplierDebtWhereInput
+}
+
+export type SupplierDebtUpdateToOneWithWhereWithoutAdditionalPaymentAllocationsInput = {
+  where?: Prisma.SupplierDebtWhereInput
+  data: Prisma.XOR<Prisma.SupplierDebtUpdateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierDebtUncheckedUpdateWithoutAdditionalPaymentAllocationsInput>
+}
+
+export type SupplierDebtUpdateWithoutAdditionalPaymentAllocationsInput = {
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  type?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.StringFieldUpdateOperationsInput | string
+  date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  supplier?: Prisma.SupplierUpdateOneRequiredWithoutDebtsNestedInput
+}
+
+export type SupplierDebtUncheckedUpdateWithoutAdditionalPaymentAllocationsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  supplierId?: Prisma.IntFieldUpdateOperationsInput | number
+  amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  type?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.StringFieldUpdateOperationsInput | string
+  date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
 export type SupplierDebtCreateManySupplierInput = {
   id?: number
   reference: string
@@ -607,6 +703,7 @@ export type SupplierDebtUpdateWithoutSupplierInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutSupplierDebtNestedInput
 }
 
 export type SupplierDebtUncheckedUpdateWithoutSupplierInput = {
@@ -619,6 +716,7 @@ export type SupplierDebtUncheckedUpdateWithoutSupplierInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutSupplierDebtNestedInput
 }
 
 export type SupplierDebtUncheckedUpdateManyWithoutSupplierInput = {
@@ -634,6 +732,35 @@ export type SupplierDebtUncheckedUpdateManyWithoutSupplierInput = {
 }
 
 
+/**
+ * Count Type SupplierDebtCountOutputType
+ */
+
+export type SupplierDebtCountOutputType = {
+  additionalPaymentAllocations: number
+}
+
+export type SupplierDebtCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  additionalPaymentAllocations?: boolean | SupplierDebtCountOutputTypeCountAdditionalPaymentAllocationsArgs
+}
+
+/**
+ * SupplierDebtCountOutputType without action
+ */
+export type SupplierDebtCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SupplierDebtCountOutputType
+   */
+  select?: Prisma.SupplierDebtCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * SupplierDebtCountOutputType without action
+ */
+export type SupplierDebtCountOutputTypeCountAdditionalPaymentAllocationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SupplierAdditionalPaymentAllocationWhereInput
+}
+
 
 export type SupplierDebtSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -647,6 +774,8 @@ export type SupplierDebtSelect<ExtArgs extends runtime.Types.Extensions.Internal
   createdAt?: boolean
   updatedAt?: boolean
   supplier?: boolean | Prisma.SupplierDefaultArgs<ExtArgs>
+  additionalPaymentAllocations?: boolean | Prisma.SupplierDebt$additionalPaymentAllocationsArgs<ExtArgs>
+  _count?: boolean | Prisma.SupplierDebtCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["supplierDebt"]>
 
 export type SupplierDebtSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -693,6 +822,8 @@ export type SupplierDebtSelectScalar = {
 export type SupplierDebtOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "supplierId" | "amount" | "type" | "description" | "date" | "notes" | "createdAt" | "updatedAt", ExtArgs["result"]["supplierDebt"]>
 export type SupplierDebtInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   supplier?: boolean | Prisma.SupplierDefaultArgs<ExtArgs>
+  additionalPaymentAllocations?: boolean | Prisma.SupplierDebt$additionalPaymentAllocationsArgs<ExtArgs>
+  _count?: boolean | Prisma.SupplierDebtCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type SupplierDebtIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   supplier?: boolean | Prisma.SupplierDefaultArgs<ExtArgs>
@@ -705,6 +836,7 @@ export type $SupplierDebtPayload<ExtArgs extends runtime.Types.Extensions.Intern
   name: "SupplierDebt"
   objects: {
     supplier: Prisma.$SupplierPayload<ExtArgs>
+    additionalPaymentAllocations: Prisma.$SupplierAdditionalPaymentAllocationPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1112,6 +1244,7 @@ readonly fields: SupplierDebtFieldRefs;
 export interface Prisma__SupplierDebtClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   supplier<T extends Prisma.SupplierDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SupplierDefaultArgs<ExtArgs>>): Prisma.Prisma__SupplierClient<runtime.Types.Result.GetResult<Prisma.$SupplierPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  additionalPaymentAllocations<T extends Prisma.SupplierDebt$additionalPaymentAllocationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SupplierDebt$additionalPaymentAllocationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SupplierAdditionalPaymentAllocationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1547,6 +1680,30 @@ export type SupplierDebtDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.
    * Limit how many SupplierDebts to delete.
    */
   limit?: number
+}
+
+/**
+ * SupplierDebt.additionalPaymentAllocations
+ */
+export type SupplierDebt$additionalPaymentAllocationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SupplierAdditionalPaymentAllocation
+   */
+  select?: Prisma.SupplierAdditionalPaymentAllocationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SupplierAdditionalPaymentAllocation
+   */
+  omit?: Prisma.SupplierAdditionalPaymentAllocationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SupplierAdditionalPaymentAllocationInclude<ExtArgs> | null
+  where?: Prisma.SupplierAdditionalPaymentAllocationWhereInput
+  orderBy?: Prisma.SupplierAdditionalPaymentAllocationOrderByWithRelationInput | Prisma.SupplierAdditionalPaymentAllocationOrderByWithRelationInput[]
+  cursor?: Prisma.SupplierAdditionalPaymentAllocationWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.SupplierAdditionalPaymentAllocationScalarFieldEnum | Prisma.SupplierAdditionalPaymentAllocationScalarFieldEnum[]
 }
 
 /**

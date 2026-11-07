@@ -332,6 +332,26 @@ export async function reverseSupplierAdditionalPaymentAction(payload: {
           throw new Error("Cette transaction a déjà été contrepassée.");
         }
 
+        // Vérifier qu'aucune imputation active n'est liée à ce versement
+        try {
+          const activeAllocations = await tx.supplierAdditionalPaymentAllocation.findMany({
+            where: {
+              paymentId: original.id,
+              isReversal: false,
+              status: "completed",
+            },
+          });
+          if (activeAllocations.length > 0) {
+            throw new Error(
+              "Impossible de contrepasser ce versement : des imputations sur dette y sont actuellement associées. Veuillez d'abord annuler les imputations correspondantes."
+            );
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("des imputations sur dette")) throw err;
+          // Ignore if table does not exist in old context
+        }
+
         // Verrouillage de concurrence sur le compte de trésorerie
         await tx.treasuryAccount.update({
           where: { id: original.treasuryAccountId },

@@ -26,7 +26,13 @@ import { CancelSupplierPaymentModal, type CancellablePaymentData } from "@/compo
 import { SupplierAdditionalPaymentModal } from "@/components/suppliers/SupplierAdditionalPaymentModal";
 import { SupplierAdditionalPaymentSection, type SupplierAdditionalPaymentHistoryItem } from "@/components/suppliers/SupplierAdditionalPaymentSection";
 import { getSupplierAdditionalPaymentTotal, getSupplierAdditionalPaymentHistory } from "./additional-payment-actions";
-import { HandCoins } from "lucide-react";
+import { HandCoins, FileCheck2 } from "lucide-react";
+import { SupplierAllocationModal } from "@/components/suppliers/SupplierAllocationModal";
+import { SupplierAllocationSection, type SupplierAllocationHistoryItem } from "@/components/suppliers/SupplierAllocationSection";
+import {
+  getSupplierAllocationsSummary,
+  getSupplierAllocationHistory,
+} from "./allocation-actions";
 import {
   recordSupplierInitialDebtAction,
   recordSupplierPaymentMultiAccountAction,
@@ -80,7 +86,11 @@ export function SuppliersClient({
   const [additionalPaymentSupplierId, setAdditionalPaymentSupplierId] = useState<number | null>(null);
   const [additionalTotal, setAdditionalTotal] = useState<number>(0);
   const [additionalHistory, setAdditionalHistory] = useState<SupplierAdditionalPaymentHistoryItem[]>([]);
-  const [activeStatementTab, setActiveStatementTab] = useState<"statement" | "additional_payments">("statement");
+  const [isAllocationOpen, setIsAllocationOpen] = useState(false);
+  const [allocationTotal, setAllocationTotal] = useState<number>(0);
+  const [unallocatedTotal, setUnallocatedTotal] = useState<number>(0);
+  const [allocationHistory, setAllocationHistory] = useState<SupplierAllocationHistoryItem[]>([]);
+  const [activeStatementTab, setActiveStatementTab] = useState<"statement" | "additional_payments" | "allocations">("statement");
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
 
   // Form states pour Dette Initiale
@@ -144,17 +154,22 @@ export function SuppliersClient({
     setStatementData(null);
     setIsLoadingStatement(true);
     try {
-      const [data, total, hist] = await Promise.all([
+      const [data, total, hist, allocSummary, allocHist] = await Promise.all([
         getSupplierStatement(supplierId, {
           startDate: start || undefined,
           endDate: end || undefined,
         }),
         getSupplierAdditionalPaymentTotal(supplierId),
         getSupplierAdditionalPaymentHistory(supplierId),
+        getSupplierAllocationsSummary(supplierId),
+        getSupplierAllocationHistory(supplierId),
       ]);
       setStatementData(data);
       setAdditionalTotal(total);
       setAdditionalHistory(hist as unknown as SupplierAdditionalPaymentHistoryItem[]);
+      setAllocationTotal(allocSummary.totalAllocated);
+      setUnallocatedTotal(allocSummary.unallocatedAmount);
+      setAllocationHistory(allocHist as unknown as SupplierAllocationHistoryItem[]);
     } catch {
       showNotification("error", "Impossible de charger le compte fournisseur.");
       setSelectedSupplierForStatement(null);
@@ -165,15 +180,20 @@ export function SuppliersClient({
 
   const refreshAdditionalData = async (supplierId: number) => {
     try {
-      const [total, hist] = await Promise.all([
+      const [total, hist, allocSummary, allocHist] = await Promise.all([
         getSupplierAdditionalPaymentTotal(supplierId),
         getSupplierAdditionalPaymentHistory(supplierId),
+        getSupplierAllocationsSummary(supplierId),
+        getSupplierAllocationHistory(supplierId),
       ]);
       setAdditionalTotal(total);
       setAdditionalHistory(hist as unknown as SupplierAdditionalPaymentHistoryItem[]);
+      setAllocationTotal(allocSummary.totalAllocated);
+      setUnallocatedTotal(allocSummary.unallocatedAmount);
+      setAllocationHistory(allocHist as unknown as SupplierAllocationHistoryItem[]);
       router.refresh();
     } catch (err) {
-      console.error("Erreur rafraîchissement versements supplémentaires:", err);
+      console.error("Erreur rafraîchissement données supplémentaires et imputations:", err);
     }
   };
 
@@ -799,6 +819,23 @@ export function SuppliersClient({
                     </button>
 
                     <button
+                      type="button"
+                      onClick={() => setIsAllocationOpen(true)}
+                      disabled={unallocatedTotal <= 0 || statementData.summary.outstandingDebt <= 0}
+                      title={
+                        unallocatedTotal <= 0
+                          ? "Aucun versement supplémentaire disponible à imputer"
+                          : statementData.summary.outstandingDebt <= 0
+                          ? "Dette fournisseur déjà soldée"
+                          : "Imputer un versement disponible pour réduire la dette"
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 disabled:opacity-50 disabled:pointer-events-none rounded-lg shadow-xs transition cursor-pointer"
+                    >
+                      <FileCheck2 className="h-4 w-4" />
+                      Imputer un versement
+                    </button>
+
+                    <button
                       onClick={() => window.print()}
                       title="Imprimer le relevé"
                       className="inline-flex items-center gap-1 p-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition cursor-pointer"
@@ -858,14 +895,25 @@ export function SuppliersClient({
                       </span>
                     </div>
                   )}
-                  {/* Indicateur Argent versé au fournisseur (Violet/Indigo distinct, côte à côte) */}
+                  {/* 2. Total versé hors dette (Indigo) */}
                   <div className="bg-indigo-50/90 print:bg-white p-3 rounded-xl border border-indigo-300 print:border-2 print:border-black shadow-2xs">
                     <span className="text-[11px] font-black text-indigo-800 print:text-black uppercase tracking-wider block flex items-center justify-between">
-                      <span>Argent versé au fournisseur</span>
-                      <span className="text-[9px] bg-indigo-200/80 text-indigo-900 px-1.5 py-0.5 rounded font-bold">HORS DETTE</span>
+                      <span>Total versé hors dette</span>
+                      <span className="text-[9px] bg-indigo-200/80 text-indigo-900 px-1.5 py-0.5 rounded font-bold">HISTORIQUE</span>
                     </span>
                     <span className="font-mono font-black text-lg text-indigo-900 print:text-black mt-1 block">
                       {formatDA(additionalTotal)}
+                    </span>
+                  </div>
+
+                  {/* 3. Solde disponible à imputer (Violet) */}
+                  <div className="bg-purple-50/90 print:bg-white p-3 rounded-xl border border-purple-300 print:border-2 print:border-black shadow-2xs">
+                    <span className="text-[11px] font-black text-purple-800 print:text-black uppercase tracking-wider block flex items-center justify-between">
+                      <span>Solde dispo à imputer</span>
+                      <span className="text-[9px] bg-purple-200/80 text-purple-900 px-1.5 py-0.5 rounded font-bold">DISPONIBLE</span>
+                    </span>
+                    <span className="font-mono font-black text-lg text-purple-900 print:text-black mt-1 block">
+                      {formatDA(unallocatedTotal)}
                     </span>
                   </div>
                 </div>
@@ -894,7 +942,19 @@ export function SuppliersClient({
                     }`}
                   >
                     <HandCoins className="h-4 w-4" />
-                    Versements Supplémentaires Hors Dette ({additionalHistory.length})
+                    Versements Hors Dette ({additionalHistory.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveStatementTab("allocations")}
+                    className={`px-4 py-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+                      activeStatementTab === "allocations"
+                        ? "border-purple-600 text-purple-700 bg-purple-50/40"
+                        : "border-transparent text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <FileCheck2 className="h-4 w-4" />
+                    Imputations sur Dette ({allocationHistory.length})
                   </button>
                 </div>
 
@@ -910,6 +970,22 @@ export function SuppliersClient({
                         setIsAdditionalPaymentOpen(true);
                       }}
                       onRefresh={() => refreshAdditionalData(statementData.supplier.id)}
+                    />
+                  </div>
+                ) : activeStatementTab === "allocations" ? (
+                  <div className="overflow-y-auto flex-1 min-h-0 pr-1">
+                    <SupplierAllocationSection
+                      supplierId={statementData.supplier.id}
+                      supplierName={statementData.supplier.name}
+                      totalGiven={additionalTotal}
+                      totalAllocated={allocationTotal}
+                      unallocatedAmount={unallocatedTotal}
+                      history={allocationHistory}
+                      onOpenNewModal={() => setIsAllocationOpen(true)}
+                      onRefresh={() => {
+                        refreshAdditionalData(statementData.supplier.id);
+                        handleOpenStatement(statementData.supplier.id);
+                      }}
                     />
                   </div>
                 ) : (
@@ -1623,6 +1699,28 @@ export function SuppliersClient({
               await refreshAdditionalData(savedSupplierId);
               handleOpenStatement(savedSupplierId);
             }
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* Modal Imputer un versement supplémentaire sur la dette */}
+      {isAllocationOpen && statementData && (
+        <SupplierAllocationModal
+          key={`alloc-${statementData.supplier.id}`}
+          isOpen={isAllocationOpen}
+          onClose={() => setIsAllocationOpen(false)}
+          supplierId={statementData.supplier.id}
+          supplierName={statementData.supplier.name}
+          outstandingDebt={statementData.summary.outstandingDebt}
+          onSuccess={async () => {
+            showNotification(
+              "success",
+              "Imputation enregistrée avec succès. Dette fournisseur réduite, trésorerie inchangée."
+            );
+            setIsAllocationOpen(false);
+            await refreshAdditionalData(statementData.supplier.id);
+            handleOpenStatement(statementData.supplier.id);
             router.refresh();
           }}
         />

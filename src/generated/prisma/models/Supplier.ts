@@ -260,6 +260,7 @@ export type SupplierWhereInput = {
   payments?: Prisma.PaymentListRelationFilter
   debts?: Prisma.SupplierDebtListRelationFilter
   additionalPayments?: Prisma.SupplierAdditionalPaymentListRelationFilter
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationListRelationFilter
 }
 
 export type SupplierOrderByWithRelationInput = {
@@ -277,6 +278,7 @@ export type SupplierOrderByWithRelationInput = {
   payments?: Prisma.PaymentOrderByRelationAggregateInput
   debts?: Prisma.SupplierDebtOrderByRelationAggregateInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentOrderByRelationAggregateInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationOrderByRelationAggregateInput
 }
 
 export type SupplierWhereUniqueInput = Prisma.AtLeast<{
@@ -297,6 +299,7 @@ export type SupplierWhereUniqueInput = Prisma.AtLeast<{
   payments?: Prisma.PaymentListRelationFilter
   debts?: Prisma.SupplierDebtListRelationFilter
   additionalPayments?: Prisma.SupplierAdditionalPaymentListRelationFilter
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationListRelationFilter
 }, "id" | "code">
 
 export type SupplierOrderByWithAggregationInput = {
@@ -347,6 +350,7 @@ export type SupplierCreateInput = {
   payments?: Prisma.PaymentCreateNestedManyWithoutSupplierInput
   debts?: Prisma.SupplierDebtCreateNestedManyWithoutSupplierInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentCreateNestedManyWithoutSupplierInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierUncheckedCreateInput = {
@@ -364,6 +368,7 @@ export type SupplierUncheckedCreateInput = {
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSupplierInput
   debts?: Prisma.SupplierDebtUncheckedCreateNestedManyWithoutSupplierInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedManyWithoutSupplierInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierUpdateInput = {
@@ -380,6 +385,7 @@ export type SupplierUpdateInput = {
   payments?: Prisma.PaymentUpdateManyWithoutSupplierNestedInput
   debts?: Prisma.SupplierDebtUpdateManyWithoutSupplierNestedInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUpdateManyWithoutSupplierNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierUncheckedUpdateInput = {
@@ -397,6 +403,7 @@ export type SupplierUncheckedUpdateInput = {
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSupplierNestedInput
   debts?: Prisma.SupplierDebtUncheckedUpdateManyWithoutSupplierNestedInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUncheckedUpdateManyWithoutSupplierNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierCreateManyInput = {
@@ -554,6 +561,20 @@ export type SupplierUpdateOneRequiredWithoutAdditionalPaymentsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.SupplierUpdateToOneWithWhereWithoutAdditionalPaymentsInput, Prisma.SupplierUpdateWithoutAdditionalPaymentsInput>, Prisma.SupplierUncheckedUpdateWithoutAdditionalPaymentsInput>
 }
 
+export type SupplierCreateNestedOneWithoutAdditionalPaymentAllocationsInput = {
+  create?: Prisma.XOR<Prisma.SupplierCreateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierUncheckedCreateWithoutAdditionalPaymentAllocationsInput>
+  connectOrCreate?: Prisma.SupplierCreateOrConnectWithoutAdditionalPaymentAllocationsInput
+  connect?: Prisma.SupplierWhereUniqueInput
+}
+
+export type SupplierUpdateOneRequiredWithoutAdditionalPaymentAllocationsNestedInput = {
+  create?: Prisma.XOR<Prisma.SupplierCreateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierUncheckedCreateWithoutAdditionalPaymentAllocationsInput>
+  connectOrCreate?: Prisma.SupplierCreateOrConnectWithoutAdditionalPaymentAllocationsInput
+  upsert?: Prisma.SupplierUpsertWithoutAdditionalPaymentAllocationsInput
+  connect?: Prisma.SupplierWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.SupplierUpdateToOneWithWhereWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierUpdateWithoutAdditionalPaymentAllocationsInput>, Prisma.SupplierUncheckedUpdateWithoutAdditionalPaymentAllocationsInput>
+}
+
 export type SupplierCreateWithoutPaymentsInput = {
   code?: string | null
   name: string
@@ -567,6 +588,7 @@ export type SupplierCreateWithoutPaymentsInput = {
   purchases?: Prisma.PurchaseCreateNestedManyWithoutSupplierInput
   debts?: Prisma.SupplierDebtCreateNestedManyWithoutSupplierInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentCreateNestedManyWithoutSupplierInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierUncheckedCreateWithoutPaymentsInput = {
@@ -583,6 +605,7 @@ export type SupplierUncheckedCreateWithoutPaymentsInput = {
   purchases?: Prisma.PurchaseUncheckedCreateNestedManyWithoutSupplierInput
   debts?: Prisma.SupplierDebtUncheckedCreateNestedManyWithoutSupplierInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedManyWithoutSupplierInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierCreateOrConnectWithoutPaymentsInput = {
@@ -614,6 +637,7 @@ export type SupplierUpdateWithoutPaymentsInput = {
   purchases?: Prisma.PurchaseUpdateManyWithoutSupplierNestedInput
   debts?: Prisma.SupplierDebtUpdateManyWithoutSupplierNestedInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUpdateManyWithoutSupplierNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierUncheckedUpdateWithoutPaymentsInput = {
@@ -630,6 +654,7 @@ export type SupplierUncheckedUpdateWithoutPaymentsInput = {
   purchases?: Prisma.PurchaseUncheckedUpdateManyWithoutSupplierNestedInput
   debts?: Prisma.SupplierDebtUncheckedUpdateManyWithoutSupplierNestedInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUncheckedUpdateManyWithoutSupplierNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierCreateWithoutPurchasesInput = {
@@ -645,6 +670,7 @@ export type SupplierCreateWithoutPurchasesInput = {
   payments?: Prisma.PaymentCreateNestedManyWithoutSupplierInput
   debts?: Prisma.SupplierDebtCreateNestedManyWithoutSupplierInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentCreateNestedManyWithoutSupplierInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierUncheckedCreateWithoutPurchasesInput = {
@@ -661,6 +687,7 @@ export type SupplierUncheckedCreateWithoutPurchasesInput = {
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSupplierInput
   debts?: Prisma.SupplierDebtUncheckedCreateNestedManyWithoutSupplierInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedManyWithoutSupplierInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierCreateOrConnectWithoutPurchasesInput = {
@@ -692,6 +719,7 @@ export type SupplierUpdateWithoutPurchasesInput = {
   payments?: Prisma.PaymentUpdateManyWithoutSupplierNestedInput
   debts?: Prisma.SupplierDebtUpdateManyWithoutSupplierNestedInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUpdateManyWithoutSupplierNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierUncheckedUpdateWithoutPurchasesInput = {
@@ -708,6 +736,7 @@ export type SupplierUncheckedUpdateWithoutPurchasesInput = {
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSupplierNestedInput
   debts?: Prisma.SupplierDebtUncheckedUpdateManyWithoutSupplierNestedInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUncheckedUpdateManyWithoutSupplierNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierCreateWithoutDebtsInput = {
@@ -723,6 +752,7 @@ export type SupplierCreateWithoutDebtsInput = {
   purchases?: Prisma.PurchaseCreateNestedManyWithoutSupplierInput
   payments?: Prisma.PaymentCreateNestedManyWithoutSupplierInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentCreateNestedManyWithoutSupplierInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierUncheckedCreateWithoutDebtsInput = {
@@ -739,6 +769,7 @@ export type SupplierUncheckedCreateWithoutDebtsInput = {
   purchases?: Prisma.PurchaseUncheckedCreateNestedManyWithoutSupplierInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSupplierInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedManyWithoutSupplierInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierCreateOrConnectWithoutDebtsInput = {
@@ -770,6 +801,7 @@ export type SupplierUpdateWithoutDebtsInput = {
   purchases?: Prisma.PurchaseUpdateManyWithoutSupplierNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutSupplierNestedInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUpdateManyWithoutSupplierNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierUncheckedUpdateWithoutDebtsInput = {
@@ -786,6 +818,7 @@ export type SupplierUncheckedUpdateWithoutDebtsInput = {
   purchases?: Prisma.PurchaseUncheckedUpdateManyWithoutSupplierNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSupplierNestedInput
   additionalPayments?: Prisma.SupplierAdditionalPaymentUncheckedUpdateManyWithoutSupplierNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierCreateWithoutAdditionalPaymentsInput = {
@@ -801,6 +834,7 @@ export type SupplierCreateWithoutAdditionalPaymentsInput = {
   purchases?: Prisma.PurchaseCreateNestedManyWithoutSupplierInput
   payments?: Prisma.PaymentCreateNestedManyWithoutSupplierInput
   debts?: Prisma.SupplierDebtCreateNestedManyWithoutSupplierInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierUncheckedCreateWithoutAdditionalPaymentsInput = {
@@ -817,6 +851,7 @@ export type SupplierUncheckedCreateWithoutAdditionalPaymentsInput = {
   purchases?: Prisma.PurchaseUncheckedCreateNestedManyWithoutSupplierInput
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSupplierInput
   debts?: Prisma.SupplierDebtUncheckedCreateNestedManyWithoutSupplierInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierCreateOrConnectWithoutAdditionalPaymentsInput = {
@@ -848,6 +883,7 @@ export type SupplierUpdateWithoutAdditionalPaymentsInput = {
   purchases?: Prisma.PurchaseUpdateManyWithoutSupplierNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutSupplierNestedInput
   debts?: Prisma.SupplierDebtUpdateManyWithoutSupplierNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierUncheckedUpdateWithoutAdditionalPaymentsInput = {
@@ -864,6 +900,89 @@ export type SupplierUncheckedUpdateWithoutAdditionalPaymentsInput = {
   purchases?: Prisma.PurchaseUncheckedUpdateManyWithoutSupplierNestedInput
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutSupplierNestedInput
   debts?: Prisma.SupplierDebtUncheckedUpdateManyWithoutSupplierNestedInput
+  additionalPaymentAllocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutSupplierNestedInput
+}
+
+export type SupplierCreateWithoutAdditionalPaymentAllocationsInput = {
+  code?: string | null
+  name: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  notes?: string | null
+  isActive?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  purchases?: Prisma.PurchaseCreateNestedManyWithoutSupplierInput
+  payments?: Prisma.PaymentCreateNestedManyWithoutSupplierInput
+  debts?: Prisma.SupplierDebtCreateNestedManyWithoutSupplierInput
+  additionalPayments?: Prisma.SupplierAdditionalPaymentCreateNestedManyWithoutSupplierInput
+}
+
+export type SupplierUncheckedCreateWithoutAdditionalPaymentAllocationsInput = {
+  id?: number
+  code?: string | null
+  name: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  notes?: string | null
+  isActive?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  purchases?: Prisma.PurchaseUncheckedCreateNestedManyWithoutSupplierInput
+  payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutSupplierInput
+  debts?: Prisma.SupplierDebtUncheckedCreateNestedManyWithoutSupplierInput
+  additionalPayments?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedManyWithoutSupplierInput
+}
+
+export type SupplierCreateOrConnectWithoutAdditionalPaymentAllocationsInput = {
+  where: Prisma.SupplierWhereUniqueInput
+  create: Prisma.XOR<Prisma.SupplierCreateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierUncheckedCreateWithoutAdditionalPaymentAllocationsInput>
+}
+
+export type SupplierUpsertWithoutAdditionalPaymentAllocationsInput = {
+  update: Prisma.XOR<Prisma.SupplierUpdateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierUncheckedUpdateWithoutAdditionalPaymentAllocationsInput>
+  create: Prisma.XOR<Prisma.SupplierCreateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierUncheckedCreateWithoutAdditionalPaymentAllocationsInput>
+  where?: Prisma.SupplierWhereInput
+}
+
+export type SupplierUpdateToOneWithWhereWithoutAdditionalPaymentAllocationsInput = {
+  where?: Prisma.SupplierWhereInput
+  data: Prisma.XOR<Prisma.SupplierUpdateWithoutAdditionalPaymentAllocationsInput, Prisma.SupplierUncheckedUpdateWithoutAdditionalPaymentAllocationsInput>
+}
+
+export type SupplierUpdateWithoutAdditionalPaymentAllocationsInput = {
+  code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  purchases?: Prisma.PurchaseUpdateManyWithoutSupplierNestedInput
+  payments?: Prisma.PaymentUpdateManyWithoutSupplierNestedInput
+  debts?: Prisma.SupplierDebtUpdateManyWithoutSupplierNestedInput
+  additionalPayments?: Prisma.SupplierAdditionalPaymentUpdateManyWithoutSupplierNestedInput
+}
+
+export type SupplierUncheckedUpdateWithoutAdditionalPaymentAllocationsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  purchases?: Prisma.PurchaseUncheckedUpdateManyWithoutSupplierNestedInput
+  payments?: Prisma.PaymentUncheckedUpdateManyWithoutSupplierNestedInput
+  debts?: Prisma.SupplierDebtUncheckedUpdateManyWithoutSupplierNestedInput
+  additionalPayments?: Prisma.SupplierAdditionalPaymentUncheckedUpdateManyWithoutSupplierNestedInput
 }
 
 
@@ -876,6 +995,7 @@ export type SupplierCountOutputType = {
   payments: number
   debts: number
   additionalPayments: number
+  additionalPaymentAllocations: number
 }
 
 export type SupplierCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -883,6 +1003,7 @@ export type SupplierCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensio
   payments?: boolean | SupplierCountOutputTypeCountPaymentsArgs
   debts?: boolean | SupplierCountOutputTypeCountDebtsArgs
   additionalPayments?: boolean | SupplierCountOutputTypeCountAdditionalPaymentsArgs
+  additionalPaymentAllocations?: boolean | SupplierCountOutputTypeCountAdditionalPaymentAllocationsArgs
 }
 
 /**
@@ -923,6 +1044,13 @@ export type SupplierCountOutputTypeCountAdditionalPaymentsArgs<ExtArgs extends r
   where?: Prisma.SupplierAdditionalPaymentWhereInput
 }
 
+/**
+ * SupplierCountOutputType without action
+ */
+export type SupplierCountOutputTypeCountAdditionalPaymentAllocationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SupplierAdditionalPaymentAllocationWhereInput
+}
+
 
 export type SupplierSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -939,6 +1067,7 @@ export type SupplierSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   payments?: boolean | Prisma.Supplier$paymentsArgs<ExtArgs>
   debts?: boolean | Prisma.Supplier$debtsArgs<ExtArgs>
   additionalPayments?: boolean | Prisma.Supplier$additionalPaymentsArgs<ExtArgs>
+  additionalPaymentAllocations?: boolean | Prisma.Supplier$additionalPaymentAllocationsArgs<ExtArgs>
   _count?: boolean | Prisma.SupplierCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["supplier"]>
 
@@ -987,6 +1116,7 @@ export type SupplierInclude<ExtArgs extends runtime.Types.Extensions.InternalArg
   payments?: boolean | Prisma.Supplier$paymentsArgs<ExtArgs>
   debts?: boolean | Prisma.Supplier$debtsArgs<ExtArgs>
   additionalPayments?: boolean | Prisma.Supplier$additionalPaymentsArgs<ExtArgs>
+  additionalPaymentAllocations?: boolean | Prisma.Supplier$additionalPaymentAllocationsArgs<ExtArgs>
   _count?: boolean | Prisma.SupplierCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type SupplierIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -999,6 +1129,7 @@ export type $SupplierPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     payments: Prisma.$PaymentPayload<ExtArgs>[]
     debts: Prisma.$SupplierDebtPayload<ExtArgs>[]
     additionalPayments: Prisma.$SupplierAdditionalPaymentPayload<ExtArgs>[]
+    additionalPaymentAllocations: Prisma.$SupplierAdditionalPaymentAllocationPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1409,6 +1540,7 @@ export interface Prisma__SupplierClient<T, Null = never, ExtArgs extends runtime
   payments<T extends Prisma.Supplier$paymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Supplier$paymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PaymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   debts<T extends Prisma.Supplier$debtsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Supplier$debtsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SupplierDebtPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   additionalPayments<T extends Prisma.Supplier$additionalPaymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Supplier$additionalPaymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SupplierAdditionalPaymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  additionalPaymentAllocations<T extends Prisma.Supplier$additionalPaymentAllocationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Supplier$additionalPaymentAllocationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SupplierAdditionalPaymentAllocationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1932,6 +2064,30 @@ export type Supplier$additionalPaymentsArgs<ExtArgs extends runtime.Types.Extens
   take?: number
   skip?: number
   distinct?: Prisma.SupplierAdditionalPaymentScalarFieldEnum | Prisma.SupplierAdditionalPaymentScalarFieldEnum[]
+}
+
+/**
+ * Supplier.additionalPaymentAllocations
+ */
+export type Supplier$additionalPaymentAllocationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SupplierAdditionalPaymentAllocation
+   */
+  select?: Prisma.SupplierAdditionalPaymentAllocationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SupplierAdditionalPaymentAllocation
+   */
+  omit?: Prisma.SupplierAdditionalPaymentAllocationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SupplierAdditionalPaymentAllocationInclude<ExtArgs> | null
+  where?: Prisma.SupplierAdditionalPaymentAllocationWhereInput
+  orderBy?: Prisma.SupplierAdditionalPaymentAllocationOrderByWithRelationInput | Prisma.SupplierAdditionalPaymentAllocationOrderByWithRelationInput[]
+  cursor?: Prisma.SupplierAdditionalPaymentAllocationWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.SupplierAdditionalPaymentAllocationScalarFieldEnum | Prisma.SupplierAdditionalPaymentAllocationScalarFieldEnum[]
 }
 
 /**

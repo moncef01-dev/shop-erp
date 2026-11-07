@@ -167,3 +167,8 @@ export type CustomerSavingsTransaction = Prisma.CustomerSavingsTransactionModel
  * 
  */
 export type SupplierAdditionalPayment = Prisma.SupplierAdditionalPaymentModel
+/**
+ * Model SupplierAdditionalPaymentAllocation
+ * 
+ */
+export type SupplierAdditionalPaymentAllocation = Prisma.SupplierAdditionalPaymentAllocationModel

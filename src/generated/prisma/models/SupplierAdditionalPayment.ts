@@ -345,6 +345,7 @@ export type SupplierAdditionalPaymentWhereInput = {
   reversalOf?: Prisma.XOR<Prisma.SupplierAdditionalPaymentNullableScalarRelationFilter, Prisma.SupplierAdditionalPaymentWhereInput> | null
   reversal?: Prisma.XOR<Prisma.SupplierAdditionalPaymentNullableScalarRelationFilter, Prisma.SupplierAdditionalPaymentWhereInput> | null
   session?: Prisma.XOR<Prisma.CashSessionNullableScalarRelationFilter, Prisma.CashSessionWhereInput> | null
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationListRelationFilter
 }
 
 export type SupplierAdditionalPaymentOrderByWithRelationInput = {
@@ -371,6 +372,7 @@ export type SupplierAdditionalPaymentOrderByWithRelationInput = {
   reversalOf?: Prisma.SupplierAdditionalPaymentOrderByWithRelationInput
   reversal?: Prisma.SupplierAdditionalPaymentOrderByWithRelationInput
   session?: Prisma.CashSessionOrderByWithRelationInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationOrderByRelationAggregateInput
 }
 
 export type SupplierAdditionalPaymentWhereUniqueInput = Prisma.AtLeast<{
@@ -400,6 +402,7 @@ export type SupplierAdditionalPaymentWhereUniqueInput = Prisma.AtLeast<{
   reversalOf?: Prisma.XOR<Prisma.SupplierAdditionalPaymentNullableScalarRelationFilter, Prisma.SupplierAdditionalPaymentWhereInput> | null
   reversal?: Prisma.XOR<Prisma.SupplierAdditionalPaymentNullableScalarRelationFilter, Prisma.SupplierAdditionalPaymentWhereInput> | null
   session?: Prisma.XOR<Prisma.CashSessionNullableScalarRelationFilter, Prisma.CashSessionWhereInput> | null
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationListRelationFilter
 }, "id" | "reference" | "reversalOfId" | "idempotencyKey">
 
 export type SupplierAdditionalPaymentOrderByWithAggregationInput = {
@@ -471,6 +474,7 @@ export type SupplierAdditionalPaymentCreateInput = {
   reversalOf?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalInput
   reversal?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalOfInput
   session?: Prisma.CashSessionCreateNestedOneWithoutSupplierAdditionalPaymentsInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentUncheckedCreateInput = {
@@ -493,6 +497,7 @@ export type SupplierAdditionalPaymentUncheckedCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   reversal?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedOneWithoutReversalOfInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentUpdateInput = {
@@ -514,6 +519,7 @@ export type SupplierAdditionalPaymentUpdateInput = {
   reversalOf?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalNestedInput
   reversal?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalOfNestedInput
   session?: Prisma.CashSessionUpdateOneWithoutSupplierAdditionalPaymentsNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentUncheckedUpdateInput = {
@@ -536,6 +542,7 @@ export type SupplierAdditionalPaymentUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   reversal?: Prisma.SupplierAdditionalPaymentUncheckedUpdateOneWithoutReversalOfNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentCreateManyInput = {
@@ -690,6 +697,11 @@ export type SupplierAdditionalPaymentSumOrderByAggregateInput = {
   treasuryAccountId?: Prisma.SortOrder
   reversalOfId?: Prisma.SortOrder
   sessionId?: Prisma.SortOrder
+}
+
+export type SupplierAdditionalPaymentScalarRelationFilter = {
+  is?: Prisma.SupplierAdditionalPaymentWhereInput
+  isNot?: Prisma.SupplierAdditionalPaymentWhereInput
 }
 
 export type SupplierAdditionalPaymentCreateNestedManyWithoutSupplierInput = {
@@ -866,6 +878,20 @@ export type SupplierAdditionalPaymentUncheckedUpdateOneWithoutReversalOfNestedIn
   update?: Prisma.XOR<Prisma.XOR<Prisma.SupplierAdditionalPaymentUpdateToOneWithWhereWithoutReversalOfInput, Prisma.SupplierAdditionalPaymentUpdateWithoutReversalOfInput>, Prisma.SupplierAdditionalPaymentUncheckedUpdateWithoutReversalOfInput>
 }
 
+export type SupplierAdditionalPaymentCreateNestedOneWithoutAllocationsInput = {
+  create?: Prisma.XOR<Prisma.SupplierAdditionalPaymentCreateWithoutAllocationsInput, Prisma.SupplierAdditionalPaymentUncheckedCreateWithoutAllocationsInput>
+  connectOrCreate?: Prisma.SupplierAdditionalPaymentCreateOrConnectWithoutAllocationsInput
+  connect?: Prisma.SupplierAdditionalPaymentWhereUniqueInput
+}
+
+export type SupplierAdditionalPaymentUpdateOneRequiredWithoutAllocationsNestedInput = {
+  create?: Prisma.XOR<Prisma.SupplierAdditionalPaymentCreateWithoutAllocationsInput, Prisma.SupplierAdditionalPaymentUncheckedCreateWithoutAllocationsInput>
+  connectOrCreate?: Prisma.SupplierAdditionalPaymentCreateOrConnectWithoutAllocationsInput
+  upsert?: Prisma.SupplierAdditionalPaymentUpsertWithoutAllocationsInput
+  connect?: Prisma.SupplierAdditionalPaymentWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.SupplierAdditionalPaymentUpdateToOneWithWhereWithoutAllocationsInput, Prisma.SupplierAdditionalPaymentUpdateWithoutAllocationsInput>, Prisma.SupplierAdditionalPaymentUncheckedUpdateWithoutAllocationsInput>
+}
+
 export type SupplierAdditionalPaymentCreateWithoutSupplierInput = {
   reference: string
   amount: number
@@ -884,6 +910,7 @@ export type SupplierAdditionalPaymentCreateWithoutSupplierInput = {
   reversalOf?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalInput
   reversal?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalOfInput
   session?: Prisma.CashSessionCreateNestedOneWithoutSupplierAdditionalPaymentsInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentUncheckedCreateWithoutSupplierInput = {
@@ -905,6 +932,7 @@ export type SupplierAdditionalPaymentUncheckedCreateWithoutSupplierInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   reversal?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedOneWithoutReversalOfInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentCreateOrConnectWithoutSupplierInput = {
@@ -974,6 +1002,7 @@ export type SupplierAdditionalPaymentCreateWithoutSessionInput = {
   treasuryAccount: Prisma.TreasuryAccountCreateNestedOneWithoutSupplierAdditionalPaymentsInput
   reversalOf?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalInput
   reversal?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalOfInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentUncheckedCreateWithoutSessionInput = {
@@ -995,6 +1024,7 @@ export type SupplierAdditionalPaymentUncheckedCreateWithoutSessionInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   reversal?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedOneWithoutReversalOfInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentCreateOrConnectWithoutSessionInput = {
@@ -1040,6 +1070,7 @@ export type SupplierAdditionalPaymentCreateWithoutTreasuryAccountInput = {
   reversalOf?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalInput
   reversal?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalOfInput
   session?: Prisma.CashSessionCreateNestedOneWithoutSupplierAdditionalPaymentsInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentUncheckedCreateWithoutTreasuryAccountInput = {
@@ -1061,6 +1092,7 @@ export type SupplierAdditionalPaymentUncheckedCreateWithoutTreasuryAccountInput 
   createdAt?: Date | string
   updatedAt?: Date | string
   reversal?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedOneWithoutReversalOfInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentCreateOrConnectWithoutTreasuryAccountInput = {
@@ -1106,6 +1138,7 @@ export type SupplierAdditionalPaymentCreateWithoutReversalInput = {
   treasuryAccount: Prisma.TreasuryAccountCreateNestedOneWithoutSupplierAdditionalPaymentsInput
   reversalOf?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalInput
   session?: Prisma.CashSessionCreateNestedOneWithoutSupplierAdditionalPaymentsInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentUncheckedCreateWithoutReversalInput = {
@@ -1127,6 +1160,7 @@ export type SupplierAdditionalPaymentUncheckedCreateWithoutReversalInput = {
   sessionId?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentCreateOrConnectWithoutReversalInput = {
@@ -1152,6 +1186,7 @@ export type SupplierAdditionalPaymentCreateWithoutReversalOfInput = {
   treasuryAccount: Prisma.TreasuryAccountCreateNestedOneWithoutSupplierAdditionalPaymentsInput
   reversal?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalOfInput
   session?: Prisma.CashSessionCreateNestedOneWithoutSupplierAdditionalPaymentsInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentUncheckedCreateWithoutReversalOfInput = {
@@ -1173,6 +1208,7 @@ export type SupplierAdditionalPaymentUncheckedCreateWithoutReversalOfInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   reversal?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedOneWithoutReversalOfInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedCreateNestedManyWithoutPaymentInput
 }
 
 export type SupplierAdditionalPaymentCreateOrConnectWithoutReversalOfInput = {
@@ -1209,6 +1245,7 @@ export type SupplierAdditionalPaymentUpdateWithoutReversalInput = {
   treasuryAccount?: Prisma.TreasuryAccountUpdateOneRequiredWithoutSupplierAdditionalPaymentsNestedInput
   reversalOf?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalNestedInput
   session?: Prisma.CashSessionUpdateOneWithoutSupplierAdditionalPaymentsNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentUncheckedUpdateWithoutReversalInput = {
@@ -1230,6 +1267,7 @@ export type SupplierAdditionalPaymentUncheckedUpdateWithoutReversalInput = {
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentUpsertWithoutReversalOfInput = {
@@ -1261,6 +1299,7 @@ export type SupplierAdditionalPaymentUpdateWithoutReversalOfInput = {
   treasuryAccount?: Prisma.TreasuryAccountUpdateOneRequiredWithoutSupplierAdditionalPaymentsNestedInput
   reversal?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalOfNestedInput
   session?: Prisma.CashSessionUpdateOneWithoutSupplierAdditionalPaymentsNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentUncheckedUpdateWithoutReversalOfInput = {
@@ -1275,6 +1314,109 @@ export type SupplierAdditionalPaymentUncheckedUpdateWithoutReversalOfInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isReversal?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reversalReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  idempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  reversal?: Prisma.SupplierAdditionalPaymentUncheckedUpdateOneWithoutReversalOfNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutPaymentNestedInput
+}
+
+export type SupplierAdditionalPaymentCreateWithoutAllocationsInput = {
+  reference: string
+  amount: number
+  paymentMethod?: string
+  date?: Date | string
+  status?: string
+  notes?: string | null
+  description?: string | null
+  isReversal?: boolean
+  reversedAt?: Date | string | null
+  reversalReason?: string | null
+  idempotencyKey?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  supplier: Prisma.SupplierCreateNestedOneWithoutAdditionalPaymentsInput
+  treasuryAccount: Prisma.TreasuryAccountCreateNestedOneWithoutSupplierAdditionalPaymentsInput
+  reversalOf?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalInput
+  reversal?: Prisma.SupplierAdditionalPaymentCreateNestedOneWithoutReversalOfInput
+  session?: Prisma.CashSessionCreateNestedOneWithoutSupplierAdditionalPaymentsInput
+}
+
+export type SupplierAdditionalPaymentUncheckedCreateWithoutAllocationsInput = {
+  id?: number
+  reference: string
+  supplierId: number
+  amount: number
+  treasuryAccountId: number
+  paymentMethod?: string
+  date?: Date | string
+  status?: string
+  notes?: string | null
+  description?: string | null
+  isReversal?: boolean
+  reversalOfId?: number | null
+  reversedAt?: Date | string | null
+  reversalReason?: string | null
+  idempotencyKey?: string | null
+  sessionId?: number | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  reversal?: Prisma.SupplierAdditionalPaymentUncheckedCreateNestedOneWithoutReversalOfInput
+}
+
+export type SupplierAdditionalPaymentCreateOrConnectWithoutAllocationsInput = {
+  where: Prisma.SupplierAdditionalPaymentWhereUniqueInput
+  create: Prisma.XOR<Prisma.SupplierAdditionalPaymentCreateWithoutAllocationsInput, Prisma.SupplierAdditionalPaymentUncheckedCreateWithoutAllocationsInput>
+}
+
+export type SupplierAdditionalPaymentUpsertWithoutAllocationsInput = {
+  update: Prisma.XOR<Prisma.SupplierAdditionalPaymentUpdateWithoutAllocationsInput, Prisma.SupplierAdditionalPaymentUncheckedUpdateWithoutAllocationsInput>
+  create: Prisma.XOR<Prisma.SupplierAdditionalPaymentCreateWithoutAllocationsInput, Prisma.SupplierAdditionalPaymentUncheckedCreateWithoutAllocationsInput>
+  where?: Prisma.SupplierAdditionalPaymentWhereInput
+}
+
+export type SupplierAdditionalPaymentUpdateToOneWithWhereWithoutAllocationsInput = {
+  where?: Prisma.SupplierAdditionalPaymentWhereInput
+  data: Prisma.XOR<Prisma.SupplierAdditionalPaymentUpdateWithoutAllocationsInput, Prisma.SupplierAdditionalPaymentUncheckedUpdateWithoutAllocationsInput>
+}
+
+export type SupplierAdditionalPaymentUpdateWithoutAllocationsInput = {
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isReversal?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reversalReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  idempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  supplier?: Prisma.SupplierUpdateOneRequiredWithoutAdditionalPaymentsNestedInput
+  treasuryAccount?: Prisma.TreasuryAccountUpdateOneRequiredWithoutSupplierAdditionalPaymentsNestedInput
+  reversalOf?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalNestedInput
+  reversal?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalOfNestedInput
+  session?: Prisma.CashSessionUpdateOneWithoutSupplierAdditionalPaymentsNestedInput
+}
+
+export type SupplierAdditionalPaymentUncheckedUpdateWithoutAllocationsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  reference?: Prisma.StringFieldUpdateOperationsInput | string
+  supplierId?: Prisma.IntFieldUpdateOperationsInput | number
+  amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  treasuryAccountId?: Prisma.IntFieldUpdateOperationsInput | number
+  paymentMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isReversal?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  reversalOfId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   reversalReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1322,6 +1464,7 @@ export type SupplierAdditionalPaymentUpdateWithoutSupplierInput = {
   reversalOf?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalNestedInput
   reversal?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalOfNestedInput
   session?: Prisma.CashSessionUpdateOneWithoutSupplierAdditionalPaymentsNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentUncheckedUpdateWithoutSupplierInput = {
@@ -1343,6 +1486,7 @@ export type SupplierAdditionalPaymentUncheckedUpdateWithoutSupplierInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   reversal?: Prisma.SupplierAdditionalPaymentUncheckedUpdateOneWithoutReversalOfNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentUncheckedUpdateManyWithoutSupplierInput = {
@@ -1403,6 +1547,7 @@ export type SupplierAdditionalPaymentUpdateWithoutSessionInput = {
   treasuryAccount?: Prisma.TreasuryAccountUpdateOneRequiredWithoutSupplierAdditionalPaymentsNestedInput
   reversalOf?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalNestedInput
   reversal?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalOfNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentUncheckedUpdateWithoutSessionInput = {
@@ -1424,6 +1569,7 @@ export type SupplierAdditionalPaymentUncheckedUpdateWithoutSessionInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   reversal?: Prisma.SupplierAdditionalPaymentUncheckedUpdateOneWithoutReversalOfNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentUncheckedUpdateManyWithoutSessionInput = {
@@ -1484,6 +1630,7 @@ export type SupplierAdditionalPaymentUpdateWithoutTreasuryAccountInput = {
   reversalOf?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalNestedInput
   reversal?: Prisma.SupplierAdditionalPaymentUpdateOneWithoutReversalOfNestedInput
   session?: Prisma.CashSessionUpdateOneWithoutSupplierAdditionalPaymentsNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentUncheckedUpdateWithoutTreasuryAccountInput = {
@@ -1505,6 +1652,7 @@ export type SupplierAdditionalPaymentUncheckedUpdateWithoutTreasuryAccountInput 
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   reversal?: Prisma.SupplierAdditionalPaymentUncheckedUpdateOneWithoutReversalOfNestedInput
+  allocations?: Prisma.SupplierAdditionalPaymentAllocationUncheckedUpdateManyWithoutPaymentNestedInput
 }
 
 export type SupplierAdditionalPaymentUncheckedUpdateManyWithoutTreasuryAccountInput = {
@@ -1527,6 +1675,35 @@ export type SupplierAdditionalPaymentUncheckedUpdateManyWithoutTreasuryAccountIn
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
+
+/**
+ * Count Type SupplierAdditionalPaymentCountOutputType
+ */
+
+export type SupplierAdditionalPaymentCountOutputType = {
+  allocations: number
+}
+
+export type SupplierAdditionalPaymentCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  allocations?: boolean | SupplierAdditionalPaymentCountOutputTypeCountAllocationsArgs
+}
+
+/**
+ * SupplierAdditionalPaymentCountOutputType without action
+ */
+export type SupplierAdditionalPaymentCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SupplierAdditionalPaymentCountOutputType
+   */
+  select?: Prisma.SupplierAdditionalPaymentCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * SupplierAdditionalPaymentCountOutputType without action
+ */
+export type SupplierAdditionalPaymentCountOutputTypeCountAllocationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SupplierAdditionalPaymentAllocationWhereInput
+}
 
 
 export type SupplierAdditionalPaymentSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -1553,6 +1730,8 @@ export type SupplierAdditionalPaymentSelect<ExtArgs extends runtime.Types.Extens
   reversalOf?: boolean | Prisma.SupplierAdditionalPayment$reversalOfArgs<ExtArgs>
   reversal?: boolean | Prisma.SupplierAdditionalPayment$reversalArgs<ExtArgs>
   session?: boolean | Prisma.SupplierAdditionalPayment$sessionArgs<ExtArgs>
+  allocations?: boolean | Prisma.SupplierAdditionalPayment$allocationsArgs<ExtArgs>
+  _count?: boolean | Prisma.SupplierAdditionalPaymentCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["supplierAdditionalPayment"]>
 
 export type SupplierAdditionalPaymentSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -1633,6 +1812,8 @@ export type SupplierAdditionalPaymentInclude<ExtArgs extends runtime.Types.Exten
   reversalOf?: boolean | Prisma.SupplierAdditionalPayment$reversalOfArgs<ExtArgs>
   reversal?: boolean | Prisma.SupplierAdditionalPayment$reversalArgs<ExtArgs>
   session?: boolean | Prisma.SupplierAdditionalPayment$sessionArgs<ExtArgs>
+  allocations?: boolean | Prisma.SupplierAdditionalPayment$allocationsArgs<ExtArgs>
+  _count?: boolean | Prisma.SupplierAdditionalPaymentCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type SupplierAdditionalPaymentIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   supplier?: boolean | Prisma.SupplierDefaultArgs<ExtArgs>
@@ -1655,6 +1836,7 @@ export type $SupplierAdditionalPaymentPayload<ExtArgs extends runtime.Types.Exte
     reversalOf: Prisma.$SupplierAdditionalPaymentPayload<ExtArgs> | null
     reversal: Prisma.$SupplierAdditionalPaymentPayload<ExtArgs> | null
     session: Prisma.$CashSessionPayload<ExtArgs> | null
+    allocations: Prisma.$SupplierAdditionalPaymentAllocationPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -2074,6 +2256,7 @@ export interface Prisma__SupplierAdditionalPaymentClient<T, Null = never, ExtArg
   reversalOf<T extends Prisma.SupplierAdditionalPayment$reversalOfArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SupplierAdditionalPayment$reversalOfArgs<ExtArgs>>): Prisma.Prisma__SupplierAdditionalPaymentClient<runtime.Types.Result.GetResult<Prisma.$SupplierAdditionalPaymentPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   reversal<T extends Prisma.SupplierAdditionalPayment$reversalArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SupplierAdditionalPayment$reversalArgs<ExtArgs>>): Prisma.Prisma__SupplierAdditionalPaymentClient<runtime.Types.Result.GetResult<Prisma.$SupplierAdditionalPaymentPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   session<T extends Prisma.SupplierAdditionalPayment$sessionArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SupplierAdditionalPayment$sessionArgs<ExtArgs>>): Prisma.Prisma__CashSessionClient<runtime.Types.Result.GetResult<Prisma.$CashSessionPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  allocations<T extends Prisma.SupplierAdditionalPayment$allocationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SupplierAdditionalPayment$allocationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SupplierAdditionalPaymentAllocationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2574,6 +2757,30 @@ export type SupplierAdditionalPayment$sessionArgs<ExtArgs extends runtime.Types.
    */
   include?: Prisma.CashSessionInclude<ExtArgs> | null
   where?: Prisma.CashSessionWhereInput
+}
+
+/**
+ * SupplierAdditionalPayment.allocations
+ */
+export type SupplierAdditionalPayment$allocationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SupplierAdditionalPaymentAllocation
+   */
+  select?: Prisma.SupplierAdditionalPaymentAllocationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SupplierAdditionalPaymentAllocation
+   */
+  omit?: Prisma.SupplierAdditionalPaymentAllocationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SupplierAdditionalPaymentAllocationInclude<ExtArgs> | null
+  where?: Prisma.SupplierAdditionalPaymentAllocationWhereInput
+  orderBy?: Prisma.SupplierAdditionalPaymentAllocationOrderByWithRelationInput | Prisma.SupplierAdditionalPaymentAllocationOrderByWithRelationInput[]
+  cursor?: Prisma.SupplierAdditionalPaymentAllocationWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.SupplierAdditionalPaymentAllocationScalarFieldEnum | Prisma.SupplierAdditionalPaymentAllocationScalarFieldEnum[]
 }
 
 /**

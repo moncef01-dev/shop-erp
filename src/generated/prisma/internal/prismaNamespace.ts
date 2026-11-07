@@ -426,7 +426,8 @@ export const ModelName = {
   MonthlyClosingAuditLog: 'MonthlyClosingAuditLog',
   CustomerSavingsAccount: 'CustomerSavingsAccount',
   CustomerSavingsTransaction: 'CustomerSavingsTransaction',
-  SupplierAdditionalPayment: 'SupplierAdditionalPayment'
+  SupplierAdditionalPayment: 'SupplierAdditionalPayment',
+  SupplierAdditionalPaymentAllocation: 'SupplierAdditionalPaymentAllocation'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -442,7 +443,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "location" | "productStock" | "stockMovement" | "customer" | "supplier" | "sales" | "saleItem" | "payment" | "customerAdvance" | "customerAdvanceAllocation" | "purchase" | "purchaseItem" | "purchaseReceipt" | "purchaseReceiptItem" | "cashSession" | "expense" | "treasuryAccount" | "treasuryTransfer" | "supplierDebt" | "transaction" | "shopSettings" | "monthlyClosingChecklist" | "monthlyClosingSnapshot" | "monthlyClosingPeriod" | "monthlyClosingAuditLog" | "customerSavingsAccount" | "customerSavingsTransaction" | "supplierAdditionalPayment"
+    modelProps: "category" | "product" | "location" | "productStock" | "stockMovement" | "customer" | "supplier" | "sales" | "saleItem" | "payment" | "customerAdvance" | "customerAdvanceAllocation" | "purchase" | "purchaseItem" | "purchaseReceipt" | "purchaseReceiptItem" | "cashSession" | "expense" | "treasuryAccount" | "treasuryTransfer" | "supplierDebt" | "transaction" | "shopSettings" | "monthlyClosingChecklist" | "monthlyClosingSnapshot" | "monthlyClosingPeriod" | "monthlyClosingAuditLog" | "customerSavingsAccount" | "customerSavingsTransaction" | "supplierAdditionalPayment" | "supplierAdditionalPaymentAllocation"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2666,6 +2667,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    SupplierAdditionalPaymentAllocation: {
+      payload: Prisma.$SupplierAdditionalPaymentAllocationPayload<ExtArgs>
+      fields: Prisma.SupplierAdditionalPaymentAllocationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SupplierAdditionalPaymentAllocationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SupplierAdditionalPaymentAllocationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload>
+        }
+        findFirst: {
+          args: Prisma.SupplierAdditionalPaymentAllocationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SupplierAdditionalPaymentAllocationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload>
+        }
+        findMany: {
+          args: Prisma.SupplierAdditionalPaymentAllocationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload>[]
+        }
+        create: {
+          args: Prisma.SupplierAdditionalPaymentAllocationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload>
+        }
+        createMany: {
+          args: Prisma.SupplierAdditionalPaymentAllocationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SupplierAdditionalPaymentAllocationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload>[]
+        }
+        delete: {
+          args: Prisma.SupplierAdditionalPaymentAllocationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload>
+        }
+        update: {
+          args: Prisma.SupplierAdditionalPaymentAllocationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload>
+        }
+        deleteMany: {
+          args: Prisma.SupplierAdditionalPaymentAllocationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SupplierAdditionalPaymentAllocationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SupplierAdditionalPaymentAllocationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload>[]
+        }
+        upsert: {
+          args: Prisma.SupplierAdditionalPaymentAllocationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SupplierAdditionalPaymentAllocationPayload>
+        }
+        aggregate: {
+          args: Prisma.SupplierAdditionalPaymentAllocationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSupplierAdditionalPaymentAllocation>
+        }
+        groupBy: {
+          args: Prisma.SupplierAdditionalPaymentAllocationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SupplierAdditionalPaymentAllocationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SupplierAdditionalPaymentAllocationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SupplierAdditionalPaymentAllocationCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -3244,6 +3319,30 @@ export const SupplierAdditionalPaymentScalarFieldEnum = {
 export type SupplierAdditionalPaymentScalarFieldEnum = (typeof SupplierAdditionalPaymentScalarFieldEnum)[keyof typeof SupplierAdditionalPaymentScalarFieldEnum]
 
 
+export const SupplierAdditionalPaymentAllocationScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  paymentId: 'paymentId',
+  supplierId: 'supplierId',
+  purchaseId: 'purchaseId',
+  supplierDebtId: 'supplierDebtId',
+  amount: 'amount',
+  date: 'date',
+  status: 'status',
+  notes: 'notes',
+  description: 'description',
+  isReversal: 'isReversal',
+  reversalOfId: 'reversalOfId',
+  reversedAt: 'reversedAt',
+  reversalReason: 'reversalReason',
+  idempotencyKey: 'idempotencyKey',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SupplierAdditionalPaymentAllocationScalarFieldEnum = (typeof SupplierAdditionalPaymentAllocationScalarFieldEnum)[keyof typeof SupplierAdditionalPaymentAllocationScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -3481,6 +3580,7 @@ export type GlobalOmitConfig = {
   customerSavingsAccount?: Prisma.CustomerSavingsAccountOmit
   customerSavingsTransaction?: Prisma.CustomerSavingsTransactionOmit
   supplierAdditionalPayment?: Prisma.SupplierAdditionalPaymentOmit
+  supplierAdditionalPaymentAllocation?: Prisma.SupplierAdditionalPaymentAllocationOmit
 }
 
 /* Types for Logging */

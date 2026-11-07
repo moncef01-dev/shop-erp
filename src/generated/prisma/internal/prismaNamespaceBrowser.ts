@@ -80,7 +80,8 @@ export const ModelName = {
   MonthlyClosingAuditLog: 'MonthlyClosingAuditLog',
   CustomerSavingsAccount: 'CustomerSavingsAccount',
   CustomerSavingsTransaction: 'CustomerSavingsTransaction',
-  SupplierAdditionalPayment: 'SupplierAdditionalPayment'
+  SupplierAdditionalPayment: 'SupplierAdditionalPayment',
+  SupplierAdditionalPaymentAllocation: 'SupplierAdditionalPaymentAllocation'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -636,6 +637,30 @@ export const SupplierAdditionalPaymentScalarFieldEnum = {
 } as const
 
 export type SupplierAdditionalPaymentScalarFieldEnum = (typeof SupplierAdditionalPaymentScalarFieldEnum)[keyof typeof SupplierAdditionalPaymentScalarFieldEnum]
+
+
+export const SupplierAdditionalPaymentAllocationScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  paymentId: 'paymentId',
+  supplierId: 'supplierId',
+  purchaseId: 'purchaseId',
+  supplierDebtId: 'supplierDebtId',
+  amount: 'amount',
+  date: 'date',
+  status: 'status',
+  notes: 'notes',
+  description: 'description',
+  isReversal: 'isReversal',
+  reversalOfId: 'reversalOfId',
+  reversedAt: 'reversedAt',
+  reversalReason: 'reversalReason',
+  idempotencyKey: 'idempotencyKey',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SupplierAdditionalPaymentAllocationScalarFieldEnum = (typeof SupplierAdditionalPaymentAllocationScalarFieldEnum)[keyof typeof SupplierAdditionalPaymentAllocationScalarFieldEnum]
 
 
 export const SortOrder = {

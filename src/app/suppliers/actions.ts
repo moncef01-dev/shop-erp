@@ -10,7 +10,7 @@ export interface SupplierStatementEvent {
   id: string;
   date: string;
   reference: string;
-  type: "INITIAL_DEBT" | "PURCHASE_INVOICE" | "PAYMENT" | "ADJUSTMENT" | "RETURN" | "SUPPLIER_REFUND";
+  type: "INITIAL_DEBT" | "PURCHASE_INVOICE" | "PAYMENT" | "ADJUSTMENT" | "RETURN" | "SUPPLIER_REFUND" | "ALLOCATION";
   typeLabel: string;
   description: string;
   debit: number; // Montant diminuant la dette envers le fournisseur (Paiement / Règlement / Retour)
@@ -46,6 +46,8 @@ export interface SupplierDetailsWithBalance {
   lastPaymentDate: string | null;
   lastPurchaseDate: string | null;
   additionalPaymentsTotal?: number;
+  unallocatedAdditionalPaymentsTotal?: number;
+  totalAllocated?: number;
 }
 
 export interface SupplierStatementData {
@@ -57,9 +59,11 @@ export interface SupplierStatementData {
     totalInvoiced: number;
     totalPaid: number;
     totalReturns?: number;
+    totalAllocated?: number;
     outstandingDebt: number;
     outstandingCredit?: number;
     additionalPaymentsTotal?: number;
+    unallocatedAdditionalPaymentsTotal?: number;
   };
 }
 
@@ -160,6 +164,7 @@ export async function calculateSupplierDebt(
   totalPurchases: number;
   totalPaid: number;
   totalReturns: number;
+  totalAllocated: number;
   outstandingDebt: number;
   outstandingCredit: number;
 }> {
@@ -202,7 +207,23 @@ export async function calculateSupplierDebt(
   });
   const totalPaid = paymentsAgg._sum.amount ?? 0;
 
-  const netBalance = initialDebt + totalPurchases - totalPaid - totalReturns;
+  // 5. Imputations de versements supplémentaires sur la dette
+  let totalAllocated = 0;
+  try {
+    const allocAgg = await db.supplierAdditionalPaymentAllocation.aggregate({
+      where: {
+        supplierId,
+        status: "completed",
+        isReversal: false,
+      },
+      _sum: { amount: true },
+    });
+    totalAllocated = allocAgg._sum.amount ?? 0;
+  } catch {
+    // Ignore si la table n'est pas encore initialisée
+  }
+
+  const netBalance = initialDebt + totalPurchases - totalPaid - totalReturns - totalAllocated;
   const outstandingDebt = Math.max(0, netBalance);
   const outstandingCredit = Math.max(0, -netBalance);
 
@@ -211,6 +232,7 @@ export async function calculateSupplierDebt(
     totalPurchases: Math.round(totalPurchases * 100) / 100,
     totalPaid: Math.round(totalPaid * 100) / 100,
     totalReturns: Math.round(totalReturns * 100) / 100,
+    totalAllocated: Math.round(totalAllocated * 100) / 100,
     outstandingDebt: Math.round(outstandingDebt * 100) / 100,
     outstandingCredit: Math.round(outstandingCredit * 100) / 100,
   };
@@ -1172,13 +1194,60 @@ export async function getSupplierStatement(
     });
   }
 
+  // 4. Imputations de versements supplémentaires
+  let allocations: Array<{
+    id: number;
+    reference: string;
+    amount: number;
+    date: Date;
+    description: string | null;
+    notes: string | null;
+    payment?: { reference: string } | null;
+    purchase?: { reference: string } | null;
+  }> = [];
+  try {
+    allocations = await prisma.supplierAdditionalPaymentAllocation.findMany({
+      where: {
+        supplierId,
+        status: "completed",
+        isReversal: false,
+      },
+      include: {
+        payment: { select: { reference: true } },
+        purchase: { select: { reference: true } },
+      },
+      orderBy: { date: "asc" },
+    });
+  } catch {
+    // Ignore si la table n'est pas encore initialisée
+  }
+
+  for (const alloc of allocations) {
+    events.push({
+      id: `alloc-${alloc.id}`,
+      date: alloc.date.toISOString(),
+      reference: alloc.reference,
+      type: "ALLOCATION",
+      typeLabel: "Imputation versement hors dette",
+      description:
+        alloc.description ||
+        `Imputation versement ${alloc.payment?.reference || ""} sur dette`,
+      debit: alloc.amount,
+      credit: 0,
+      runningBalance: 0,
+      notes: alloc.notes,
+      purchaseReference: alloc.purchase?.reference || null,
+    });
+  }
+
   // Tri chronologique croissant pour calcul de la balance courante
-  // Priorité le même jour : 1 = Dette antérieure, 2 = Achat, 3 = Retour, 4 = Paiement, 4.5 = Remboursement
+  // Priorité le même jour : 1 = Dette antérieure, 2 = Achat, 3 = Retour, 4 = Paiement, 4.2 = Imputation, 4.5 = Remboursement
   const typeAscPriority: Record<string, number> = {
     INITIAL_DEBT: 1,
     PURCHASE_INVOICE: 2,
     RETURN: 3,
     PAYMENT: 4,
+    ALLOCATION: 4.2,
     SUPPLIER_REFUND: 4.5,
     ADJUSTMENT: 5,
   };
@@ -1211,6 +1280,7 @@ export async function getSupplierStatement(
   const typeDescPriority: Record<string, number> = {
     SUPPLIER_REFUND: 0.5,
     PAYMENT: 1,
+    ALLOCATION: 1.5,
     RETURN: 2,
     PURCHASE_INVOICE: 3,
     INITIAL_DEBT: 4,
@@ -1231,7 +1301,8 @@ export async function getSupplierStatement(
   const returnsTotal = returnDebts.reduce((sum, d) => sum + d.amount, 0);
   const purchasesTotal = purchases.reduce((sum, p) => sum + p.totalAmount, 0);
   const paymentsTotal = payments.reduce((sum, p) => sum + p.amount, 0);
-  const netBalance = debtsTotal + purchasesTotal - paymentsTotal - returnsTotal;
+  const allocationsTotal = allocations.reduce((sum, a) => sum + a.amount, 0);
+  const netBalance = debtsTotal + purchasesTotal - paymentsTotal - returnsTotal - allocationsTotal;
   const outstandingDebt = Math.max(0, netBalance);
   const outstandingCredit = Math.max(0, -netBalance);
 
@@ -1266,6 +1337,7 @@ export async function getSupplierStatement(
       totalReturns: returnsTotal,
       totalInvoiced: debtsTotal + purchasesTotal,
       totalPaid: paymentsTotal,
+      totalAllocated: allocationsTotal,
       outstandingDebt,
       outstandingCredit,
     },
