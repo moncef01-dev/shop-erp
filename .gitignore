@@ -65,3 +65,6 @@ prisma/backups_test_runner/
 *.csv
 Articles.csv
 Stock_Initial.csv
+
+
+.VSCodeCounter
