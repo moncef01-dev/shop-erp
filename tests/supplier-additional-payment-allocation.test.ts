@@ -91,25 +91,25 @@ async function main() {
   console.log("Migrations applied successfully.");
 
   // Import after setting process.env.DATABASE_URL
-  const { prisma } = await import("../src/lib/prisma.ts");
+  const { prisma } = await import("../src/lib/prisma");
   const {
     calculateSupplierDebt,
     recordSupplierInitialDebtAction,
     getSupplierStatement,
-  } = await import("../src/app/suppliers/actions.ts");
+  } = await import("../src/app/suppliers/actions");
   const {
     createSupplierAdditionalPaymentAction,
     reverseSupplierAdditionalPaymentAction,
     getSupplierAdditionalPaymentTotal,
-  } = await import("../src/app/suppliers/additional-payment-actions.ts");
+  } = await import("../src/app/suppliers/additional-payment-actions");
   const {
     createSupplierAdditionalPaymentAllocationAction,
     reverseSupplierAdditionalPaymentAllocationAction,
     getSupplierAllocationsSummary,
     getSupplierEligibleAdditionalPayments,
     getSupplierAllocationHistory,
-  } = await import("../src/app/suppliers/allocation-actions.ts");
-  const { calculateAccountBalance } = await import("../src/app/cash/treasury-actions.ts");
+  } = await import("../src/app/suppliers/allocation-actions");
+  const { calculateAccountBalance } = await import("../src/app/cash/treasury-actions");
 
   // ─── SETUP INITIAL DATA ───────────────────────────────────────────────────
   console.log("\nSetting up initial master data...");

@@ -22,6 +22,7 @@ import {
   openCashSessionAction,
   closeCashSessionAction,
   editClosedCashSessionAction,
+  reconcileOutOfSessionCashAction,
   type CashDashboardData,
 } from "../actions";
 
@@ -52,10 +53,11 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
   const [isPending, startTransition] = useTransition();
   const [notification, setNotification] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const { activeSession, sessions } = data;
+  const { activeSession, sessions, outOfSessionCash } = data;
 
   // Modals state
   const [isOpeningModalOpen, setIsOpeningModalOpen] = useState(false);
+  const [includePendingCash, setIncludePendingCash] = useState(true);
   const [openingAmount, setOpeningAmount] = useState("0");
   const [openingNotes, setOpeningNotes] = useState("");
 
@@ -97,6 +99,19 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
     (s) => s.status?.toLowerCase() === "closed" || (s.closedAt && s.status?.toLowerCase() !== "open")
   );
 
+  const handleReconcilePendingCash = () => {
+    if (!activeSession) return;
+    startTransition(async () => {
+      const res = await reconcileOutOfSessionCashAction(activeSession.id);
+      if (res.success) {
+        showNotification("success", res.message || "Opérations en espèces rattachées.");
+        router.refresh();
+      } else {
+        showNotification("error", res.error || "Erreur de réconciliation.");
+      }
+    });
+  };
+
   // Opening session handler
   const handleOpenSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,6 +125,7 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
       const res = await openCashSessionAction({
         openingAmount: amountNum,
         openingNotes,
+        includePendingCash: outOfSessionCash && outOfSessionCash.pendingNet > 0 ? includePendingCash : false,
       });
 
       if (res.success) {
@@ -297,6 +313,45 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
           )}
         </div>
       </div>
+
+      {/* Alerte des espèces hors session en attente de réconciliation */}
+      {outOfSessionCash && outOfSessionCash.pendingNet !== 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="p-2 bg-amber-100 rounded-xl shrink-0 mt-0.5">
+                <AlertCircle className="h-5 w-5 text-amber-700" />
+              </span>
+              <div>
+                <p className="text-xs font-bold text-amber-950 flex items-center gap-2">
+                  <span>Espèces hors session en attente de réconciliation :</span>
+                  <span className="font-mono text-sm font-black text-amber-900">
+                    {outOfSessionCash.pendingNet > 0 ? "+" : ""}
+                    {formatDA(outOfSessionCash.pendingNet)}
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                    {outOfSessionCash.itemsCount} opération{outOfSessionCash.itemsCount > 1 ? "s" : ""}
+                  </span>
+                </p>
+                <p className="text-amber-800 text-[11px] mt-0.5">
+                  {activeSession
+                    ? "Des règlements en espèces ont été perçus en dehors de la session active. Vous pouvez les intégrer immédiatement au tiroir-caisse de la session en cours."
+                    : "Des règlements en espèces ont été perçus sans session ouverte. Ils sont comptabilisés dans la trésorerie générale et seront rattachés lors de l'ouverture de la prochaine session."}
+                </p>
+              </div>
+            </div>
+            {activeSession && (
+              <button
+                onClick={handleReconcilePendingCash}
+                disabled={isPending}
+                className="px-3.5 py-1.5 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 rounded-lg shadow-xs transition shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {isPending ? "Rattachement..." : `Rattacher à la session ${activeSession.reference}`}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Statut de la Session Active */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
@@ -681,6 +736,30 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
                 />
               </div>
 
+              {outOfSessionCash && outOfSessionCash.pendingNet > 0 && (
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-amber-900">
+                      Espèces en attente hors session :
+                    </span>
+                    <span className="font-mono font-bold text-amber-800">
+                      +{formatDA(outOfSessionCash.pendingNet)}
+                    </span>
+                  </div>
+                  <label className="flex items-start gap-2 cursor-pointer text-[11px] text-amber-900 font-medium select-none">
+                    <input
+                      type="checkbox"
+                      checked={includePendingCash}
+                      onChange={(e) => setIncludePendingCash(e.target.checked)}
+                      className="mt-0.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                    />
+                    <span>
+                      Rattacher ces encaissements ({formatDA(outOfSessionCash.pendingNet)}) à cette nouvelle session de caisse
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
                 <button
                   type="button"
@@ -728,6 +807,14 @@ export function ClosingClient({ data, treasuryAccounts }: ClosingClientProps) {
                     {formatDA(activeSession.currentTheoreticalCash)}
                   </strong>
                 </div>
+                {outOfSessionCash && outOfSessionCash.pendingNet > 0 && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 flex items-center justify-between">
+                    <span>Espèces hors session en attente :</span>
+                    <span className="font-mono font-bold text-amber-900">
+                      +{formatDA(outOfSessionCash.pendingNet)} ({outOfSessionCash.itemsCount} op.)
+                    </span>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1">

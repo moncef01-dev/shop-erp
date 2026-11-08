@@ -280,6 +280,7 @@ export async function getDashboardData(
     prisma.expense.findMany({
       where: {
         date: { gte: start, lte: end },
+        status: { not: "cancelled" },
       },
       orderBy: { date: "desc" },
     }),
@@ -288,6 +289,7 @@ export async function getDashboardData(
     prisma.expense.findMany({
       where: {
         date: { gte: prevStart, lte: prevEnd },
+        status: { not: "cancelled" },
       },
       select: { amount: true, type: true },
     }),
@@ -438,6 +440,7 @@ export async function getDashboardData(
     const sessionExpenses = await prisma.expense.findMany({
       where: {
         method: "cash",
+        status: { not: "cancelled" },
         AND: [
           { OR: [{ accountId: caisseId }, { accountId: null }] },
           {

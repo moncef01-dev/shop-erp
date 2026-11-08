@@ -157,7 +157,7 @@ export async function calculateAccountBalance(
     });
 
     if (activeSession) {
-      const sessionStart = activeSession.openedAt;
+      const cutoff = latestClosedSession?.closedAt ?? account.openingDate ?? new Date(0);
       let bal = activeSession.openingAmount;
 
       const [trIn, trOut, payIn, advIn, incIn, suppOut, expOut] = await Promise.all([
@@ -169,8 +169,8 @@ export async function calculateAccountBalance(
               {
                 sessionId: null,
                 OR: [
-                  { date: { gte: sessionStart } },
-                  { createdAt: { gte: sessionStart } },
+                  { date: { gt: cutoff } },
+                  { createdAt: { gt: cutoff } },
                 ],
               },
             ],
@@ -185,8 +185,8 @@ export async function calculateAccountBalance(
               {
                 sessionId: null,
                 OR: [
-                  { date: { gte: sessionStart } },
-                  { createdAt: { gte: sessionStart } },
+                  { date: { gt: cutoff } },
+                  { createdAt: { gt: cutoff } },
                 ],
               },
             ],
@@ -204,8 +204,8 @@ export async function calculateAccountBalance(
               {
                 sessionId: null,
                 OR: [
-                  { paymentDate: { gte: sessionStart } },
-                  { createdAt: { gte: sessionStart } },
+                  { paymentDate: { gt: cutoff } },
+                  { createdAt: { gt: cutoff } },
                 ],
               },
             ],
@@ -222,8 +222,8 @@ export async function calculateAccountBalance(
               {
                 sessionId: null,
                 OR: [
-                  { paymentDate: { gte: sessionStart } },
-                  { createdAt: { gte: sessionStart } },
+                  { paymentDate: { gt: cutoff } },
+                  { createdAt: { gt: cutoff } },
                 ],
               },
             ],
@@ -233,6 +233,7 @@ export async function calculateAccountBalance(
         }),
         db.expense.aggregate({
           where: {
+            status: { not: "cancelled" },
             type: "income",
             method: "cash",
             OR: [
@@ -240,8 +241,8 @@ export async function calculateAccountBalance(
               {
                 sessionId: null,
                 OR: [
-                  { date: { gte: sessionStart } },
-                  { createdAt: { gte: sessionStart } },
+                  { date: { gt: cutoff } },
+                  { createdAt: { gt: cutoff } },
                 ],
               },
             ],
@@ -258,8 +259,8 @@ export async function calculateAccountBalance(
               {
                 sessionId: null,
                 OR: [
-                  { paymentDate: { gte: sessionStart } },
-                  { createdAt: { gte: sessionStart } },
+                  { paymentDate: { gt: cutoff } },
+                  { createdAt: { gt: cutoff } },
                 ],
               },
             ],
@@ -272,6 +273,7 @@ export async function calculateAccountBalance(
         }),
         db.expense.aggregate({
           where: {
+            status: { not: "cancelled" },
             type: "expense",
             method: "cash",
             OR: [
@@ -279,8 +281,8 @@ export async function calculateAccountBalance(
               {
                 sessionId: null,
                 OR: [
-                  { date: { gte: sessionStart } },
-                  { createdAt: { gte: sessionStart } },
+                  { date: { gt: cutoff } },
+                  { createdAt: { gt: cutoff } },
                 ],
               },
             ],
@@ -306,8 +308,8 @@ export async function calculateAccountBalance(
                 {
                   sessionId: null,
                   OR: [
-                    { date: { gte: sessionStart } },
-                    { createdAt: { gte: sessionStart } },
+                    { date: { gt: cutoff } },
+                    { createdAt: { gt: cutoff } },
                   ],
                 },
               ],
@@ -324,8 +326,8 @@ export async function calculateAccountBalance(
                 {
                   sessionId: null,
                   OR: [
-                    { date: { gte: sessionStart } },
-                    { createdAt: { gte: sessionStart } },
+                    { date: { gt: cutoff } },
+                    { createdAt: { gt: cutoff } },
                   ],
                 },
               ],
@@ -385,6 +387,7 @@ export async function calculateAccountBalance(
         }),
         db.expense.aggregate({
           where: {
+            status: { not: "cancelled" },
             type: "income",
             method: "cash",
             sessionId: null,
@@ -408,6 +411,7 @@ export async function calculateAccountBalance(
         }),
         db.expense.aggregate({
           where: {
+            status: { not: "cancelled" },
             type: "expense",
             method: "cash",
             sessionId: null,
@@ -504,6 +508,7 @@ export async function calculateAccountBalance(
     }),
     db.expense.aggregate({
       where: {
+        status: { not: "cancelled" },
         type: "income",
         OR: [
           { accountId: accountId },
@@ -535,6 +540,7 @@ export async function calculateAccountBalance(
     }),
     db.expense.aggregate({
       where: {
+        status: { not: "cancelled" },
         type: "expense",
         OR: [
           { accountId: accountId },
@@ -1381,6 +1387,7 @@ export async function getAccountMovements(
   // 6. Dépenses d'exploitation et encaissements exceptionnels
   const expenses = await prisma.expense.findMany({
     where: {
+      status: { not: "cancelled" },
       ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
       OR: [
         { accountId: accountId },
@@ -1493,12 +1500,13 @@ export async function getAccountMovements(
     };
 
     if (activeSession) {
-      const sessionStart = new Date(activeSession.openedAt).getTime();
+      const cutoffTime = latestClosed?.closedAt ? new Date(latestClosed.closedAt).getTime() : 0;
       const sessionMovements = movements.filter((m) => {
         if (m.sessionId === activeSession.id) return true;
+        if (m.sessionId !== null && m.sessionId !== undefined) return false;
         const d = new Date(m.date).getTime();
         const c = m.createdAt ? new Date(m.createdAt).getTime() : 0;
-        return d >= sessionStart || c >= sessionStart;
+        return d > cutoffTime || c > cutoffTime;
       });
       sessionMovements.sort((a, b) => getMovementSortTime(a) - getMovementSortTime(b));
       let run = activeSession.openingAmount;

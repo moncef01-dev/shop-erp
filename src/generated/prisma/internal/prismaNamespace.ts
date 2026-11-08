@@ -3084,6 +3084,10 @@ export const ExpenseScalarFieldEnum = {
   notes: 'notes',
   date: 'date',
   sessionId: 'sessionId',
+  status: 'status',
+  cancelledAt: 'cancelledAt',
+  cancellationReason: 'cancellationReason',
+  cancelledBy: 'cancelledBy',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

@@ -54,6 +54,10 @@ export type ExpenseMinAggregateOutputType = {
   notes: string | null
   date: Date | null
   sessionId: number | null
+  status: string | null
+  cancelledAt: Date | null
+  cancellationReason: string | null
+  cancelledBy: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -72,6 +76,10 @@ export type ExpenseMaxAggregateOutputType = {
   notes: string | null
   date: Date | null
   sessionId: number | null
+  status: string | null
+  cancelledAt: Date | null
+  cancellationReason: string | null
+  cancelledBy: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -90,6 +98,10 @@ export type ExpenseCountAggregateOutputType = {
   notes: number
   date: number
   sessionId: number
+  status: number
+  cancelledAt: number
+  cancellationReason: number
+  cancelledBy: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -124,6 +136,10 @@ export type ExpenseMinAggregateInputType = {
   notes?: true
   date?: true
   sessionId?: true
+  status?: true
+  cancelledAt?: true
+  cancellationReason?: true
+  cancelledBy?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -142,6 +158,10 @@ export type ExpenseMaxAggregateInputType = {
   notes?: true
   date?: true
   sessionId?: true
+  status?: true
+  cancelledAt?: true
+  cancellationReason?: true
+  cancelledBy?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -160,6 +180,10 @@ export type ExpenseCountAggregateInputType = {
   notes?: true
   date?: true
   sessionId?: true
+  status?: true
+  cancelledAt?: true
+  cancellationReason?: true
+  cancelledBy?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -265,6 +289,10 @@ export type ExpenseGroupByOutputType = {
   notes: string | null
   date: Date
   sessionId: number | null
+  status: string
+  cancelledAt: Date | null
+  cancellationReason: string | null
+  cancelledBy: string | null
   createdAt: Date
   updatedAt: Date
   _count: ExpenseCountAggregateOutputType | null
@@ -306,6 +334,10 @@ export type ExpenseWhereInput = {
   notes?: Prisma.StringNullableFilter<"Expense"> | string | null
   date?: Prisma.DateTimeFilter<"Expense"> | Date | string
   sessionId?: Prisma.IntNullableFilter<"Expense"> | number | null
+  status?: Prisma.StringFilter<"Expense"> | string
+  cancelledAt?: Prisma.DateTimeNullableFilter<"Expense"> | Date | string | null
+  cancellationReason?: Prisma.StringNullableFilter<"Expense"> | string | null
+  cancelledBy?: Prisma.StringNullableFilter<"Expense"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Expense"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Expense"> | Date | string
   account?: Prisma.XOR<Prisma.TreasuryAccountNullableScalarRelationFilter, Prisma.TreasuryAccountWhereInput> | null
@@ -326,6 +358,10 @@ export type ExpenseOrderByWithRelationInput = {
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   date?: Prisma.SortOrder
   sessionId?: Prisma.SortOrderInput | Prisma.SortOrder
+  status?: Prisma.SortOrder
+  cancelledAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  cancellationReason?: Prisma.SortOrderInput | Prisma.SortOrder
+  cancelledBy?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   account?: Prisma.TreasuryAccountOrderByWithRelationInput
@@ -349,6 +385,10 @@ export type ExpenseWhereUniqueInput = Prisma.AtLeast<{
   notes?: Prisma.StringNullableFilter<"Expense"> | string | null
   date?: Prisma.DateTimeFilter<"Expense"> | Date | string
   sessionId?: Prisma.IntNullableFilter<"Expense"> | number | null
+  status?: Prisma.StringFilter<"Expense"> | string
+  cancelledAt?: Prisma.DateTimeNullableFilter<"Expense"> | Date | string | null
+  cancellationReason?: Prisma.StringNullableFilter<"Expense"> | string | null
+  cancelledBy?: Prisma.StringNullableFilter<"Expense"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Expense"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Expense"> | Date | string
   account?: Prisma.XOR<Prisma.TreasuryAccountNullableScalarRelationFilter, Prisma.TreasuryAccountWhereInput> | null
@@ -369,6 +409,10 @@ export type ExpenseOrderByWithAggregationInput = {
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   date?: Prisma.SortOrder
   sessionId?: Prisma.SortOrderInput | Prisma.SortOrder
+  status?: Prisma.SortOrder
+  cancelledAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  cancellationReason?: Prisma.SortOrderInput | Prisma.SortOrder
+  cancelledBy?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.ExpenseCountOrderByAggregateInput
@@ -395,6 +439,10 @@ export type ExpenseScalarWhereWithAggregatesInput = {
   notes?: Prisma.StringNullableWithAggregatesFilter<"Expense"> | string | null
   date?: Prisma.DateTimeWithAggregatesFilter<"Expense"> | Date | string
   sessionId?: Prisma.IntNullableWithAggregatesFilter<"Expense"> | number | null
+  status?: Prisma.StringWithAggregatesFilter<"Expense"> | string
+  cancelledAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Expense"> | Date | string | null
+  cancellationReason?: Prisma.StringNullableWithAggregatesFilter<"Expense"> | string | null
+  cancelledBy?: Prisma.StringNullableWithAggregatesFilter<"Expense"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Expense"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Expense"> | Date | string
 }
@@ -410,6 +458,10 @@ export type ExpenseCreateInput = {
   receiptNumber?: string | null
   notes?: string | null
   date?: Date | string
+  status?: string
+  cancelledAt?: Date | string | null
+  cancellationReason?: string | null
+  cancelledBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   account?: Prisma.TreasuryAccountCreateNestedOneWithoutExpensesInput
@@ -430,6 +482,10 @@ export type ExpenseUncheckedCreateInput = {
   notes?: string | null
   date?: Date | string
   sessionId?: number | null
+  status?: string
+  cancelledAt?: Date | string | null
+  cancellationReason?: string | null
+  cancelledBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -445,6 +501,10 @@ export type ExpenseUpdateInput = {
   receiptNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancellationReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cancelledBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   account?: Prisma.TreasuryAccountUpdateOneWithoutExpensesNestedInput
@@ -465,6 +525,10 @@ export type ExpenseUncheckedUpdateInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancellationReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cancelledBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -483,6 +547,10 @@ export type ExpenseCreateManyInput = {
   notes?: string | null
   date?: Date | string
   sessionId?: number | null
+  status?: string
+  cancelledAt?: Date | string | null
+  cancellationReason?: string | null
+  cancelledBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -498,6 +566,10 @@ export type ExpenseUpdateManyMutationInput = {
   receiptNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancellationReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cancelledBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -516,6 +588,10 @@ export type ExpenseUncheckedUpdateManyInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancellationReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cancelledBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -544,6 +620,10 @@ export type ExpenseCountOrderByAggregateInput = {
   notes?: Prisma.SortOrder
   date?: Prisma.SortOrder
   sessionId?: Prisma.SortOrder
+  status?: Prisma.SortOrder
+  cancelledAt?: Prisma.SortOrder
+  cancellationReason?: Prisma.SortOrder
+  cancelledBy?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -569,6 +649,10 @@ export type ExpenseMaxOrderByAggregateInput = {
   notes?: Prisma.SortOrder
   date?: Prisma.SortOrder
   sessionId?: Prisma.SortOrder
+  status?: Prisma.SortOrder
+  cancelledAt?: Prisma.SortOrder
+  cancellationReason?: Prisma.SortOrder
+  cancelledBy?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -587,6 +671,10 @@ export type ExpenseMinOrderByAggregateInput = {
   notes?: Prisma.SortOrder
   date?: Prisma.SortOrder
   sessionId?: Prisma.SortOrder
+  status?: Prisma.SortOrder
+  cancelledAt?: Prisma.SortOrder
+  cancellationReason?: Prisma.SortOrder
+  cancelledBy?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -693,6 +781,10 @@ export type ExpenseCreateWithoutSessionInput = {
   receiptNumber?: string | null
   notes?: string | null
   date?: Date | string
+  status?: string
+  cancelledAt?: Date | string | null
+  cancellationReason?: string | null
+  cancelledBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   account?: Prisma.TreasuryAccountCreateNestedOneWithoutExpensesInput
@@ -711,6 +803,10 @@ export type ExpenseUncheckedCreateWithoutSessionInput = {
   receiptNumber?: string | null
   notes?: string | null
   date?: Date | string
+  status?: string
+  cancelledAt?: Date | string | null
+  cancellationReason?: string | null
+  cancelledBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -757,6 +853,10 @@ export type ExpenseScalarWhereInput = {
   notes?: Prisma.StringNullableFilter<"Expense"> | string | null
   date?: Prisma.DateTimeFilter<"Expense"> | Date | string
   sessionId?: Prisma.IntNullableFilter<"Expense"> | number | null
+  status?: Prisma.StringFilter<"Expense"> | string
+  cancelledAt?: Prisma.DateTimeNullableFilter<"Expense"> | Date | string | null
+  cancellationReason?: Prisma.StringNullableFilter<"Expense"> | string | null
+  cancelledBy?: Prisma.StringNullableFilter<"Expense"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Expense"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Expense"> | Date | string
 }
@@ -772,6 +872,10 @@ export type ExpenseCreateWithoutAccountInput = {
   receiptNumber?: string | null
   notes?: string | null
   date?: Date | string
+  status?: string
+  cancelledAt?: Date | string | null
+  cancellationReason?: string | null
+  cancelledBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   session?: Prisma.CashSessionCreateNestedOneWithoutExpensesInput
@@ -790,6 +894,10 @@ export type ExpenseUncheckedCreateWithoutAccountInput = {
   notes?: string | null
   date?: Date | string
   sessionId?: number | null
+  status?: string
+  cancelledAt?: Date | string | null
+  cancellationReason?: string | null
+  cancelledBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -832,6 +940,10 @@ export type ExpenseCreateManySessionInput = {
   receiptNumber?: string | null
   notes?: string | null
   date?: Date | string
+  status?: string
+  cancelledAt?: Date | string | null
+  cancellationReason?: string | null
+  cancelledBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -847,6 +959,10 @@ export type ExpenseUpdateWithoutSessionInput = {
   receiptNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancellationReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cancelledBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   account?: Prisma.TreasuryAccountUpdateOneWithoutExpensesNestedInput
@@ -865,6 +981,10 @@ export type ExpenseUncheckedUpdateWithoutSessionInput = {
   receiptNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancellationReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cancelledBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -882,6 +1002,10 @@ export type ExpenseUncheckedUpdateManyWithoutSessionInput = {
   receiptNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancellationReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cancelledBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -899,6 +1023,10 @@ export type ExpenseCreateManyAccountInput = {
   notes?: string | null
   date?: Date | string
   sessionId?: number | null
+  status?: string
+  cancelledAt?: Date | string | null
+  cancellationReason?: string | null
+  cancelledBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -914,6 +1042,10 @@ export type ExpenseUpdateWithoutAccountInput = {
   receiptNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancellationReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cancelledBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   session?: Prisma.CashSessionUpdateOneWithoutExpensesNestedInput
@@ -932,6 +1064,10 @@ export type ExpenseUncheckedUpdateWithoutAccountInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancellationReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cancelledBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -949,6 +1085,10 @@ export type ExpenseUncheckedUpdateManyWithoutAccountInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancellationReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cancelledBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -969,6 +1109,10 @@ export type ExpenseSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   notes?: boolean
   date?: boolean
   sessionId?: boolean
+  status?: boolean
+  cancelledAt?: boolean
+  cancellationReason?: boolean
+  cancelledBy?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   account?: boolean | Prisma.Expense$accountArgs<ExtArgs>
@@ -989,6 +1133,10 @@ export type ExpenseSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   notes?: boolean
   date?: boolean
   sessionId?: boolean
+  status?: boolean
+  cancelledAt?: boolean
+  cancellationReason?: boolean
+  cancelledBy?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   account?: boolean | Prisma.Expense$accountArgs<ExtArgs>
@@ -1009,6 +1157,10 @@ export type ExpenseSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   notes?: boolean
   date?: boolean
   sessionId?: boolean
+  status?: boolean
+  cancelledAt?: boolean
+  cancellationReason?: boolean
+  cancelledBy?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   account?: boolean | Prisma.Expense$accountArgs<ExtArgs>
@@ -1029,11 +1181,15 @@ export type ExpenseSelectScalar = {
   notes?: boolean
   date?: boolean
   sessionId?: boolean
+  status?: boolean
+  cancelledAt?: boolean
+  cancellationReason?: boolean
+  cancelledBy?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type ExpenseOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "accountId" | "type" | "category" | "description" | "amount" | "method" | "beneficiary" | "receiptNumber" | "notes" | "date" | "sessionId" | "createdAt" | "updatedAt", ExtArgs["result"]["expense"]>
+export type ExpenseOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "reference" | "accountId" | "type" | "category" | "description" | "amount" | "method" | "beneficiary" | "receiptNumber" | "notes" | "date" | "sessionId" | "status" | "cancelledAt" | "cancellationReason" | "cancelledBy" | "createdAt" | "updatedAt", ExtArgs["result"]["expense"]>
 export type ExpenseInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   account?: boolean | Prisma.Expense$accountArgs<ExtArgs>
   session?: boolean | Prisma.Expense$sessionArgs<ExtArgs>
@@ -1067,6 +1223,10 @@ export type $ExpensePayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     notes: string | null
     date: Date
     sessionId: number | null
+    status: string
+    cancelledAt: Date | null
+    cancellationReason: string | null
+    cancelledBy: string | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["expense"]>
@@ -1507,6 +1667,10 @@ export interface ExpenseFieldRefs {
   readonly notes: Prisma.FieldRef<"Expense", 'String'>
   readonly date: Prisma.FieldRef<"Expense", 'DateTime'>
   readonly sessionId: Prisma.FieldRef<"Expense", 'Int'>
+  readonly status: Prisma.FieldRef<"Expense", 'String'>
+  readonly cancelledAt: Prisma.FieldRef<"Expense", 'DateTime'>
+  readonly cancellationReason: Prisma.FieldRef<"Expense", 'String'>
+  readonly cancelledBy: Prisma.FieldRef<"Expense", 'String'>
   readonly createdAt: Prisma.FieldRef<"Expense", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Expense", 'DateTime'>
 }

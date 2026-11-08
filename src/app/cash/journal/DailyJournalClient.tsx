@@ -330,14 +330,18 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
             </span>
           </div>
           <div className="text-xl font-black text-purple-700 font-mono">
-            {transfersOut > 0
+            {transfersIn > 0 && transfersOut > 0
+              ? `${netTransfers >= 0 ? "+" : ""}${formatDA(netTransfers)}`
+              : transfersOut > 0
               ? `-${formatDA(transfersOut)}`
               : transfersIn > 0
               ? `+${formatDA(transfersIn)}`
               : formatDA(0)}
           </div>
           <p className="text-[11px] text-purple-600 mt-1 font-medium">
-            {items.filter((i) => i.source === "transfer").length} virement(s) (vers coffre/banque)
+            {transfersIn > 0 && transfersOut > 0
+              ? `+${formatDA(transfersIn)} reçus / -${formatDA(transfersOut)} émis`
+              : `${items.filter((i) => i.source === "transfer").length} virement(s) (vers coffre/banque)`}
           </p>
         </div>
 
@@ -718,7 +722,9 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
                     Transferts Internes (⇄)
                   </span>
                   <span className="font-mono font-black text-purple-700 print:text-black text-sm">
-                    {transfersOut > 0
+                    {transfersIn > 0 && transfersOut > 0
+                      ? `${netTransfers >= 0 ? "+" : ""}${formatDA(netTransfers)}`
+                      : transfersOut > 0
                       ? `-${formatDA(transfersOut)}`
                       : transfersIn > 0
                       ? `+${formatDA(transfersIn)}`
@@ -792,7 +798,7 @@ export function DailyJournalClient({ initialData }: DailyJournalClientProps) {
                 <tfoot>
                   <tr className="border-t-2 border-slate-900 print:border-t-2 print:border-b-2 print:border-black font-bold bg-slate-100 print:bg-white text-xs print:text-black">
                     <td colSpan={4} className="py-2.5 px-2 uppercase text-[11px] font-black">
-                      Total ({items.length} opérations) — Entrées: +{formatDA(operatingInflows)} | Charges: -{formatDA(operatingOutflows)} | Transferts: {transfersOut > 0 ? `-${formatDA(transfersOut)}` : formatDA(0)}
+                      Total ({items.length} opérations) — Entrées: +{formatDA(operatingInflows)} | Charges: -{formatDA(operatingOutflows)} | Transferts: {netTransfers > 0 ? `+${formatDA(netTransfers)}` : netTransfers < 0 ? `-${formatDA(Math.abs(netTransfers))}` : formatDA(0)}
                     </td>
                     <td className="py-2.5 px-2 text-right font-mono text-emerald-700 print:text-black font-black print:border-r print:border-black">
                       +{formatDA(operatingInflows)}

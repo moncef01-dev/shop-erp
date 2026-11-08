@@ -237,6 +237,9 @@ export async function getMonthlyClosingData(
 
     // Charges et produits exceptionnels
     prisma.expense.findMany({
+      where: {
+        status: { not: "cancelled" },
+      },
       include: {
         account: { select: { id: true, name: true, code: true, type: true } },
       },

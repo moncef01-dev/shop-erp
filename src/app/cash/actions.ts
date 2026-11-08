@@ -134,13 +134,23 @@ export async function openCashSessionAction(
     const caisseId = defaultCaisse?.id;
 
     if (includePendingCash) {
+      const lastClosedSession = await prisma.cashSession.findFirst({
+        where: { status: "closed" },
+        orderBy: { closedAt: "desc" },
+      });
+      const cutoff = lastClosedSession?.closedAt ?? new Date(0);
+
       const [pendingPayments, pendingExpenses] = await Promise.all([
         prisma.payment.findMany({
           where: {
             sessionId: null,
             method: "cash",
             status: { not: "cancelled" },
-            OR: [{ accountId: caisseId }, { accountId: null }],
+            OR: [
+              { paymentDate: { gt: cutoff } },
+              { createdAt: { gt: cutoff } },
+            ],
+            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
           },
           select: { paymentDate: true },
         }),
@@ -148,7 +158,12 @@ export async function openCashSessionAction(
           where: {
             sessionId: null,
             method: "cash",
-            OR: [{ accountId: caisseId }, { accountId: null }],
+            status: { not: "cancelled" },
+            OR: [
+              { date: { gt: cutoff } },
+              { createdAt: { gt: cutoff } },
+            ],
+            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
           },
           select: { date: true },
         }),
@@ -198,12 +213,22 @@ export async function openCashSessionAction(
       });
 
       if (includePendingCash) {
+        const lastClosedSession = await tx.cashSession.findFirst({
+          where: { status: "closed" },
+          orderBy: { closedAt: "desc" },
+        });
+        const cutoff = lastClosedSession?.closedAt ?? new Date(0);
+
         await tx.payment.updateMany({
           where: {
             sessionId: null,
             method: "cash",
             status: { not: "cancelled" },
-            OR: [{ accountId: caisseId }, { accountId: null }],
+            OR: [
+              { paymentDate: { gt: cutoff } },
+              { createdAt: { gt: cutoff } },
+            ],
+            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
           },
           data: { sessionId: created.id },
         });
@@ -211,7 +236,11 @@ export async function openCashSessionAction(
           where: {
             sessionId: null,
             method: "cash",
-            OR: [{ accountId: caisseId }, { accountId: null }],
+            OR: [
+              { date: { gt: cutoff } },
+              { createdAt: { gt: cutoff } },
+            ],
+            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
           },
           data: { sessionId: created.id },
         });
@@ -254,12 +283,22 @@ export async function reconcileOutOfSessionCashAction(sessionId: number): Promis
       (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
     const caisseId = defaultCaisse?.id;
 
+    const lastClosedSession = await prisma.cashSession.findFirst({
+      where: { status: "closed", closedAt: { lt: session.openedAt } },
+      orderBy: { closedAt: "desc" },
+    });
+    const cutoff = lastClosedSession?.closedAt ?? new Date(0);
+
     const unlinkedPayments = await prisma.payment.findMany({
       where: {
         sessionId: null,
         method: "cash",
         status: { not: "cancelled" },
-        OR: [{ accountId: caisseId }, { accountId: null }],
+        OR: [
+          { paymentDate: { gt: cutoff } },
+          { createdAt: { gt: cutoff } },
+        ],
+        AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
       },
       select: { id: true, amount: true, paymentDate: true },
     });
@@ -268,7 +307,12 @@ export async function reconcileOutOfSessionCashAction(sessionId: number): Promis
       where: {
         sessionId: null,
         method: "cash",
-        OR: [{ accountId: caisseId }, { accountId: null }],
+        status: { not: "cancelled" },
+        OR: [
+          { date: { gt: cutoff } },
+          { createdAt: { gt: cutoff } },
+        ],
+        AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
       },
       select: { id: true, amount: true, type: true, date: true },
     });
@@ -402,6 +446,12 @@ export async function closeCashSessionAction(
       (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
     const caisseId = session.accountId || defaultCaisse?.id;
 
+    const lastClosedBefore = await prisma.cashSession.findFirst({
+      where: { status: "closed", closedAt: { lt: session.openedAt } },
+      orderBy: { closedAt: "desc" },
+    });
+    const cutoff = lastClosedBefore?.closedAt ?? session.openedAt;
+
     // Calcul autoritaire côté serveur sur la fenêtre [openedAt, now] et les opérations rattachées
     // 1. Encaissements physiques (Ventes et encaissements en espèces)
     const salesPayments = await prisma.payment.findMany({
@@ -418,8 +468,8 @@ export async function closeCashSessionAction(
               {
                 sessionId: null,
                 OR: [
-                  { paymentDate: { gte: session.openedAt, lte: now } },
-                  { createdAt: { gte: session.openedAt, lte: now } },
+                  { paymentDate: { gt: cutoff, lte: now } },
+                  { createdAt: { gt: cutoff, lte: now } },
                 ],
               },
             ],
@@ -444,8 +494,8 @@ export async function closeCashSessionAction(
               {
                 sessionId: null,
                 OR: [
-                  { paymentDate: { gte: session.openedAt, lte: now } },
-                  { createdAt: { gte: session.openedAt, lte: now } },
+                  { paymentDate: { gt: cutoff, lte: now } },
+                  { createdAt: { gt: cutoff, lte: now } },
                 ],
               },
             ],
@@ -469,8 +519,8 @@ export async function closeCashSessionAction(
               {
                 sessionId: null,
                 OR: [
-                  { paymentDate: { gte: session.openedAt, lte: now } },
-                  { createdAt: { gte: session.openedAt, lte: now } },
+                  { paymentDate: { gt: cutoff, lte: now } },
+                  { createdAt: { gt: cutoff, lte: now } },
                 ],
               },
             ],
@@ -485,6 +535,7 @@ export async function closeCashSessionAction(
     const expenses = await prisma.expense.findMany({
       where: {
         method: "cash",
+        status: { not: "cancelled" },
         AND: [
           { OR: [{ accountId: caisseId }, { accountId: null }] },
           {
@@ -493,8 +544,8 @@ export async function closeCashSessionAction(
               {
                 sessionId: null,
                 OR: [
-                  { date: { gte: session.openedAt, lte: now } },
-                  { createdAt: { gte: session.openedAt, lte: now } },
+                  { date: { gt: cutoff, lte: now } },
+                  { createdAt: { gt: cutoff, lte: now } },
                 ],
               },
             ],
@@ -520,8 +571,8 @@ export async function closeCashSessionAction(
               {
                 sessionId: null,
                 OR: [
-                  { date: { gte: session.openedAt, lte: now } },
-                  { createdAt: { gte: session.openedAt, lte: now } },
+                  { date: { gt: cutoff, lte: now } },
+                  { createdAt: { gt: cutoff, lte: now } },
                 ],
               },
             ],
@@ -540,8 +591,8 @@ export async function closeCashSessionAction(
               {
                 sessionId: null,
                 OR: [
-                  { date: { gte: session.openedAt, lte: now } },
-                  { createdAt: { gte: session.openedAt, lte: now } },
+                  { date: { gt: cutoff, lte: now } },
+                  { createdAt: { gt: cutoff, lte: now } },
                 ],
               },
             ],
@@ -1020,39 +1071,85 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
   }
 }
 
-export async function deleteExpenseAction(expenseId: number): Promise<CashActionResponse> {
+export async function deleteExpenseAction(
+  expenseId: number,
+  reasonArg?: string,
+  cancelledByArg?: string
+): Promise<CashActionResponse> {
+  return cancelExpenseAction({
+    expenseId,
+    reason: reasonArg || "Annulation / suppression de la pièce de dépense",
+    cancelledBy: cancelledByArg || "Administration ERP",
+  });
+}
+
+export async function cancelExpenseAction(payload: {
+  expenseId: number;
+  reason: string;
+  cancelledBy?: string;
+}): Promise<CashActionResponse> {
   try {
     const expense = await prisma.expense.findUnique({
-      where: { id: expenseId },
+      where: { id: payload.expenseId },
       include: { session: true },
     });
 
     if (!expense) {
-      return { success: false, error: "Dépense introuvable." };
+      return { success: false, error: "Pièce de dépense ou ajustement introuvable." };
+    }
+
+    if (expense.status === "cancelled") {
+      return { success: false, error: `La pièce ${expense.reference} est déjà annulée.` };
     }
 
     if (expense.session && expense.session.status === "closed") {
       return {
         success: false,
-        error: "Impossible de supprimer une dépense rattachée à une session de caisse déjà clôturée.",
+        error: "Impossible d'annuler une pièce rattachée à une session de caisse déjà clôturée.",
       };
     }
 
-    await assertPeriodNotLocked(expense.date, "Suppression de dépense / encaissement");
+    await assertPeriodNotLocked(expense.date, "Annulation de dépense / encaissement");
 
-    await prisma.expense.delete({ where: { id: expenseId } });
+    const reason = payload.reason?.trim() || "Annulation manuelle";
+    const cancelledBy = payload.cancelledBy?.trim() || "Administration ERP";
+    const now = new Date();
+
+    const auditEntry = `[ANNULATION AUDITÉE le ${now.toISOString()} par ${cancelledBy} : ${reason}]`;
+    const updatedNotes = expense.notes ? `${expense.notes} ${auditEntry}` : auditEntry;
+
+    await prisma.expense.update({
+      where: { id: payload.expenseId },
+      data: {
+        status: "cancelled",
+        cancelledAt: now,
+        cancellationReason: reason,
+        cancelledBy: cancelledBy,
+        notes: updatedNotes,
+      },
+    });
 
     safeRevalidate("/cash");
+    safeRevalidate("/sales");
+    safeRevalidate("/reports");
 
     return {
       success: true,
-      message: `La pièce ${expense.reference} a été supprimée avec succès.`,
+      message: `La pièce ${expense.reference} (${expense.amount.toLocaleString("fr-DZ")} DA) a été annulée avec succès (Audit trail préservé).`,
+      data: {
+        reference: expense.reference,
+        amount: expense.amount,
+        status: "cancelled",
+        cancelledAt: now.toISOString(),
+        cancellationReason: reason,
+        cancelledBy,
+      },
     };
   } catch (err: unknown) {
-    console.error("Erreur suppression dépense:", err);
+    console.error("Erreur annulation dépense / ajustement:", err);
     return {
       success: false,
-      error: "Erreur lors de la suppression de la dépense.",
+      error: "Erreur lors de l'annulation de la pièce.",
     };
   }
 }
@@ -1244,8 +1341,11 @@ export async function getCashDashboardData(filters?: {
     orderBy: { paymentDate: "desc" },
   });
 
-  // 3. Récupérer l'ensemble des dépenses et mouvements manuels
+  // 3. Récupérer l'ensemble des dépenses et mouvements manuels non annulés
   const expenses = await prisma.expense.findMany({
+    where: {
+      status: { not: "cancelled" },
+    },
     include: {
       account: {
         select: { id: true, name: true, code: true },
@@ -1424,6 +1524,7 @@ export async function getCashDashboardData(filters?: {
       sessionRef: e.session?.reference,
       accountId: e.accountId,
       accountName: e.account?.name || null,
+      status: e.status,
     });
   }
 
@@ -1555,14 +1656,18 @@ export async function getCashDashboardData(filters?: {
   }
 
   // 6.2 Calcul des opérations en espèces hors session en attente de réconciliation
+  const lastClosedSession = sessions.find((s) => s.status === "closed" && s.closedAt);
+  const lastClosedAtTime = lastClosedSession?.closedAt ? new Date(lastClosedSession.closedAt).getTime() : 0;
+
   const pendingCashItems = ledgerItems.filter((item) => {
     if (!item.affectsCash) return false;
     if (item.type === "transfer") return false; // les transferts ne sont pas des espèces en attente
     if (item.sessionId !== null) return false;
+    const t = new Date(item.date).getTime();
+    const tCreated = item.createdAt ? new Date(item.createdAt).getTime() : 0;
+    if (t <= lastClosedAtTime && tCreated <= lastClosedAtTime) return false;
     if (activeRaw) {
       const sessionStart = new Date(activeRaw.openedAt).getTime();
-      const t = new Date(item.date).getTime();
-      const tCreated = item.createdAt ? new Date(item.createdAt).getTime() : 0;
       if (t >= sessionStart || tCreated >= sessionStart) return false;
     }
     return true;
@@ -1808,16 +1913,17 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
         },
       ],
     },
-    orderBy: { openedAt: "desc" },
+    orderBy: { openedAt: "asc" },
   });
 
   const sessionIdsForDay = new Set(sessionsOnDay.map((s) => s.id));
-  const primarySession = sessionsOnDay[0] || null;
+  const firstSessionOfDay = sessionsOnDay[0] || null;
+  const primarySession = sessionsOnDay.length > 0 ? sessionsOnDay[sessionsOnDay.length - 1] : null;
 
   // 4. Détermination rigoureuse du solde initial du jour
   let openingBalance = 0;
-  if (primarySession) {
-    openingBalance = primarySession.openingAmount;
+  if (firstSessionOfDay) {
+    openingBalance = firstSessionOfDay.openingAmount;
   } else {
     // Si aucune session n'a été ouverte ce jour, chercher la dernière session clôturée antérieure
     const priorClosedSession = await prisma.cashSession.findFirst({
@@ -1829,8 +1935,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     });
 
     if (priorClosedSession && priorClosedSession.closedAt) {
-      // Pas de report automatique du reliquat de clôture précédent : démarrage à 0 DA
-      let bal = 0;
+      let bal = priorClosedSession.retainedAmount ?? priorClosedSession.closingAmount ?? 0;
       const cutoff = priorClosedSession.closedAt;
       const dayStart = new Date(`${targetDayStr}T00:00:00.000Z`);
 
@@ -1865,6 +1970,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
         }),
         prisma.expense.aggregate({
           where: {
+            status: { not: "cancelled" },
             type: "income",
             method: "cash",
             OR: [{ accountId: caisseId }, { accountId: null }],
@@ -1884,6 +1990,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
         }),
         prisma.expense.aggregate({
           where: {
+            status: { not: "cancelled" },
             type: "expense",
             method: "cash",
             OR: [{ accountId: caisseId }, { accountId: null }],
@@ -1925,6 +2032,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
       }),
       prisma.expense.findMany({
         where: {
+          status: { not: "cancelled" },
           method: "cash",
           OR: [{ accountId: caisseId }, { accountId: null }],
         },
@@ -1973,28 +2081,37 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
 
   salePayments.forEach((p) => {
     addDateToSet(p.paymentDate);
+    if (p.createdAt) addDateToSet(p.createdAt);
   });
   customerAdvances.forEach((a) => {
     addDateToSet(a.paymentDate);
+    if (a.createdAt) addDateToSet(a.createdAt);
   });
   allExpenses.forEach((e) => {
     addDateToSet(e.date);
+    if (e.createdAt) addDateToSet(e.createdAt);
   });
   suppPayments.forEach((p) => {
     addDateToSet(p.paymentDate);
+    if (p.createdAt) addDateToSet(p.createdAt);
   });
   transfers.forEach((t) => {
     addDateToSet(t.date);
+    if (t.createdAt) addDateToSet(t.createdAt);
   });
   allSessions.forEach((s) => {
     addDateToSet(s.openedAt);
+    if (s.createdAt) addDateToSet(s.createdAt);
   });
 
-  const availableDates = Array.from(dateSet).sort().reverse();
-
   // 7. Filtrage et normalisation des mouvements de la journée sélectionnée
-  const matchesDay = (d: Date, sId?: number | null) => {
-    return getEffectiveDayStr(d) === targetDayStr;
+  const matchesDay = (d: Date, sId?: number | null, c?: Date | null) => {
+    if (getEffectiveDayStr(d) === targetDayStr) return true;
+    if (sId && sessionIdsForDay.has(sId)) return true;
+    if (c && getEffectiveDayStr(c) === targetDayStr) {
+      if (!sId || sessionIdsForDay.has(sId)) return true;
+    }
+    return false;
   };
 
   const getSortTime = (d: Date, c: Date | null) => {
@@ -2065,7 +2182,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
 
   // 7.1 Encaissements ventes clients
   for (const p of salePayments) {
-    if (matchesDay(p.paymentDate, p.sessionId)) {
+    if (matchesDay(p.paymentDate, p.sessionId, p.createdAt)) {
       const cust = p.sale?.customer?.name || "Client comptoir";
       rawItems.push({
         id: `pay-sale-${p.id}`,
@@ -2089,7 +2206,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
 
   // 7.2 Acomptes clients reçus en espèces
   for (const a of customerAdvances) {
-    if (matchesDay(a.paymentDate, a.sessionId)) {
+    if (matchesDay(a.paymentDate, a.sessionId, a.createdAt)) {
       rawItems.push({
         id: `adv-${a.id}`,
         sortTime: getSortTime(a.paymentDate, a.createdAt),
@@ -2111,7 +2228,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
 
   // 7.3 Dépenses d'exploitation et recettes manuelles
   for (const e of allExpenses) {
-    if (matchesDay(e.date, e.sessionId)) {
+    if (matchesDay(e.date, e.sessionId, e.createdAt)) {
       const isInc = e.type === "income";
       const catLower = (e.category || "").toLowerCase();
       let opType = isInc ? "Recette / Apport" : "Dépense d'exploitation";
@@ -2155,7 +2272,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
 
   // 7.4 Règlements fournisseurs décaissés de la caisse
   for (const p of suppPayments) {
-    if (matchesDay(p.paymentDate, p.sessionId)) {
+    if (matchesDay(p.paymentDate, p.sessionId, p.createdAt)) {
       const supp = p.purchase?.supplier?.name || p.supplier?.name || "Fournisseur";
       rawItems.push({
         id: `pay-supp-${p.id}`,
@@ -2181,7 +2298,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
   try {
     const dailySuppAdd = await prisma.supplierAdditionalPayment.findMany({
       where: {
-        OR: [{ treasuryAccountId: caisseId }, { sessionId: { not: null } }],
+        treasuryAccountId: caisseId,
       },
       include: {
         supplier: { select: { name: true } },
@@ -2190,7 +2307,10 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     });
 
     for (const ap of dailySuppAdd) {
-      if (matchesDay(ap.date, ap.sessionId)) {
+      addDateToSet(ap.date);
+      if (ap.createdAt) addDateToSet(ap.createdAt);
+
+      if (matchesDay(ap.date, ap.sessionId, ap.createdAt)) {
         const isRev = ap.isReversal;
         rawItems.push({
           id: `supp-add-${ap.id}`,
@@ -2220,7 +2340,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
 
   // 7.5 Virements internes touchant la caisse (Entrées ou Sorties)
   for (const t of transfers) {
-    if (matchesDay(t.date, t.sessionId)) {
+    if (matchesDay(t.date, t.sessionId, t.createdAt)) {
       const isTo = t.toAccountId === caisseId;
       rawItems.push({
         id: isTo ? `trf-in-${t.id}` : `trf-out-${t.id}`,
@@ -2244,6 +2364,8 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
       });
     }
   }
+
+  const availableDates = Array.from(dateSet).sort().reverse();
 
   // 8. Tri chronologique strict (le plus ancien en premier)
   rawItems.sort((a, b) => a.sortTime - b.sortTime || a.id.localeCompare(b.id));

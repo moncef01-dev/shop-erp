@@ -210,6 +210,7 @@ export async function getReportsData(filter?: DateFilterRange): Promise<ReportsD
     prisma.expense.findMany({
       where: {
         date: { gte: start, lte: end },
+        status: { not: "cancelled" },
       },
     }),
 

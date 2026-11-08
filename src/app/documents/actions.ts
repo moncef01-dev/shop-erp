@@ -195,6 +195,7 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
 
     // 7. Dépenses de Caisse
     prisma.expense.findMany({
+      where: { status: { not: "cancelled" } },
       orderBy: { date: "desc" },
     }),
 
