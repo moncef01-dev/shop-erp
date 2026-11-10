@@ -2055,7 +2055,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
         include: { fromAccount: true, toAccount: true },
       }),
       prisma.cashSession.findMany({
-        select: { openedAt: true, createdAt: true },
+        select: { id: true, openedAt: true, createdAt: true },
       }),
     ]);
 
@@ -2079,42 +2079,76 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     dateSet.add(getEffectiveDayStr(d));
   };
 
-  salePayments.forEach((p) => {
-    addDateToSet(p.paymentDate);
-    if (p.createdAt) addDateToSet(p.createdAt);
-  });
-  customerAdvances.forEach((a) => {
-    addDateToSet(a.paymentDate);
-    if (a.createdAt) addDateToSet(a.createdAt);
-  });
-  allExpenses.forEach((e) => {
-    addDateToSet(e.date);
-    if (e.createdAt) addDateToSet(e.createdAt);
-  });
-  suppPayments.forEach((p) => {
-    addDateToSet(p.paymentDate);
-    if (p.createdAt) addDateToSet(p.createdAt);
-  });
-  transfers.forEach((t) => {
-    addDateToSet(t.date);
-    if (t.createdAt) addDateToSet(t.createdAt);
-  });
+  // Mappage rigoureux de chaque session vers sa journée de reporting effective (fuseau horaire local)
+  const sessionDayMap = new Map<number, string>();
   allSessions.forEach((s) => {
     addDateToSet(s.openedAt);
     if (s.createdAt) addDateToSet(s.createdAt);
+    const effDay = getEffectiveDayStr(s.openedAt);
+    sessionDayMap.set(s.id, effDay);
+    if (effDay === targetDayStr) {
+      sessionIdsForDay.add(s.id);
+    }
+  });
+
+  salePayments.forEach((p) => {
+    if (p.sessionId && sessionDayMap.has(p.sessionId)) {
+      dateSet.add(sessionDayMap.get(p.sessionId)!);
+    } else {
+      addDateToSet(p.paymentDate);
+      if (p.createdAt) addDateToSet(p.createdAt);
+    }
+  });
+  customerAdvances.forEach((a) => {
+    if (a.sessionId && sessionDayMap.has(a.sessionId)) {
+      dateSet.add(sessionDayMap.get(a.sessionId)!);
+    } else {
+      addDateToSet(a.paymentDate);
+      if (a.createdAt) addDateToSet(a.createdAt);
+    }
+  });
+  allExpenses.forEach((e) => {
+    if (e.sessionId && sessionDayMap.has(e.sessionId)) {
+      dateSet.add(sessionDayMap.get(e.sessionId)!);
+    } else {
+      addDateToSet(e.date);
+      if (e.createdAt) addDateToSet(e.createdAt);
+    }
+  });
+  suppPayments.forEach((p) => {
+    if (p.sessionId && sessionDayMap.has(p.sessionId)) {
+      dateSet.add(sessionDayMap.get(p.sessionId)!);
+    } else {
+      addDateToSet(p.paymentDate);
+      if (p.createdAt) addDateToSet(p.createdAt);
+    }
+  });
+  transfers.forEach((t) => {
+    if (t.sessionId && sessionDayMap.has(t.sessionId)) {
+      dateSet.add(sessionDayMap.get(t.sessionId)!);
+    } else {
+      addDateToSet(t.date);
+      if (t.createdAt) addDateToSet(t.createdAt);
+    }
   });
 
   // 7. Filtrage et normalisation des mouvements de la journée sélectionnée
   const matchesDay = (d: Date, sId?: number | null, c?: Date | null) => {
-    if (getEffectiveDayStr(d) === targetDayStr) return true;
-    if (sId && sessionIdsForDay.has(sId)) return true;
-    if (c && getEffectiveDayStr(c) === targetDayStr) {
-      if (!sId || sessionIdsForDay.has(sId)) return true;
+    // Règle 1 : Si l'opération est explicitement rattachée à une session de caisse,
+    // elle appartient au journal de la journée de sa session (convention session-based)
+    if (sId && sessionDayMap.has(sId)) {
+      return sessionDayMap.get(sId) === targetDayStr;
     }
+    // Règle 2 : Opérations hors-session (sans session) attribuées selon la date calendaire
+    if (getEffectiveDayStr(d) === targetDayStr) return true;
+    if (c && getEffectiveDayStr(c) === targetDayStr) return true;
     return false;
   };
 
-  const getSortTime = (d: Date, c: Date | null) => {
+  const getSortTime = (d: Date, c: Date | null, isClosingTransfer = false) => {
+    if (isClosingTransfer && c) {
+      return Math.max(d.getTime(), c.getTime(), 1);
+    }
     const isMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
     if (isMidnight && c) {
       const effDay = getEffectiveDayStr(d);
@@ -2307,8 +2341,12 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     });
 
     for (const ap of dailySuppAdd) {
-      addDateToSet(ap.date);
-      if (ap.createdAt) addDateToSet(ap.createdAt);
+      if (ap.sessionId && sessionDayMap.has(ap.sessionId)) {
+        dateSet.add(sessionDayMap.get(ap.sessionId)!);
+      } else {
+        addDateToSet(ap.date);
+        if (ap.createdAt) addDateToSet(ap.createdAt);
+      }
 
       if (matchesDay(ap.date, ap.sessionId, ap.createdAt)) {
         const isRev = ap.isReversal;
@@ -2342,9 +2380,12 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
   for (const t of transfers) {
     if (matchesDay(t.date, t.sessionId, t.createdAt)) {
       const isTo = t.toAccountId === caisseId;
+      const isClosing =
+        (t.motif || "").toLowerCase().includes("clôture") ||
+        (t.motif || "").toLowerCase().includes("cloture");
       rawItems.push({
         id: isTo ? `trf-in-${t.id}` : `trf-out-${t.id}`,
-        sortTime: getSortTime(t.date, t.createdAt),
+        sortTime: getSortTime(t.date, t.createdAt, isClosing),
         timestamp: (t.createdAt || t.date).toISOString(),
         dateFormatted: formatItemDateTime(t.date, t.createdAt),
         reference: t.reference,

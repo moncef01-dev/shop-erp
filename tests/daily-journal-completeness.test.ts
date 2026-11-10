@@ -436,6 +436,97 @@ async function runTests() {
     results.push({ num: 10, name: "Unicité et absence de double comptage", passed: false, error: err.message });
   }
 
+  // SCÉNARIO 11: Session à cheval sur deux dates calendaires (overnight session)
+  console.log("\n--- SCÉNARIO 11: Session overnight et attribution session-based sans double comptage ---");
+  try {
+    // 1. Session ouverte le jour J (yesterdayStr)
+    const sessionOvernight = await prisma.cashSession.create({
+      data: {
+        reference: `SESS-${yesterdayStr}-OVERNIGHT`,
+        openedAt: new Date(`${yesterdayStr}T09:00:00.000Z`),
+        status: "open",
+        openingAmount: 0,
+      },
+    });
+
+    // 2. Paiement enregistré le matin du jour J+1 (todayStr) AVANT fermeture de la session overnight
+    const pOvernight = await prisma.payment.create({
+      data: {
+        reference: "PAY-TEST-OVERNIGHT-94",
+        amount: 43000,
+        method: "cash",
+        status: "completed",
+        accountId: caisse.id,
+        sessionId: sessionOvernight.id,
+        paymentDate: new Date(`${todayStr}T08:05:00.000Z`),
+        createdAt: new Date(`${todayStr}T08:05:00.000Z`),
+      },
+    });
+
+    // 3. Clôture de la session overnight le matin du jour J+1 avec transfert de clôture
+    await prisma.cashSession.update({
+      where: { id: sessionOvernight.id },
+      data: {
+        status: "closed",
+        closedAt: new Date(`${todayStr}T08:12:00.000Z`),
+        totalCashIn: 43000,
+        totalCashOut: 43000,
+        theoreticalAmount: 43000,
+        closingAmount: 43000,
+        difference: 0,
+        retainedAmount: 0,
+      },
+    });
+
+    const trfClosing = await prisma.treasuryTransfer.create({
+      data: {
+        reference: "TRF-TEST-CLOSING-11",
+        fromAccountId: caisse.id,
+        toAccountId: coffre.id,
+        amount: 43000,
+        motif: `Transfert clôture de caisse ${sessionOvernight.reference}`,
+        paymentMethod: "cash",
+        date: new Date(`${yesterdayStr}T00:00:00.000Z`),
+        createdAt: new Date(`${todayStr}T08:12:11.000Z`),
+        sessionId: sessionOvernight.id,
+      },
+    });
+
+    // 4. Vérifier le journal du jour J (yesterdayStr)
+    // Note: SCENARIO 4 a créé un paiement hier de 50 000 DA (PAY-TEST-YESTERDAY)
+    // Solde final attendu hier = 50 000 (PAY-TEST-YESTERDAY) + 43 000 (PAY-TEST-OVERNIGHT-94) - 43 000 (TRF-TEST-CLOSING-11) = 50 000 DA
+    const journalYesterday = await getDailyCashJournal(yesterdayStr);
+    assert(
+      journalYesterday.items.some((i) => i.reference === pOvernight.reference),
+      "Le paiement overnight n'apparaît pas dans le journal du jour J de la session"
+    );
+    assert(
+      journalYesterday.items.some((i) => i.reference === trfClosing.reference),
+      "Le transfert de clôture n'apparaît pas dans le journal du jour J de la session"
+    );
+    assert(
+      journalYesterday.theoreticalFinalBalance === 50000,
+      `Solde final jour J incorrect: ${journalYesterday.theoreticalFinalBalance} (attendu: 50000)`
+    );
+
+    // 5. Vérifier que le paiement n'apparaît PAS dans le journal du jour J+1
+    const journalTodayAfter = await getDailyCashJournal(todayStr);
+    assert(
+      !journalTodayAfter.items.some((i) => i.reference === pOvernight.reference),
+      "Le paiement de la session overnight est apparu à tort dans le journal de J+1"
+    );
+    assert(
+      !journalTodayAfter.items.some((i) => i.reference === trfClosing.reference),
+      "Le transfert de clôture de la session overnight est apparu à tort dans le journal de J+1"
+    );
+
+    console.log("  [TEST 11] PASS: Session overnight attribuée au jour J et strictement exclue de J+1");
+    results.push({ num: 11, name: "Attribution session overnight et exclusion du jour J+1", passed: true });
+  } catch (err: any) {
+    console.error("  [TEST 11] FAIL:", err.message);
+    results.push({ num: 11, name: "Attribution session overnight et exclusion du jour J+1", passed: false, error: err.message });
+  }
+
   console.log("\n================================================================================");
   console.log("  RÉSUMÉ DES TESTS DU JOURNAL JOURNALIER DE CAISSE");
   console.log("================================================================================");
