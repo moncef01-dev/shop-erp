@@ -1,0 +1,794 @@
+// Prisma schema for Shop ERP - SQLite local database
+// Database file is stored at: ./prisma/shop.db (relative to project root)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../../src/generated/prisma/postgres"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── PRODUCTS & CATEGORIES ───────────────────────────────────────────────────
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id           Int       @id @default(autoincrement())
+  sku          String    @unique
+  name         String
+  model        String?
+  color        String?
+  description  String?
+  category     String?
+  categoryId   Int?
+  categoryRef  Category? @relation(fields: [categoryId], references: [id])
+  unitPrice    Float?
+  sellingPrice Float?
+  costPrice    Float?
+  stock        Int       @default(0)
+  minStock     Int       @default(0)
+  unit         String    @default("pièce")
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  saleItems            SaleItem[]
+  purchaseItems        PurchaseItem[]
+  purchaseReceiptItems PurchaseReceiptItem[]
+  stocks               ProductStock[]
+  movements            StockMovement[]
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@map("products")
+}
+
+// ─── LOCATIONS & INVENTORY ───────────────────────────────────────────────────
+
+model Location {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  address     String?
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stocks               ProductStock[]
+  sourceMovements      StockMovement[]       @relation("SourceLocation")
+  destMovements        StockMovement[]       @relation("DestinationLocation")
+  saleItems            SaleItem[]
+  purchaseItems        PurchaseItem[]
+  purchaseReceiptItems PurchaseReceiptItem[]
+
+  @@map("locations")
+}
+
+model ProductStock {
+  id         Int      @id @default(autoincrement())
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  locationId Int
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([productId, locationId])
+  @@index([locationId])
+  @@map("product_stocks")
+}
+
+model StockMovement {
+  id             Int       @id @default(autoincrement())
+  reference      String?
+  type           String    // "RECEIPT", "ISSUE", "ADJUSTMENT", "TRANSFER", "INITIAL", "SALE"
+  productId      Int?
+  product        Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  fromLocationId Int?
+  fromLocation   Location? @relation("SourceLocation", fields: [fromLocationId], references: [id])
+  toLocationId   Int?
+  toLocation     Location? @relation("DestinationLocation", fields: [toLocationId], references: [id])
+  quantity       Int
+  unitCost       Float?
+  stockBefore    Int?
+  stockAfter     Int?
+  reason         String?
+  notes          String?
+  date           DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+
+  saleId         Int?
+  sale           Sales?    @relation(fields: [saleId], references: [id])
+  purchaseId     Int?
+  purchase       Purchase? @relation(fields: [purchaseId], references: [id])
+
+  @@index([productId])
+  @@index([type])
+  @@index([date])
+  @@index([reference])
+  @@map("stock_movements")
+}
+
+// ─── CUSTOMERS ────────────────────────────────────────────────────────────────
+ 
+model Customer {
+  id        Int      @id @default(autoincrement())
+  code      String?  @unique
+  name      String
+  phone     String?
+  phone2    String?
+  email     String?
+  address   String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales    Sales[]
+  advances CustomerAdvance[]
+  savingsAccount CustomerSavingsAccount?
+  savingsTransactions CustomerSavingsTransaction[]
+
+  @@map("customers")
+}
+
+// ─── SUPPLIERS ───────────────────────────────────────────────────────────────
+
+model Supplier {
+  id        Int      @id @default(autoincrement())
+  code      String?  @unique
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases Purchase[]
+  payments  Payment[]
+  debts     SupplierDebt[]
+  additionalPayments SupplierAdditionalPayment[]
+  additionalPaymentAllocations SupplierAdditionalPaymentAllocation[]
+
+  @@index([isActive])
+  @@map("suppliers")
+}
+
+// ─── SALES & PAYMENTS ─────────────────────────────────────────────────────────
+
+model Sales {
+  id             Int        @id @default(autoincrement())
+  reference      String     @unique
+  customerId     Int?
+  customer       Customer?  @relation(fields: [customerId], references: [id])
+  status         String     @default("draft") // "draft", "confirmed", "cancelled"
+  subtotal       Float      @default(0)
+  discount       Float      @default(0)
+  deliveryFee    Float      @default(0)
+  includeDeliveryFee Boolean @default(true)
+  totalAmount    Float      @default(0)
+  paidAmount     Float      @default(0)
+  paymentStatus  String     @default("unpaid") // "unpaid", "partial", "paid"
+  deliveryStatus String     @default("none")   // "none", "pending", "in_transit", "delivered", "cancelled"
+  notes          String?
+  saleDate       DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  items              SaleItem[]
+  payments           Payment[]
+  movements          StockMovement[]
+  advanceAllocations CustomerAdvanceAllocation[]
+  savingsTransactions CustomerSavingsTransaction[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([saleDate])
+  @@map("sales")
+}
+
+model SaleItem {
+  id         Int       @id @default(autoincrement())
+  saleId     Int
+  sale       Sales     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product   @relation(fields: [productId], references: [id])
+  locationId Int?
+  location   Location? @relation(fields: [locationId], references: [id])
+  quantity   Int
+  unitPrice  Float
+  discount   Float     @default(0)
+  subtotal   Float
+  color      String?
+
+  @@index([saleId])
+  @@index([productId])
+  @@index([locationId])
+  @@map("sale_items")
+}
+
+model Payment {
+  id          Int       @id @default(autoincrement())
+  reference   String?   @unique
+  saleId      Int?
+  sale        Sales?    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  purchaseId  Int?
+  purchase    Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  supplierId  Int?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  accountId   Int?
+  account     TreasuryAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  amount      Float
+  method      String    @default("cash")
+  status      String    @default("completed")
+  notes       String?
+  paymentDate DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  sessionId   Int?
+  session     CashSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([purchaseId])
+  @@index([supplierId])
+  @@index([accountId])
+  @@index([paymentDate])
+  @@index([sessionId])
+  @@map("payments")
+}
+
+model CustomerAdvance {
+  id              Int                         @id @default(autoincrement())
+  reference       String                      @unique
+  customerId      Int
+  customer        Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  accountId       Int?
+  account         TreasuryAccount?            @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  amount          Float
+  allocatedAmount Float                       @default(0)
+  refundedAmount  Float                       @default(0)
+  method          String                      @default("cash") // "cash", "transfer", "check", "cib"
+  paymentDate     DateTime                    @default(now())
+  productInterest String?
+  notes           String?
+  status          String                      @default("available") // "available", "partially_used", "fully_used", "refunded"
+  sessionId       Int?
+  session         CashSession?                @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+
+  allocations     CustomerAdvanceAllocation[]
+
+  @@index([customerId])
+  @@index([accountId])
+  @@index([status])
+  @@index([paymentDate])
+  @@index([sessionId])
+  @@map("customer_advances")
+}
+
+model CustomerAdvanceAllocation {
+  id          Int             @id @default(autoincrement())
+  advanceId   Int
+  advance     CustomerAdvance @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+  saleId      Int
+  sale        Sales           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  amount      Float
+  allocatedAt DateTime        @default(now())
+  notes       String?
+
+  @@index([advanceId])
+  @@index([saleId])
+  @@map("customer_advance_allocations")
+}
+
+
+// ─── PURCHASES ───────────────────────────────────────────────────────────────
+
+model Purchase {
+  id                   Int               @id @default(autoincrement())
+  reference            String            @unique
+  supplierId           Int?
+  supplier             Supplier?         @relation(fields: [supplierId], references: [id])
+  status               String            @default("draft") // draft, ordered, partially_received, received, cancelled
+  receiptStatus        String            @default("pending") // pending, partial, received
+  paymentStatus        String            @default("unpaid") // unpaid, partial, paid
+  subtotal             Float             @default(0)
+  discount             Float             @default(0)
+  totalAmount          Float             @default(0)
+  paidAmount           Float             @default(0)
+  notes                String?
+  expectedDeliveryDate DateTime?
+  purchaseDate         DateTime          @default(now())
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  items                PurchaseItem[]
+  receipts             PurchaseReceipt[]
+  payments             Payment[]
+  movements            StockMovement[]
+  additionalPaymentAllocations SupplierAdditionalPaymentAllocation[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([receiptStatus])
+  @@index([paymentStatus])
+  @@index([purchaseDate])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id               Int                   @id @default(autoincrement())
+  purchaseId       Int
+  purchase         Purchase              @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId        Int
+  product          Product               @relation(fields: [productId], references: [id])
+  locationId       Int?
+  location         Location?             @relation(fields: [locationId], references: [id])
+  quantity         Int
+  receivedQuantity Int                   @default(0)
+  unitCost         Float
+  subtotal         Float
+
+  receiptItems     PurchaseReceiptItem[]
+
+  @@index([purchaseId])
+  @@index([productId])
+  @@index([locationId])
+  @@map("purchase_items")
+}
+
+// ─── PURCHASE RECEIPTS ───────────────────────────────────────────────────────
+
+model PurchaseReceipt {
+  id          Int                   @id @default(autoincrement())
+  reference   String                @unique
+  purchaseId  Int
+  purchase    Purchase              @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  receiptDate DateTime              @default(now())
+  notes       String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  items       PurchaseReceiptItem[]
+
+  @@index([purchaseId])
+  @@index([receiptDate])
+  @@map("purchase_receipts")
+}
+
+model PurchaseReceiptItem {
+  id             Int             @id @default(autoincrement())
+  receiptId      Int
+  receipt        PurchaseReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  purchaseItemId Int
+  purchaseItem   PurchaseItem    @relation(fields: [purchaseItemId], references: [id], onDelete: Cascade)
+  productId      Int
+  product        Product         @relation(fields: [productId], references: [id])
+  locationId     Int
+  location       Location        @relation(fields: [locationId], references: [id])
+  quantity       Int
+  unitCost       Float?
+
+  @@index([receiptId])
+  @@index([purchaseItemId])
+  @@index([productId])
+  @@index([locationId])
+  @@map("purchase_receipt_items")
+}
+
+
+// ─── CASH & TREASURY ──────────────────────────────────────────────────────────
+
+model CashSession {
+  id                Int       @id @default(autoincrement())
+  reference         String    @unique
+  accountId         Int?
+  account           TreasuryAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  openedAt          DateTime  @default(now())
+  closedAt          DateTime?
+  status            String    @default("open") // "open", "closed"
+  openingAmount     Float     @default(0)
+  totalCashIn       Float     @default(0)
+  totalCashOut      Float     @default(0)
+  theoreticalAmount Float?
+  closingAmount     Float?
+  difference        Float?
+  openingNotes      String?
+  closingNotes      String?
+  originalClosingAmount Float?
+  originalTheoreticalAmount Float?
+  originalDifference Float?
+  retainedAmount    Float?
+  closingEditAudit  String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  expenses          Expense[]
+  payments          Payment[]
+  customerAdvances  CustomerAdvance[]
+  transfers         TreasuryTransfer[]
+  savingsTransactions CustomerSavingsTransaction[]
+  supplierAdditionalPayments SupplierAdditionalPayment[]
+
+  @@index([accountId])
+  @@index([status])
+  @@index([openedAt])
+  @@map("cash_sessions")
+}
+
+model Expense {
+  id             Int          @id @default(autoincrement())
+  reference      String       @unique
+  accountId      Int?
+  account        TreasuryAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  type           String       @default("expense") // "expense" (décaissement), "income" (encaissement exceptionnel)
+  category       String       // "transport", "utilities", "rent", "maintenance", "supplies", "salary", "other", "capital", "misc_income"
+  description    String
+  amount         Float
+  method         String       @default("cash") // "cash", "transfer", "check", "cib"
+  beneficiary    String?
+  receiptNumber  String?
+  notes          String?
+  date           DateTime     @default(now())
+  sessionId      Int?
+  session        CashSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  status         String       @default("completed") // "completed", "cancelled"
+  cancelledAt    DateTime?
+  cancellationReason String?
+  cancelledBy    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([accountId])
+  @@index([type])
+  @@index([category])
+  @@index([date])
+  @@index([method])
+  @@index([sessionId])
+  @@index([status])
+  @@map("expenses")
+}
+
+model TreasuryAccount {
+  id             Int       @id @default(autoincrement())
+  code           String    @unique
+  name           String
+  type           String    @default("cash") // "cash", "safe", "bank", "other"
+  openingBalance Float     @default(0)
+  openingDate    DateTime  @default(now())
+  isDefault      Boolean   @default(false)
+  isActive       Boolean   @default(true)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  transfersFrom    TreasuryTransfer[] @relation("SourceAccount")
+  transfersTo      TreasuryTransfer[] @relation("DestinationAccount")
+  payments         Payment[]
+  expenses         Expense[]
+  customerAdvances CustomerAdvance[]
+  cashSessions     CashSession[]
+  savingsTransactions CustomerSavingsTransaction[]
+  supplierAdditionalPayments SupplierAdditionalPayment[]
+
+  @@index([type])
+  @@index([isActive])
+  @@map("treasury_accounts")
+}
+
+model TreasuryTransfer {
+  id            Int             @id @default(autoincrement())
+  reference     String          @unique
+  fromAccountId Int
+  fromAccount   TreasuryAccount @relation("SourceAccount", fields: [fromAccountId], references: [id])
+  toAccountId   Int
+  toAccount     TreasuryAccount @relation("DestinationAccount", fields: [toAccountId], references: [id])
+  amount        Float
+  paymentMethod String          @default("cash")
+  motif         String
+  notes         String?
+  date          DateTime        @default(now())
+  sessionId     Int?
+  session       CashSession?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  editHistory   String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([fromAccountId])
+  @@index([toAccountId])
+  @@index([date])
+  @@index([sessionId])
+  @@map("treasury_transfers")
+}
+
+model SupplierDebt {
+  id          Int      @id @default(autoincrement())
+  reference   String   @unique
+  supplierId  Int
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  amount      Float
+  type        String   @default("initial_debt") // "initial_debt", "adjustment"
+  description String
+  date        DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  additionalPaymentAllocations SupplierAdditionalPaymentAllocation[]
+
+  @@index([supplierId])
+  @@index([date])
+  @@map("supplier_debts")
+}
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  type        String
+  category    String?
+  description String
+  amount      Float
+  date        DateTime @default(now())
+  reference   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("transactions")
+}
+
+// ─── SETTINGS & SHOP IDENTITY ─────────────────────────────────────────────────
+
+model ShopSettings {
+  id                   Int      @id @default(1)
+  shopName             String   @default("Shop ERP Mobilier")
+  activity             String?  @default("Magasin d'Ameublement & Décoration d'Intérieur")
+  address              String?  @default("Zone Commerciale & Exposition — Alger, Algérie")
+  phone                String?  @default("+213 (0) 550 12 34 56 / +213 (0) 23 45 67 89")
+  email                String?  @default("contact@shoperp-mobilier.dz")
+  nifRc                String?  @default("002416000000000")
+  nis                  String?
+  legalForm            String?
+  documentFooter       String?  @default("Merci pour votre confiance. Les marchandises vendues sont garanties 12 mois. Service après-vente disponible 6j/7.")
+  currency             String   @default("DA")
+  defaultLocationId    Int?
+  logoUrl              String?
+  backupRetentionCount Int      @default(30)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("shop_settings")
+}
+
+// ─── CLÔTURE MENSUELLE (MONTHLY CLOSING & AUDIT) ──────────────────────────────
+
+model MonthlyClosingChecklist {
+  id        Int       @id @default(autoincrement())
+  month     String    // "YYYY-MM"
+  itemKey   String
+  status    String    @default("PENDING") // PENDING, VALIDATED, DISCREPANCY, NOT_APPLICABLE
+  note      String?
+  checkedBy String?   @default("Opérateur")
+  checkedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([month, itemKey])
+  @@index([month])
+  @@map("monthly_closing_checklists")
+}
+
+model MonthlyClosingSnapshot {
+  id                Int       @id @default(autoincrement())
+  reference         String    @unique // e.g. "CLM-202610-0001"
+  month             String    // "YYYY-MM"
+  version           Int       @default(1)
+  status            String    @default("DRAFT") // DRAFT, FINAL, ARCHIVED
+  title             String?
+  notes             String?
+  generatedAt       DateTime  @default(now())
+  generatedBy       String?   @default("Opérateur")
+  periodStart       DateTime
+  periodEnd         DateTime
+  totalsJson        String    // Aggregate totals JSON (immutable)
+  checklistJson     String    // Checklist states JSON at snapshot time
+  discrepanciesJson String?   // Documented discrepancies JSON
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([month])
+  @@index([status])
+  @@map("monthly_closing_snapshots")
+}
+
+model MonthlyClosingPeriod {
+  id                Int       @id @default(autoincrement())
+  month             String    @unique // "YYYY-MM"
+  status            String    @default("DRAFT") // "DRAFT", "READY_FOR_APPROVAL", "FINAL", "REOPENED"
+  isLocked          Boolean   @default(false)
+  periodStart       DateTime
+  periodEnd         DateTime
+  finalSnapshotId   Int?
+  finalSnapshotRef  String?
+  approvedBy        String?
+  approvedAt        DateTime?
+  approvalNotes     String?
+  backupConfirmedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  auditLogs         MonthlyClosingAuditLog[]
+
+  @@index([status])
+  @@map("monthly_closing_periods")
+}
+
+model MonthlyClosingAuditLog {
+  id           Int                   @id @default(autoincrement())
+  periodId     Int?
+  period       MonthlyClosingPeriod? @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  month        String                // "YYYY-MM"
+  action       String                // "STATUS_CHANGE", "READY_FOR_APPROVAL", "APPROVED", "REOPENED", "SNAPSHOT_CREATED"
+  fromStatus   String?
+  toStatus     String
+  operator     String                @default("Opérateur")
+  reason       String?
+  snapshotRef  String?
+  version      Int?
+  metadataJson String?
+  createdAt    DateTime              @default(now())
+
+  @@index([month])
+  @@index([createdAt])
+  @@map("monthly_closing_audit_logs")
+}
+
+
+
+// ─── ÉPARGNE & AVOIR CLIENT (CUSTOMER SAVINGS / STORE CREDIT) ─────────────────
+
+model CustomerSavingsAccount {
+  id             Int       @id @default(autoincrement())
+  customerId     Int       @unique
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  balance        Float     @default(0)
+  totalDeposited Float     @default(0)
+  totalUsed      Float     @default(0)
+  totalRefunded  Float     @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  transactions   CustomerSavingsTransaction[]
+
+  @@map("customer_savings_accounts")
+}
+
+model CustomerSavingsTransaction {
+  id                   Int       @id @default(autoincrement())
+  reference            String    @unique
+  customerId           Int
+  customer             Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  accountId            Int
+  account              CustomerSavingsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  treasuryAccountId    Int?
+  treasuryAccount      TreasuryAccount? @relation(fields: [treasuryAccountId], references: [id], onDelete: SetNull)
+  type                 String    // "DEPOSIT", "USAGE", "REFUND", "REVERSAL"
+  amount               Float
+  direction            String    // "IN", "OUT"
+  balanceBefore        Float
+  balanceAfter         Float
+  paymentMethod        String    @default("cash") // "cash", "transfer", "check", "cib"
+  saleId               Int?
+  sale                 Sales?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  relatedTransactionId Int?
+  relatedTransaction   CustomerSavingsTransaction? @relation("SavingsReversals", fields: [relatedTransactionId], references: [id])
+  reversals            CustomerSavingsTransaction[] @relation("SavingsReversals")
+  sessionId            Int?
+  session              CashSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  description          String
+  notes                String?
+  status               String    @default("completed") // "completed", "cancelled"
+  date                 DateTime  @default(now())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([customerId])
+  @@index([accountId])
+  @@index([type])
+  @@index([saleId])
+  @@index([date])
+  @@index([sessionId])
+  @@map("customer_savings_transactions")
+}
+
+
+// ─── SUPPLIER ADDITIONAL PAYMENTS (NON-DEBT PAYMENTS) ─────────────────────────
+
+model SupplierAdditionalPayment {
+  id                   Int               @id @default(autoincrement())
+  reference            String            @unique
+  supplierId           Int
+  supplier             Supplier          @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  amount               Float
+  treasuryAccountId    Int
+  treasuryAccount      TreasuryAccount   @relation(fields: [treasuryAccountId], references: [id], onDelete: Restrict)
+  paymentMethod        String            @default("cash") // "cash", "bank_transfer", "check", "safe_transfer", "other"
+  date                 DateTime          @default(now())
+  status               String            @default("completed") // "completed", "reversed"
+  notes                String?
+  description          String?
+  isReversal           Boolean           @default(false)
+  reversalOfId         Int?              @unique
+  reversalOf           SupplierAdditionalPayment? @relation("AdditionalPaymentReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversal             SupplierAdditionalPayment? @relation("AdditionalPaymentReversal")
+  reversedAt           DateTime?
+  reversalReason       String?
+  idempotencyKey       String?           @unique
+  sessionId            Int?
+  session              CashSession?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  allocations          SupplierAdditionalPaymentAllocation[]
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@index([supplierId, date])
+  @@index([treasuryAccountId, date])
+  @@index([sessionId])
+  @@index([status])
+  @@index([isReversal])
+  @@map("supplier_additional_payments")
+}
+
+// ─── SUPPLIER ADDITIONAL PAYMENT ALLOCATIONS (IMPUTATIONS SUR DETTE) ──────────
+
+model SupplierAdditionalPaymentAllocation {
+  id               Int                       @id @default(autoincrement())
+  reference        String                    @unique
+  paymentId        Int
+  payment          SupplierAdditionalPayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  supplierId       Int
+  supplier         Supplier                  @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseId       Int?
+  purchase         Purchase?                 @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  supplierDebtId   Int?
+  supplierDebt     SupplierDebt?             @relation(fields: [supplierDebtId], references: [id], onDelete: SetNull)
+  amount           Float
+  date             DateTime                  @default(now())
+  status           String                    @default("completed") // "completed", "reversed"
+  notes            String?
+  description      String?
+  isReversal       Boolean                   @default(false)
+  reversalOfId     Int?                      @unique
+  reversalOf       SupplierAdditionalPaymentAllocation? @relation("AllocationReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversal         SupplierAdditionalPaymentAllocation? @relation("AllocationReversal")
+  reversedAt       DateTime?
+  reversalReason   String?
+  idempotencyKey   String?                   @unique
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([supplierId, date])
+  @@index([paymentId])
+  @@index([purchaseId])
+  @@index([supplierDebtId])
+  @@index([status])
+  @@index([isReversal])
+  @@map("supplier_additional_payment_allocations")
+}
+

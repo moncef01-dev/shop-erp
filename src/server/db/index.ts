@@ -1,46 +1,29 @@
-// Prisma client singleton for Next.js (Prisma 7 + libsql adapter)
-// The SQLite database is stored at: prisma/shop.db
-// No native build tools required — uses pure-JS @libsql/client
-// PostgreSQL support arrives in Phase 4 via DB_PROVIDER + @prisma/adapter-pg.
+// Singleton Prisma pour Next.js (Prisma 7 + driver adapters)
+// Le fournisseur actif est choisi au démarrage du process via DB_PROVIDER :
+// - "sqlite"   (défaut) : @prisma/adapter-libsql, base prisma/shop.db
+// - "postgres" : @prisma/adapter-pg, POSTGRES_DATABASE_URL
+// Le type canonique du singleton est le client généré SQLite ; le client
+// PostgreSQL généré depuis le même schéma est casté (API identique).
 
-import path from "path";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
-import { PrismaClient } from "@/generated/prisma/client";
+import { PrismaClient as SqlitePrismaClient } from "@/generated/prisma/sqlite/client";
 import { dbProvider } from "@/server/db/config";
+import { createSqliteClient } from "@/server/db/client.sqlite";
+import { createPostgresClient } from "@/server/db/client.postgres";
 
-if (dbProvider !== "sqlite") {
-  throw new Error(
-    "DB_PROVIDER=postgres n'est pas encore pris en charge : le client PostgreSQL (adapter-pg) arrive à la phase 4 de la migration."
-  );
-}
-
-export type AppPrismaClient = PrismaClient;
+export type AppPrismaClient = SqlitePrismaClient;
 export type TxClient = Parameters<Parameters<AppPrismaClient["$transaction"]>[0]>[0];
 export type DbClient = AppPrismaClient | TxClient;
 
-function getDatabaseUrl(): string {
-  const envUrl = process.env.DATABASE_URL;
-  if (envUrl && envUrl.trim()) {
-    if (envUrl.startsWith("file:")) {
-      const filePath = envUrl.slice(5);
-      if (!path.isAbsolute(filePath)) {
-        return `file:${path.resolve(process.cwd(), filePath)}`;
-      }
-      return envUrl;
-    }
-    return envUrl;
+function createPrismaClient(): AppPrismaClient {
+  if (dbProvider === "postgres") {
+    const postgresClient = createPostgresClient();
+    return postgresClient as unknown as AppPrismaClient;
   }
-  const dbPath = path.resolve(process.cwd(), "prisma", "shop.db");
-  return `file:${dbPath}`;
-}
-
-function createPrismaClient() {
-  const adapter = new PrismaLibSql({ url: getDatabaseUrl() });
-  return new PrismaClient({ adapter });
+  return createSqliteClient();
 }
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prisma: AppPrismaClient | undefined;
   isRestoringDatabase: boolean | undefined;
 };
 
@@ -69,7 +52,7 @@ export async function disconnectPrismaClient(): Promise<void> {
   }
 }
 
-export function resetPrismaClient(): PrismaClient {
+export function resetPrismaClient(): AppPrismaClient {
   const newClient = createPrismaClient();
   globalForPrisma.prisma = newClient;
   return newClient;
