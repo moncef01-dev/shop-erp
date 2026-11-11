@@ -1,6 +1,46 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import {
+  findProductsForModule,
+  findCategoriesWithProductCounts,
+  findCategoryById,
+  findCategoryByName,
+  findCategoryByNameExcluding,
+  createCategory,
+  updateCategory,
+  findCategoryWithProductCount,
+  deleteCategory,
+  generateNextProductSku,
+  findProductBySku,
+  findProductBySkuExcluding,
+  findProductById,
+  findProductWithHistory,
+  createProduct,
+  updateProduct,
+  deleteProductWithStockTx,
+} from "@/server/repositories/catalog.repository";
+import {
+  ensureDefaultLocations as ensureDefaultLocationsRepo,
+  findLocationsOrdered,
+  findLocationById,
+  findLocationByCode,
+  findProductAndLocationByIds,
+  findProductAndTwoLocationsByIds,
+  clearDefaultLocations,
+  createLocation,
+  updateLocation,
+  findLocationWithStockAndMovements,
+  deleteLocation,
+  findRecentMovements,
+  countMovementsSince,
+  applyInitialStock,
+  applyStockReceipt,
+  applyStockIssue,
+  applyStockAdjustment,
+  applyStockTransfer,
+  generateReference,
+} from "@/server/repositories/inventory.repository";
+import { prisma } from "@/server/db";
 import { revalidatePath } from "next/cache";
 import { assertPeriodNotLocked } from "@/lib/period-lock";
 
@@ -23,120 +63,27 @@ function safeRevalidate(path: string) {
     // Silently ignore when called outside Next.js request context (e.g. integration tests)
   }
 }
-function generateReference(prefix: string): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  return `${prefix}-${y}${m}${d}-${rand}`;
-}
 
 // ─── INITIALISATION DES EMPLACEMENTS PAR DÉFAUT ──────────────────────────────
 
-const DEFAULT_LOCATIONS = [
-  {
-    code: "SHOWROOM",
-    name: "Showroom",
-    address: "Magasin principal — Espace d'exposition",
-    isDefault: true,
-  },
-  {
-    code: "GARAGE_CHAABAN",
-    name: "Garage Chaaban",
-    address: "Entrepôt Chaaban",
-    isDefault: false,
-  },
-  {
-    code: "GARAGE_CHEIKH",
-    name: "Garage Cheikh",
-    address: "Entrepôt Cheikh",
-    isDefault: false,
-  },
-  {
-    code: "GARAGE_3",
-    name: "3ème Garage / Dépôt",
-    address: "Dépôt secondaire configurable",
-    isDefault: false,
-  },
-];
-
 export async function ensureDefaultLocations(): Promise<void> {
-  for (const loc of DEFAULT_LOCATIONS) {
-    const existing = await prisma.location.findUnique({
-      where: { code: loc.code },
-    });
-    if (!existing) {
-      await prisma.location.create({
-        data: loc,
-      });
-    }
-  }
+  await ensureDefaultLocationsRepo();
 }
 
 // ─── RÉCUPÉRATION DES DONNÉES DU MODULE PRODUITS & STOCK ─────────────────────
 
 export async function getProductsModuleData() {
-  await ensureDefaultLocations();
+  await ensureDefaultLocationsRepo();
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
   const [products, categories, locations, movements, todayMovementsCount] = await Promise.all([
-    prisma.product.findMany({
-      include: {
-        categoryRef: true,
-        stocks: {
-          include: {
-            location: true,
-          },
-        },
-        _count: {
-          select: {
-            movements: true,
-            saleItems: true,
-            purchaseItems: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.category.findMany({
-      include: {
-        _count: {
-          select: { products: true },
-        },
-      },
-      orderBy: { name: "asc" },
-    }),
-    prisma.location.findMany({
-      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-    }),
-    prisma.stockMovement.findMany({
-      take: 200,
-      orderBy: { date: "desc" },
-      include: {
-        product: {
-          select: {
-            id: true,
-            sku: true,
-            name: true,
-            model: true,
-            color: true,
-            isActive: true,
-          },
-        },
-        fromLocation: { select: { id: true, name: true, code: true, isActive: true } },
-        toLocation: { select: { id: true, name: true, code: true, isActive: true } },
-      },
-    }),
-    prisma.stockMovement.count({
-      where: {
-        date: {
-          gte: todayStart,
-        },
-      },
-    }),
+    findProductsForModule(),
+    findCategoriesWithProductCounts(),
+    findLocationsOrdered(),
+    findRecentMovements(),
+    countMovementsSince(todayStart),
   ]);
 
   return {
@@ -149,59 +96,6 @@ export async function getProductsModuleData() {
 }
 
 // ─── GESTION DES PRODUITS & GÉNÉRATION AUTOMATIQUE DU SKU ───────────────────────
-
-/**
- * Génère automatiquement la référence SKU selon la convention de la boutique :
- * - Préfixe = 1ère lettre alphabétique de la catégorie en majuscule (A=Armoire, F=Fauteuil, T=Table, etc.) ou 'ART' si aucune.
- * - Suffixe numérique séquentiel formaté sur au moins 3 chiffres (ex: F102, T093, A003).
- * - Garantit une unicité stricte contre TOUS les produits de la base (actifs ET archivés/inactifs).
- */
-export async function generateNextProductSku(categoryId?: number | null): Promise<string> {
-  let prefix = "ART";
-  if (categoryId) {
-    const cat = await prisma.category.findUnique({
-      where: { id: categoryId },
-      select: { name: true },
-    });
-    if (cat?.name) {
-      const normalized = cat.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      const firstChar = normalized.charAt(0).toUpperCase();
-      if (/^[A-Z]$/.test(firstChar)) {
-        prefix = firstChar;
-      }
-    }
-  }
-
-  // Récupérer toutes les références existantes pour garantir l'unicité globale (y compris archivés)
-  const allProducts = await prisma.product.findMany({
-    select: { sku: true },
-  });
-
-  const existingSkus = new Set(allProducts.map((p) => p.sku.toUpperCase()));
-
-  let maxNum = 0;
-  const prefixRegex = new RegExp(`^${prefix}(\\d+)$`, "i");
-
-  for (const p of allProducts) {
-    const match = p.sku.match(prefixRegex);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      if (!isNaN(num) && num > maxNum) {
-        maxNum = num;
-      }
-    }
-  }
-
-  let candidateNum = maxNum + 1;
-  let candidate = `${prefix}${String(candidateNum).padStart(3, "0")}`;
-
-  while (existingSkus.has(candidate.toUpperCase())) {
-    candidateNum++;
-    candidate = `${prefix}${String(candidateNum).padStart(3, "0")}`;
-  }
-
-  return candidate;
-}
 
 export async function generateNextProductSkuAction(
   categoryId?: number | null
@@ -252,11 +146,7 @@ export async function createProductAction(formData: FormData): Promise<ActionRes
     const cleanSku = rawSku ? rawSku.toUpperCase() : await generateNextProductSku(categoryId);
 
     // Vérifier l'unicité stricte et insensible à la casse du SKU (inclut tous les statuts)
-    const existingSku = await prisma.product.findFirst({
-      where: {
-        sku: { equals: cleanSku },
-      },
-    });
+    const existingSku = await findProductBySku(cleanSku);
     if (existingSku) {
       return {
         success: false,
@@ -267,26 +157,24 @@ export async function createProductAction(formData: FormData): Promise<ActionRes
     // Récupérer le nom de la catégorie si présente
     let categoryName: string | null = null;
     if (categoryId) {
-      const cat = await prisma.category.findUnique({ where: { id: categoryId } });
+      const cat = await findCategoryById(categoryId);
       if (cat) categoryName = cat.name;
     }
 
-    const product = await prisma.product.create({
-      data: {
-        sku: cleanSku,
-        name: rawName,
-        model,
-        color,
-        description,
-        categoryId,
-        category: categoryName,
-        costPrice,
-        sellingPrice,
-        unitPrice: sellingPrice,
-        minStock,
-        stock: 0,
-        isActive: true,
-      },
+    const product = await createProduct({
+      sku: cleanSku,
+      name: rawName,
+      model,
+      color,
+      description,
+      categoryId,
+      category: categoryName,
+      costPrice,
+      sellingPrice,
+      unitPrice: sellingPrice,
+      minStock,
+      stock: 0,
+      isActive: true,
     });
 
     safeRevalidate("/products");
@@ -351,12 +239,7 @@ export async function updateProductAction(formData: FormData): Promise<ActionRes
     const cleanSku = rawSku.toUpperCase();
 
     // Vérifier collision SKU (insensible à la casse)
-    const existingSku = await prisma.product.findFirst({
-      where: {
-        sku: { equals: cleanSku },
-        NOT: { id },
-      },
-    });
+    const existingSku = await findProductBySkuExcluding(cleanSku, id);
     if (existingSku) {
       return {
         success: false,
@@ -366,26 +249,23 @@ export async function updateProductAction(formData: FormData): Promise<ActionRes
 
     let categoryName: string | null = null;
     if (categoryId) {
-      const cat = await prisma.category.findUnique({ where: { id: categoryId } });
+      const cat = await findCategoryById(categoryId);
       if (cat) categoryName = cat.name;
     }
 
-    const updated = await prisma.product.update({
-      where: { id },
-      data: {
-        sku: cleanSku,
-        name: rawName,
-        model,
-        color,
-        description,
-        categoryId,
-        category: categoryName,
-        costPrice,
-        sellingPrice,
-        unitPrice: sellingPrice,
-        minStock,
-        isActive,
-      },
+    const updated = await updateProduct(id, {
+      sku: cleanSku,
+      name: rawName,
+      model,
+      color,
+      description,
+      categoryId,
+      category: categoryName,
+      costPrice,
+      sellingPrice,
+      unitPrice: sellingPrice,
+      minStock,
+      isActive,
     });
 
     safeRevalidate("/products");
@@ -406,14 +286,11 @@ export async function updateProductAction(formData: FormData): Promise<ActionRes
 
 export async function toggleProductStatusAction(id: number): Promise<ActionResponse> {
   try {
-    const product = await prisma.product.findUnique({ where: { id } });
+    const product = await findProductById(id);
     if (!product) return { success: false, error: "Produit introuvable." };
 
     const newStatus = !product.isActive;
-    await prisma.product.update({
-      where: { id },
-      data: { isActive: newStatus },
-    });
+    await updateProduct(id, { isActive: newStatus });
 
     safeRevalidate("/products");
     safeRevalidate("/");
@@ -429,20 +306,7 @@ export async function toggleProductStatusAction(id: number): Promise<ActionRespo
 
 export async function deleteProductAction(id: number): Promise<ActionResponse> {
   try {
-    const product = await prisma.product.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: {
-            movements: true,
-            saleItems: true,
-            purchaseItems: true,
-            purchaseReceiptItems: true,
-          },
-        },
-        stocks: true,
-      },
-    });
+    const product = await findProductWithHistory(id);
 
     if (!product) {
       return { success: false, error: "Produit introuvable." };
@@ -458,11 +322,8 @@ export async function deleteProductAction(id: number): Promise<ActionResponse> {
     // Si le produit a un historique d'opérations commerciales ou de mouvements de stock :
     // Utiliser l'archivage (soft-delete) pour préserver l'intégrité référentielle et la traçabilité comptable
     if (hasHistoricalTransactions) {
-      await prisma.product.update({
-        where: { id },
-        data: {
-          isActive: false,
-        },
+      await updateProduct(id, {
+        isActive: false,
       });
 
       safeRevalidate("/products");
@@ -485,12 +346,7 @@ export async function deleteProductAction(id: number): Promise<ActionResponse> {
     // Si le produit n'a aucun historique d'opérations commerciales ou de mouvements :
     // Suppression définitive propre avec nettoyage de ses enregistrements d'emplacements de stock
     await prisma.$transaction(async (tx) => {
-      await tx.productStock.deleteMany({
-        where: { productId: id },
-      });
-      await tx.product.delete({
-        where: { id },
-      });
+      await deleteProductWithStockTx(id, tx);
     });
 
     safeRevalidate("/products");
@@ -523,9 +379,7 @@ export async function createCategoryAction(formData: FormData): Promise<ActionRe
       return { success: false, error: "Le nom de la catégorie est obligatoire." };
     }
 
-    const existing = await prisma.category.findUnique({
-      where: { name: rawName },
-    });
+    const existing = await findCategoryByName(rawName);
     if (existing) {
       return {
         success: false,
@@ -533,9 +387,7 @@ export async function createCategoryAction(formData: FormData): Promise<ActionRe
       };
     }
 
-    const cat = await prisma.category.create({
-      data: { name: rawName, description },
-    });
+    const cat = await createCategory({ name: rawName, description });
 
     safeRevalidate("/products");
     return {
@@ -563,9 +415,7 @@ export async function updateCategoryAction(formData: FormData): Promise<ActionRe
     }
     const id = parseInt(idStr, 10);
 
-    const duplicate = await prisma.category.findFirst({
-      where: { name: rawName, NOT: { id } },
-    });
+    const duplicate = await findCategoryByNameExcluding(rawName, id);
     if (duplicate) {
       return {
         success: false,
@@ -573,10 +423,7 @@ export async function updateCategoryAction(formData: FormData): Promise<ActionRe
       };
     }
 
-    const cat = await prisma.category.update({
-      where: { id },
-      data: { name: rawName, description },
-    });
+    const cat = await updateCategory(id, { name: rawName, description });
 
     safeRevalidate("/products");
     return {
@@ -595,12 +442,7 @@ export async function updateCategoryAction(formData: FormData): Promise<ActionRe
 
 export async function deleteCategoryAction(id: number): Promise<ActionResponse> {
   try {
-    const category = await prisma.category.findUnique({
-      where: { id },
-      include: {
-        _count: { select: { products: true } },
-      },
-    });
+    const category = await findCategoryWithProductCount(id);
 
     if (!category) {
       return { success: false, error: "Catégorie introuvable." };
@@ -613,7 +455,7 @@ export async function deleteCategoryAction(id: number): Promise<ActionResponse> 
       };
     }
 
-    await prisma.category.delete({ where: { id } });
+    await deleteCategory(id);
 
     safeRevalidate("/products");
     return {
@@ -642,7 +484,7 @@ export async function createLocationAction(formData: FormData): Promise<ActionRe
       return { success: false, error: "Le code et le nom de l'emplacement sont obligatoires." };
     }
 
-    const existing = await prisma.location.findUnique({ where: { code } });
+    const existing = await findLocationByCode(code);
     if (existing) {
       return {
         success: false,
@@ -651,15 +493,10 @@ export async function createLocationAction(formData: FormData): Promise<ActionRe
     }
 
     if (isDefault) {
-      await prisma.location.updateMany({
-        where: { isDefault: true },
-        data: { isDefault: false },
-      });
+      await clearDefaultLocations();
     }
 
-    const loc = await prisma.location.create({
-      data: { code, name, address, isDefault, isActive: true },
-    });
+    const loc = await createLocation({ code, name, address, isDefault, isActive: true });
 
     safeRevalidate("/products");
     return {
@@ -686,16 +523,10 @@ export async function updateLocationAction(formData: FormData): Promise<ActionRe
     const id = parseInt(idStr, 10);
 
     if (isDefault) {
-      await prisma.location.updateMany({
-        where: { id: { not: id }, isDefault: true },
-        data: { isDefault: false },
-      });
+      await clearDefaultLocations(id);
     }
 
-    const loc = await prisma.location.update({
-      where: { id },
-      data: { name, address, isDefault },
-    });
+    const loc = await updateLocation(id, { name, address, isDefault });
 
     safeRevalidate("/products");
     return {
@@ -711,7 +542,7 @@ export async function updateLocationAction(formData: FormData): Promise<ActionRe
 
 export async function toggleLocationStatusAction(id: number): Promise<ActionResponse> {
   try {
-    const loc = await prisma.location.findUnique({ where: { id } });
+    const loc = await findLocationById(id);
     if (!loc) return { success: false, error: "Emplacement introuvable." };
 
     // Si on veut désactiver un emplacement par défaut, le refuser
@@ -723,10 +554,7 @@ export async function toggleLocationStatusAction(id: number): Promise<ActionResp
     }
 
     const newStatus = !loc.isActive;
-    await prisma.location.update({
-      where: { id },
-      data: { isActive: newStatus },
-    });
+    await updateLocation(id, { isActive: newStatus });
 
     safeRevalidate("/products");
     return {
@@ -741,14 +569,7 @@ export async function toggleLocationStatusAction(id: number): Promise<ActionResp
 
 export async function deleteLocationAction(id: number): Promise<ActionResponse> {
   try {
-    const loc = await prisma.location.findUnique({
-      where: { id },
-      include: {
-        stocks: true,
-        sourceMovements: { select: { id: true } },
-        destMovements: { select: { id: true } },
-      },
-    });
+    const loc = await findLocationWithStockAndMovements(id);
 
     if (!loc) return { success: false, error: "Emplacement introuvable." };
 
@@ -769,7 +590,7 @@ export async function deleteLocationAction(id: number): Promise<ActionResponse> 
       };
     }
 
-    await prisma.location.delete({ where: { id } });
+    await deleteLocation(id);
 
     safeRevalidate("/products");
     return {
@@ -813,10 +634,7 @@ export async function recordInitialStockAction(formData: FormData): Promise<Acti
       return { success: false, error: "La quantité initiale doit être un nombre entier strictement positif (supérieur à 0)." };
     }
 
-    const [product, location] = await Promise.all([
-      prisma.product.findUnique({ where: { id: productId } }),
-      prisma.location.findUnique({ where: { id: locationId } }),
-    ]);
+    const [product, location] = await findProductAndLocationByIds(productId, locationId);
 
     if (!product) return { success: false, error: "Produit introuvable." };
     if (!product.isActive) {
@@ -829,56 +647,15 @@ export async function recordInitialStockAction(formData: FormData): Promise<Acti
 
     // Transaction atomique
     await prisma.$transaction(async (tx) => {
-      // Vérifier si un stock a déjà été saisi pour ce produit à cet emplacement
-      const existingStock = await tx.productStock.findUnique({
-        where: { productId_locationId: { productId, locationId } },
-      });
-
-      if (existingStock && existingStock.quantity > 0) {
-        throw new Error(
-          `Un stock d'ouverture a déjà été enregistré pour "${product.name}" à "${location.name}" (${existingStock.quantity} unité(s)). Pour corriger ou mettre à jour la quantité, veuillez utiliser l'opération d'Ajustement d'inventaire.`
-        );
-      }
-
-      const stockBefore = existingStock?.quantity ?? 0;
-      const stockAfter = quantity;
-
-      // 1. Mettre à jour / créer la ligne ProductStock
-      await tx.productStock.upsert({
-        where: { productId_locationId: { productId, locationId } },
-        create: {
-          productId,
-          locationId,
-          quantity: stockAfter,
-        },
-        update: {
-          quantity: stockAfter,
-        },
-      });
-
-      // 2. Recalculer le total strict across all locations
-      const allStocks = await tx.productStock.findMany({ where: { productId } });
-      const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
-
-      await tx.product.update({
-        where: { id: productId },
-        data: { stock: newTotal },
-      });
-
-      // 3. Enregistrer le mouvement avec avant/après
-      await tx.stockMovement.create({
-        data: {
-          reference: ref,
-          type: "INITIAL",
-          productId,
-          toLocationId: locationId,
-          quantity,
-          stockBefore,
-          stockAfter,
-          reason,
-          notes: `Stock initial d'ouverture à ${location.name}. Réf : ${ref}`,
-          unitCost: product.costPrice,
-        },
+      await applyInitialStock(tx, {
+        productId,
+        locationId,
+        quantity,
+        reference: ref,
+        reason,
+        productName: product.name,
+        locationName: location.name,
+        unitCost: product.costPrice,
       });
     });
 
@@ -925,10 +702,7 @@ export async function recordStockReceiptAction(formData: FormData): Promise<Acti
       return { success: false, error: "La quantité reçue doit être un nombre entier strictement positif." };
     }
 
-    const [product, location] = await Promise.all([
-      prisma.product.findUnique({ where: { id: productId } }),
-      prisma.location.findUnique({ where: { id: locationId } }),
-    ]);
+    const [product, location] = await findProductAndLocationByIds(productId, locationId);
 
     if (!product) return { success: false, error: "Produit introuvable." };
     if (!product.isActive) {
@@ -941,49 +715,15 @@ export async function recordStockReceiptAction(formData: FormData): Promise<Acti
 
     // Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
-      const existingStock = await tx.productStock.findUnique({
-        where: { productId_locationId: { productId, locationId } },
+      return applyStockReceipt(tx, {
+        productId,
+        locationId,
+        quantity,
+        reference: docRef,
+        reason,
+        locationName: location.name,
+        unitCost: product.costPrice,
       });
-
-      const stockBefore = existingStock?.quantity ?? 0;
-      const stockAfter = stockBefore + quantity;
-
-      await tx.productStock.upsert({
-        where: { productId_locationId: { productId, locationId } },
-        create: {
-          productId,
-          locationId,
-          quantity: stockAfter,
-        },
-        update: {
-          quantity: stockAfter,
-        },
-      });
-
-      const allStocks = await tx.productStock.findMany({ where: { productId } });
-      const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
-
-      await tx.product.update({
-        where: { id: productId },
-        data: { stock: newTotal },
-      });
-
-      await tx.stockMovement.create({
-        data: {
-          reference: docRef,
-          type: "RECEIPT",
-          productId,
-          toLocationId: locationId,
-          quantity,
-          stockBefore,
-          stockAfter,
-          reason,
-          notes: `Réception de +${quantity} à ${location.name}. Réf doc : ${docRef}`,
-          unitCost: product.costPrice,
-        },
-      });
-
-      return { stockAfter, newTotal };
     });
 
     safeRevalidate("/products");
@@ -1029,10 +769,7 @@ export async function recordStockIssueAction(formData: FormData): Promise<Action
       return { success: false, error: "La quantité sortie doit être un nombre entier strictement positif." };
     }
 
-    const [product, location] = await Promise.all([
-      prisma.product.findUnique({ where: { id: productId } }),
-      prisma.location.findUnique({ where: { id: locationId } }),
-    ]);
+    const [product, location] = await findProductAndLocationByIds(productId, locationId);
 
     if (!product) return { success: false, error: "Produit introuvable." };
     if (!product.isActive) {
@@ -1045,48 +782,15 @@ export async function recordStockIssueAction(formData: FormData): Promise<Action
 
     // Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
-      const currentStock = await tx.productStock.findUnique({
-        where: { productId_locationId: { productId, locationId } },
+      return applyStockIssue(tx, {
+        productId,
+        locationId,
+        quantity,
+        reference: docRef,
+        reason,
+        locationName: location.name,
+        unitCost: product.costPrice,
       });
-
-      const stockBefore = currentStock?.quantity ?? 0;
-      if (stockBefore < quantity) {
-        throw new Error(
-          `Stock insuffisant à l'emplacement "${location.name}". Stock disponible : ${stockBefore}, quantité demandée pour la sortie : ${quantity}. L'opération a été annulée.`
-        );
-      }
-
-      const stockAfter = stockBefore - quantity;
-
-      await tx.productStock.update({
-        where: { productId_locationId: { productId, locationId } },
-        data: { quantity: stockAfter },
-      });
-
-      const allStocks = await tx.productStock.findMany({ where: { productId } });
-      const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
-
-      await tx.product.update({
-        where: { id: productId },
-        data: { stock: newTotal },
-      });
-
-      await tx.stockMovement.create({
-        data: {
-          reference: docRef,
-          type: "ISSUE",
-          productId,
-          fromLocationId: locationId,
-          quantity,
-          stockBefore,
-          stockAfter,
-          reason,
-          notes: `Sortie de -${quantity} depuis ${location.name}. Motif : ${reason}. Réf : ${docRef}`,
-          unitCost: product.costPrice,
-        },
-      });
-
-      return { stockAfter, newTotal };
     });
 
     safeRevalidate("/products");
@@ -1133,10 +837,7 @@ export async function recordStockAdjustmentAction(formData: FormData): Promise<A
       return { success: false, error: "La quantité à ajuster doit être un nombre entier strictement positif." };
     }
 
-    const [product, location] = await Promise.all([
-      prisma.product.findUnique({ where: { id: productId } }),
-      prisma.location.findUnique({ where: { id: locationId } }),
-    ]);
+    const [product, location] = await findProductAndLocationByIds(productId, locationId);
 
     if (!product) return { success: false, error: "Produit introuvable." };
     if (!product.isActive) {
@@ -1147,60 +848,18 @@ export async function recordStockAdjustmentAction(formData: FormData): Promise<A
       return { success: false, error: `L'emplacement "${location.name}" est inactif.` };
     }
 
-    const delta = isSubtraction ? -rawQty : rawQty;
-
     // Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
-      const existingStock = await tx.productStock.findUnique({
-        where: { productId_locationId: { productId, locationId } },
+      return applyStockAdjustment(tx, {
+        productId,
+        locationId,
+        rawQuantity: rawQty,
+        isSubtraction,
+        reference: docRef,
+        reason,
+        locationName: location.name,
+        unitCost: product.costPrice,
       });
-
-      const stockBefore = existingStock?.quantity ?? 0;
-      const stockAfter = stockBefore + delta;
-
-      if (stockAfter < 0) {
-        throw new Error(
-          `Ajustement impossible : le stock à l'emplacement "${location.name}" est de ${stockBefore}. La déduction de ${rawQty} unité(s) donnerait un stock négatif (${stockAfter}). Le stock ne peut jamais être négatif.`
-        );
-      }
-
-      await tx.productStock.upsert({
-        where: { productId_locationId: { productId, locationId } },
-        create: {
-          productId,
-          locationId,
-          quantity: stockAfter,
-        },
-        update: {
-          quantity: stockAfter,
-        },
-      });
-
-      const allStocks = await tx.productStock.findMany({ where: { productId } });
-      const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
-
-      await tx.product.update({
-        where: { id: productId },
-        data: { stock: newTotal },
-      });
-
-      await tx.stockMovement.create({
-        data: {
-          reference: docRef,
-          type: "ADJUSTMENT",
-          productId,
-          fromLocationId: isSubtraction ? locationId : null,
-          toLocationId: isSubtraction ? null : locationId,
-          quantity: rawQty,
-          stockBefore,
-          stockAfter,
-          reason,
-          notes: `Ajustement (${isSubtraction ? "-" : "+"}${rawQty}) à ${location.name}. Avant: ${stockBefore}, Après: ${stockAfter}. Réf : ${docRef}`,
-          unitCost: product.costPrice,
-        },
-      });
-
-      return { stockBefore, stockAfter, newTotal };
     });
 
     safeRevalidate("/products");
@@ -1211,7 +870,7 @@ export async function recordStockAdjustmentAction(formData: FormData): Promise<A
     };
   } catch (err: unknown) {
     console.error("Erreur ajustement stock:", err);
-    const msg = err instanceof Error ? err.message : "Erreur lors de l'ajustement du stock.";
+    const msg = err instanceof Error ? err.message : "Erreur lors de l'ajustement de stock.";
     return { success: false, error: msg };
   }
 }
@@ -1253,11 +912,7 @@ export async function recordStockTransferAction(formData: FormData): Promise<Act
       return { success: false, error: "L'emplacement source et la destination doivent être différents." };
     }
 
-    const [product, fromLoc, toLoc] = await Promise.all([
-      prisma.product.findUnique({ where: { id: productId } }),
-      prisma.location.findUnique({ where: { id: fromLocationId } }),
-      prisma.location.findUnique({ where: { id: toLocationId } }),
-    ]);
+    const [product, fromLoc, toLoc] = await findProductAndTwoLocationsByIds(productId, fromLocationId, toLocationId);
 
     if (!product) return { success: false, error: "Produit introuvable." };
     if (!product.isActive) {
@@ -1274,74 +929,17 @@ export async function recordStockTransferAction(formData: FormData): Promise<Act
 
     // Transaction atomique stricte
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Contrôle du stock source
-      const sourceStock = await tx.productStock.findUnique({
-        where: { productId_locationId: { productId, locationId: fromLocationId } },
+      return applyStockTransfer(tx, {
+        productId,
+        fromLocationId,
+        toLocationId,
+        quantity,
+        reference: transferRef,
+        reason,
+        fromLocationName: fromLoc.name,
+        toLocationName: toLoc.name,
+        unitCost: product.costPrice,
       });
-
-      const srcBefore = sourceStock?.quantity ?? 0;
-      if (srcBefore < quantity) {
-        throw new Error(
-          `Stock insuffisant à l'emplacement source "${fromLoc.name}". Quantité disponible : ${srcBefore}, quantité demandée pour transfert : ${quantity}. Transfert annulé.`
-        );
-      }
-
-      const srcAfter = srcBefore - quantity;
-
-      // 2. Contrôle du stock destination
-      const destStock = await tx.productStock.findUnique({
-        where: { productId_locationId: { productId, locationId: toLocationId } },
-      });
-
-      const destBefore = destStock?.quantity ?? 0;
-      const destAfter = destBefore + quantity;
-
-      // 3. Déduire de la source
-      await tx.productStock.update({
-        where: { productId_locationId: { productId, locationId: fromLocationId } },
-        data: { quantity: srcAfter },
-      });
-
-      // 4. Ajouter à la destination
-      await tx.productStock.upsert({
-        where: { productId_locationId: { productId, locationId: toLocationId } },
-        create: {
-          productId,
-          locationId: toLocationId,
-          quantity: destAfter,
-        },
-        update: {
-          quantity: destAfter,
-        },
-      });
-
-      // 5. Vérifier la stricte conservation du total
-      const allStocks = await tx.productStock.findMany({ where: { productId } });
-      const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
-
-      await tx.product.update({
-        where: { id: productId },
-        data: { stock: newTotal },
-      });
-
-      // 6. Enregistrer le mouvement de transfert unique
-      await tx.stockMovement.create({
-        data: {
-          reference: transferRef,
-          type: "TRANSFER",
-          productId,
-          fromLocationId,
-          toLocationId,
-          quantity,
-          stockBefore: srcBefore,
-          stockAfter: srcAfter,
-          reason,
-          notes: `Transfert de ${quantity} unité(s) de "${fromLoc.name}" vers "${toLoc.name}". Réf : ${transferRef}`,
-          unitCost: product.costPrice,
-        },
-      });
-
-      return { srcAfter, destAfter, newTotal };
     });
 
     safeRevalidate("/products");
