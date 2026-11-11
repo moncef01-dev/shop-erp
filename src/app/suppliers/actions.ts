@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import type { PrismaTransactionClient } from "@/lib/inventory-transaction";
-import { calculateAccountBalance } from "@/app/cash/treasury-actions";
-import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
+import { prisma } from "@/server/db";
+import type { TxClient } from "@/server/db";
+import { calculateAccountBalance } from "@/server/repositories/cash.repository";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
+import { calculateSupplierDebt } from "@/server/repositories/suppliers.repository";
+
+export { calculateSupplierDebt } from "@/server/repositories/suppliers.repository";
 
 export interface SupplierStatementEvent {
   id: string;
@@ -80,7 +83,7 @@ function safeRevalidate() {
 // ─── GÉNÉRATEURS DE RÉFÉRENCES ────────────────────────────────────────────────
 
 export async function generateNextSupplierDebtReference(
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
@@ -105,7 +108,7 @@ export async function generateNextSupplierDebtReference(
 }
 
 export async function generateNextSupplierPaymentRef(
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
@@ -130,7 +133,7 @@ export async function generateNextSupplierPaymentRef(
 }
 
 export async function generateNextSupplierReturnReference(
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
@@ -152,90 +155,6 @@ export async function generateNextSupplierReturnReference(
     }
   }
   return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
-
-// ─── CALCUL DU SOLDE D'UN FOURNISSEUR ──────────────────────────────────────────
-
-export async function calculateSupplierDebt(
-  supplierId: number,
-  txClient?: PrismaTransactionClient
-): Promise<{
-  initialDebt: number;
-  totalPurchases: number;
-  totalPaid: number;
-  totalReturns: number;
-  totalAllocated: number;
-  outstandingDebt: number;
-  outstandingCredit: number;
-}> {
-  const db = txClient || prisma;
-
-  // 1. Dettes initiales / antérieures (hors retours)
-  const debtsAgg = await db.supplierDebt.aggregate({
-    where: { supplierId, type: { notIn: ["supplier_return", "return"] } },
-    _sum: { amount: true },
-  });
-  const initialDebt = debtsAgg._sum.amount ?? 0;
-
-  // 2. Retours marchandises / Avoirs (déduits de la dette)
-  const returnsAgg = await db.supplierDebt.aggregate({
-    where: { supplierId, type: { in: ["supplier_return", "return"] } },
-    _sum: { amount: true },
-  });
-  const totalReturns = returnsAgg._sum.amount ?? 0;
-
-  // 3. Achats confirmés dans le système
-  const purchasesAgg = await db.purchase.aggregate({
-    where: {
-      supplierId,
-      status: { not: "cancelled" },
-    },
-    _sum: { totalAmount: true },
-  });
-  const totalPurchases = purchasesAgg._sum.totalAmount ?? 0;
-
-  // 4. Paiements effectués au fournisseur
-  const paymentsAgg = await db.payment.aggregate({
-    where: {
-      status: { not: "cancelled" },
-      OR: [
-        { supplierId },
-        { purchase: { supplierId } },
-      ],
-    },
-    _sum: { amount: true },
-  });
-  const totalPaid = paymentsAgg._sum.amount ?? 0;
-
-  // 5. Imputations de versements supplémentaires sur la dette
-  let totalAllocated = 0;
-  try {
-    const allocAgg = await db.supplierAdditionalPaymentAllocation.aggregate({
-      where: {
-        supplierId,
-        status: "completed",
-        isReversal: false,
-      },
-      _sum: { amount: true },
-    });
-    totalAllocated = allocAgg._sum.amount ?? 0;
-  } catch {
-    // Ignore si la table n'est pas encore initialisée
-  }
-
-  const netBalance = initialDebt + totalPurchases - totalPaid - totalReturns - totalAllocated;
-  const outstandingDebt = Math.max(0, netBalance);
-  const outstandingCredit = Math.max(0, -netBalance);
-
-  return {
-    initialDebt: Math.round(initialDebt * 100) / 100,
-    totalPurchases: Math.round(totalPurchases * 100) / 100,
-    totalPaid: Math.round(totalPaid * 100) / 100,
-    totalReturns: Math.round(totalReturns * 100) / 100,
-    totalAllocated: Math.round(totalAllocated * 100) / 100,
-    outstandingDebt: Math.round(outstandingDebt * 100) / 100,
-    outstandingCredit: Math.round(outstandingCredit * 100) / 100,
-  };
 }
 
 // ─── ENREGISTRER UNE DETTE INITIALE ────────────────────────────────────────────

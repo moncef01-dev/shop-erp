@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import { roundMoney } from "@/lib/formatters";
-import { assertPeriodNotLocked } from "@/lib/period-lock";
+import { assertPeriodNotLocked } from "@/server/services/period-lock";
 import { generateNextExpenseReference } from "@/app/cash/actions";
 import type { ShopSettingsData } from "@/app/settings/actions";
 
-export type PrismaTransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+export type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 export type SavingsActionResponse<T = unknown> = {
   success: boolean;
@@ -28,7 +28,7 @@ function safeRevalidate(path: string) {
 
 export async function generateNextSavingsReference(
   type: "DEPOSIT" | "USAGE" | "REFUND" | "REVERSAL" = "DEPOSIT",
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
@@ -949,7 +949,7 @@ export async function allocateSavingsToInvoiceAction(
 // ─── 4. RÉTROCESSION / ANNULATION DE DÉDUCTION SUITE À ANNULATION DE VENTE ────
 
 export async function reverseSavingsDeductionsForSale(
-  tx: PrismaTransactionClient,
+  tx: TxClient,
   saleId: number,
   customerId: number,
   reason: string

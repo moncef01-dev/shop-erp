@@ -1,14 +1,13 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma, type TxClient } from "@/server/db";
 import { revalidatePath } from "next/cache";
 import {
   receiveStockForPurchaseItem,
   reverseStockForCancelledPurchase,
-  type PrismaTransactionClient,
-} from "@/lib/inventory-transaction";
-import { calculateSupplierDebt } from "@/app/suppliers/actions";
-import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
+} from "@/server/services/inventory";
+import { calculateSupplierDebt } from "@/server/repositories/suppliers.repository";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
 
 export type PurchaseActionResponse<T = unknown> = {
   success: boolean;
@@ -27,7 +26,7 @@ function safeRevalidate(path: string) {
 
 // ─── GÉNÉRATION DES RÉFÉRENCES SÉQUENTIELLES IMMUABLES ─────────────────────────
 
-export async function generateNextSupplierCode(txClient?: PrismaTransactionClient): Promise<string> {
+export async function generateNextSupplierCode(txClient?: TxClient): Promise<string> {
   const db = txClient || prisma;
   const lastSupplier = await db.supplier.findFirst({
     where: { code: { startsWith: "FOU-" } },
@@ -46,7 +45,7 @@ export async function generateNextSupplierCode(txClient?: PrismaTransactionClien
   return `FOU-${String(nextSeq).padStart(4, "0")}`;
 }
 
-export async function generateNextPurchaseOrderNumber(txClient?: PrismaTransactionClient): Promise<string> {
+export async function generateNextPurchaseOrderNumber(txClient?: TxClient): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
   const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -69,7 +68,7 @@ export async function generateNextPurchaseOrderNumber(txClient?: PrismaTransacti
   return `${prefix}${String(nextSeq).padStart(4, "0")}`;
 }
 
-export async function generateNextReceiptNumber(txClient?: PrismaTransactionClient): Promise<string> {
+export async function generateNextReceiptNumber(txClient?: TxClient): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
   const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -92,7 +91,7 @@ export async function generateNextReceiptNumber(txClient?: PrismaTransactionClie
   return `${prefix}${String(nextSeq).padStart(4, "0")}`;
 }
 
-export async function generateNextSupplierPaymentReference(txClient?: PrismaTransactionClient): Promise<string> {
+export async function generateNextSupplierPaymentReference(txClient?: TxClient): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
   const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;

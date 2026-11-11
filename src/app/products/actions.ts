@@ -42,7 +42,7 @@ import {
 } from "@/server/repositories/inventory.repository";
 import { prisma } from "@/server/db";
 import { revalidatePath } from "next/cache";
-import { assertPeriodNotLocked } from "@/lib/period-lock";
+import { assertPeriodNotLocked } from "@/server/services/period-lock";
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────
 

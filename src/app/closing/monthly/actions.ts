@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import { revalidatePath } from "next/cache";
 import {
   MonthlyClosingDashboardData,
@@ -17,7 +17,7 @@ import {
   MonthlyClosingPeriodInfo,
   MonthlyClosingAuditLogItem,
 } from "./types";
-import { isMonthLocked } from "@/lib/period-lock";
+import { isMonthLocked } from "@/server/services/period-lock";
 import {
   getEffectiveDayStr,
   getCurrentMonthStr,

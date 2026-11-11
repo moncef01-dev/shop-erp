@@ -1,6 +1,6 @@
 import { getAllSuppliersWithDebts } from "./actions";
 import { getTreasuryDashboardData } from "@/app/cash/treasury-actions";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import { SuppliersClient } from "./SuppliersClient";
 
 export const dynamic = "force-dynamic";

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import { AdvancesClient, type AdvanceItem } from "./AdvancesClient";
 
 export const metadata: Metadata = {

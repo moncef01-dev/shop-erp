@@ -9,7 +9,7 @@ import {
   disconnectPrismaClient,
   isDatabaseRestoring,
   setDatabaseRestoring,
-} from "@/lib/prisma";
+} from "@/server/db";
 import { createClient } from "@libsql/client";
 
 export interface ShopSettingsData {

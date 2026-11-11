@@ -1,13 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import type { ShopSettingsData } from "@/app/settings/actions";
-import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
 import {
   generateNextTreasuryTransferReference,
   generateNextTreasuryAccountCode,
-  calculateAccountBalance,
   getTreasuryDashboardData,
   createTreasuryAccountAction,
   updateTreasuryAccountAction,
@@ -20,6 +19,7 @@ import {
   type AccountMovementItem,
   type TreasuryDashboardSummary,
 } from "./treasury-actions";
+import { calculateAccountBalance } from "@/server/repositories/cash.repository";
 
 export {
   generateNextTreasuryTransferReference,
@@ -38,7 +38,7 @@ export {
   type TreasuryDashboardSummary,
 };
 
-export type PrismaTransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+export type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 export interface CashActionResponse<T = unknown> {
   success: boolean;
@@ -57,7 +57,7 @@ function safeRevalidate(path: string) {
 
 // ─── GÉNÉRATEURS DE RÉFÉRENCES SÉQUENTIELLES UNIQUE ──────────────────────────
 
-export async function generateNextCashSessionReference(txClient?: PrismaTransactionClient): Promise<string> {
+export async function generateNextCashSessionReference(txClient?: TxClient): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
   const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -82,7 +82,7 @@ export async function generateNextCashSessionReference(txClient?: PrismaTransact
 
 export async function generateNextExpenseReference(
   type: "expense" | "income" = "expense",
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();

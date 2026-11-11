@@ -1,10 +1,10 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import { revalidatePath } from "next/cache";
-import type { PrismaTransactionClient } from "@/lib/inventory-transaction";
-import { calculateAccountBalance } from "@/app/cash/treasury-actions";
-import { assertPeriodNotLocked } from "@/lib/period-lock";
+import type { TxClient } from "@/server/db";
+import { calculateAccountBalance } from "@/server/repositories/cash.repository";
+import { assertPeriodNotLocked } from "@/server/services/period-lock";
 
 export type AdditionalPaymentActionResponse<T = unknown> = {
   success: boolean;
@@ -26,7 +26,7 @@ function safeRevalidate(path?: string) {
 // ─── GÉNÉRATION DE RÉFÉRENCE ──────────────────────────────────────────────────
 
 export async function generateNextSupplierAdditionalPaymentReference(
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();

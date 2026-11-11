@@ -1,10 +1,10 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import { revalidatePath } from "next/cache";
-import type { PrismaTransactionClient } from "@/lib/inventory-transaction";
-import { assertPeriodNotLocked } from "@/lib/period-lock";
-import { calculateSupplierDebt } from "./actions";
+import type { TxClient } from "@/server/db";
+import { assertPeriodNotLocked } from "@/server/services/period-lock";
+import { calculateSupplierDebt } from "@/server/repositories/suppliers.repository";
 import { getSupplierAdditionalPaymentTotal } from "./additional-payment-actions";
 
 export type AllocationActionResponse<T = unknown> = {
@@ -26,7 +26,7 @@ function safeRevalidate() {
 // ─── GÉNÉRATION DE RÉFÉRENCE D'IMPUTATION ────────────────────────────────────
 
 export async function generateNextSupplierAllocationReference(
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
