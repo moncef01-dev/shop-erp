@@ -37,6 +37,15 @@ restantes sont les wrappers `prisma.$transaction` dans les actions (orchestratio
 plan). Les 2 server components (`suppliers/page.tsx`, `cash/advances/page.tsx`) passent par les
 repositories. Phase 7 (migration de données) annulée par décision — non nécessaire.
 
+## Phase 6 - Backup (TERMINEE - decision : sauvegarde SQLite uniquement)
+
+- Logique LibSQL deplacee verbatim vers `src/server/services/backup/sqlite.backup.ts` (path helpers, verifyBackupIntegrity, createSqliteBackup, restoreSqliteBackup, list/delete).
+- `services/backup/index.ts` : passerelle par fournisseur - delegue a SQLite, erreur claire `non disponible pour PostgreSQL` sinon (aucun pg_dump, non requis).
+- `settings/actions.ts` : delegation fine + revalidatePath ; plus aucun import `@libsql/client`.
+- Cloture mensuelle : `backup_completed` auto-NOT_APPLICABLE sur PostgreSQL (non bloquant, confirmation sautee) ; label neutralise.
+- UI Parametres : props serveur `providerLabel` + `supportsBackup` ; `getSystemInfoAction` utilise `providerLabel()`.
+- `scripts/backup.mjs` : garde-fou early-exit si `DB_PROVIDER=postgres`.
+
 ## Remaining
 
 1. **Phase 6 — Backup provider abstraction** : déplacer la logique LibSQL de

@@ -32,6 +32,7 @@ import {
   createMonthlyAuditLog,
 } from "@/server/repositories/closing.repository";
 import { findShopSettingsFirst } from "@/server/repositories/savings.repository";
+import { supportsFileBackup } from "@/server/db/capabilities";
 import {
   getEffectiveDayStr,
   getCurrentMonthStr,
@@ -110,8 +111,8 @@ const STANDARD_CHECKLIST_DEFINITIONS: {
   },
   {
     key: "backup_completed",
-    label: "10. Sauvegarde de la base de données SQLite effectuée",
-    description: "Contrôle de l'intégrité de la base de données SQLite (PRAGMA integrity_check) et archivage d'une copie de sauvegarde horodatée.",
+    label: "10. Sauvegarde de la base de données effectuée",
+    description: "Contrôle de l'intégrité de la base de données et archivage d'une copie de sauvegarde horodatée (sur SQLite : PRAGMA integrity_check + VACUUM INTO).",
     category: "audit",
   },
 ];
@@ -759,6 +760,20 @@ export async function getMonthlyClosingData(
 
   const checklist: MonthlyClosingChecklistItem[] = STANDARD_CHECKLIST_DEFINITIONS.map((def) => {
     const saved = savedChecklistMap.get(def.key);
+    // Sur PostgreSQL, la sauvegarde fichier (VACUUM INTO) n'est pas applicable :
+    // le point est automatiquement marqué N/A et ne bloque pas la clôture.
+    if (def.key === "backup_completed" && !supportsFileBackup()) {
+      return {
+        key: def.key,
+        label: def.label,
+        description: def.description,
+        category: def.category,
+        status: "NOT_APPLICABLE" as ChecklistStatus,
+        note: "Sauvegarde fichier non applicable sur PostgreSQL (utilisez un dump externe).",
+        checkedBy: "Système",
+        checkedAt: new Date().toISOString(),
+      };
+    }
     return {
       key: def.key,
       label: def.label,
@@ -1043,6 +1058,11 @@ export async function updateChecklistItemAction(
       return { success: false, error: "Paramètres manquants pour mettre à jour le contrôle." };
     }
 
+    // Sur PostgreSQL, le point de sauvegarde fichier est géré automatiquement (N/A).
+    if (itemKey === "backup_completed" && !supportsFileBackup()) {
+      return { success: false, error: "Ce point est non applicable sur PostgreSQL (sauvegarde fichier indisponible)." };
+    }
+
     if (await isMonthLocked(month)) {
       return {
         success: false,
@@ -1280,7 +1300,7 @@ export async function approveAndLockMonthlyClosingAction(
 ): Promise<{ success: boolean; reference?: string; message?: string; error?: string }> {
   try {
     if (!month) return { success: false, error: "Mois manquant." };
-    if (!confirmBackup) {
+    if (!confirmBackup && supportsFileBackup()) {
       return { success: false, error: "Vous devez confirmer avoir vérifié une sauvegarde récente de la base avant d'approuver définitivement la clôture." };
     }
 

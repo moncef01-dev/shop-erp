@@ -8,6 +8,26 @@ import path from "path";
 import fs from "fs";
 import { createClient } from "@libsql/client";
 
+// Chargement .env minimal pour lire DB_PROVIDER
+const envProvider = process.env.DB_PROVIDER;
+if (!envProvider) {
+  try {
+    const envFile = fs.readFileSync(path.resolve(process.cwd(), ".env"), "utf8");
+    const match = envFile.match(/^DB_PROVIDER\s*=\s*(.+)$/m);
+    if (match) process.env.DB_PROVIDER = match[1].trim().replace(/^["']|["']$/g, "");
+  } catch {
+    // Pas de .env — SQLite par défaut
+  }
+}
+
+if ((process.env.DB_PROVIDER ?? "sqlite").toLowerCase() === "postgres") {
+  console.error(
+    "Sauvegarde fichier non disponible pour PostgreSQL (DB_PROVIDER=postgres).\n" +
+      "Utilisez un dump externe, ex.: pg_dump \"$POSTGRES_DATABASE_URL\" > backup.sql"
+  );
+  process.exit(1);
+}
+
 async function performBackup() {
   const rootDir = process.cwd();
   const dbPath = path.resolve(rootDir, "prisma", "shop.db");

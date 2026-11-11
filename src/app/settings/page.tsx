@@ -6,10 +6,11 @@ import {
   getSystemInfoAction,
   getLocationsAction,
 } from "./actions";
+import { providerLabel, supportsFileBackup } from "@/server/db/capabilities";
 
 export const metadata: Metadata = {
   title: "Paramètres, Sauvegarde & Sécurité | Shop ERP",
-  description: "Configuration du magasin, identité commerciale, sauvegardes SQLite et sécurité des données.",
+  description: "Configuration du magasin, identité commerciale, sauvegardes et sécurité des données.",
 };
 
 export default async function SettingsPage() {
@@ -28,6 +29,8 @@ export default async function SettingsPage() {
         initialLatestVerified={backupRes.latestVerified}
         initialSystemInfo={systemInfo}
         locations={locations}
+        providerLabel={providerLabel()}
+        supportsBackup={supportsFileBackup()}
       />
     </div>
   );
