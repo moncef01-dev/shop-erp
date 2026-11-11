@@ -25,6 +25,7 @@ Toutes les données sont stockées localement dans une base de données SQLite h
 
 Shop ERP centralise l'intégralité du cycle de vie commercial et comptable d'un point de vente de mobilier :
 - **Architecture Locale-First** : Exécution sur machine locale ou réseau local d'entreprise (LAN) avec moteur SQLite/LibSQL pur JS ne nécessitant aucun outil de compilation C/C++.
+- **Fournisseur de Base de Données Modulaire (`DB_PROVIDER`)** : Le système fonctionne par défaut sur **SQLite** et peut basculer sur **PostgreSQL** via une simple variable d'environnement (`.env`). Toute la couche d'accès aux données est abstraite dans `src/server` (seam agnostique moteur + repositories) : un même code métier s'exécute sur les deux moteurs.
 - **Intégrité Financière Stricte** : Gestion multi-comptes de trésorerie (Caisse physique, Coffres magasin et maison, Comptes bancaires), sessions de caisse contrôlées, gestion séparée des acomptes, des versements fournisseurs hors-dette et des imputations ultérieures.
 - **Verrouillage Périodique (Period-Lock)** : Clôture mensuelle empêchant toute altération rétroactive des écritures antérieures, avec procédure de réouverture exceptionnelle auditée.
 - **Traçabilité des Stocks** : Suivi multi-dépôts (Showroom, garages et dépôts secondaires), valorisation PMP/Coût d'achat, mouvements immuables avec interdiction absolue de stock négatif.
@@ -64,8 +65,10 @@ Les versions réelles utilisées dans le projet sont :
 | **Langage** | [TypeScript](https://www.typescriptlang.org/) | `^5` |
 | **Style & Design System** | [Tailwind CSS v4](https://tailwindcss.com/) & PostCSS | `@tailwindcss/postcss ^4` |
 | **Composants Primitifs** | Radix UI (`@radix-ui/react-dialog`, `react-tooltip`, etc.) | Dernières versions stables |
-| **Base de Données** | [SQLite](https://www.sqlite.org/) via `@libsql/client` (pur JS / WASM) | `^0.18.0` |
-| **ORM & Schéma** | [Prisma ORM](https://www.prisma.io/) avec `@prisma/adapter-libsql` | `^7.10.1` |
+| **Base de Données (défaut)** | [SQLite](https://www.sqlite.org/) via `@libsql/client` (pur JS / WASM) | `^0.18.0` |
+| **Base de Données (option)** | [PostgreSQL](https://www.postgresql.org/) via `@prisma/adapter-pg` + `pg` | mêmes versions que Prisma |
+| **ORM & Schéma** | [Prisma ORM](https://www.prisma.io/) avec `@prisma/adapter-libsql` (SQLite) / `@prisma/adapter-pg` (PostgreSQL) | `^7.10.1` |
+| **Config CLI & Env** | `prisma.config.ts` + [dotenv](https://github.com/motdotla/dotenv) (chargement explicite du `.env`) | `^7.10.1` / `^16` |
 | **Génération PDF** | [jsPDF](https://github.com/parallax/jsPDF) & `jspdf-autotable` | `^4.2.1` / `^5.0.9` |
 | **Iconographie** | [Lucide React](https://lucide.dev/) | `^1.59.0` |
 | **Utilitaires CSS** | `clsx` & `tailwind-merge` | `^2.1.1` / `^3.7.0` |
@@ -77,13 +80,17 @@ Les versions réelles utilisées dans le projet sont :
 ```
 shop-erp/
 ├── prisma/
-│   ├── schema.prisma              # Schéma de base de données relationnelle
+│   ├── schema.prisma              # Schéma canonique (provider SQLite)
+│   ├── .generated/                # Variantes de schéma par fournisseur (sqlite/ postgres/) — générées
 │   ├── shop.db                    # Fichier de base de données SQLite active
-│   ├── backups/                   # Répertoire de stockage des sauvegardes automatiques
-│   └── migrations/                # Historique complet des migrations Prisma SQL
+│   ├── backups/                   # Répertoire de stockage des sauvegardes automatiques (SQLite)
+│   ├── migrations/                # Migrations Prisma SQL (SQLite)
+│   └── migrations-postgres/       # Baseline PostgreSQL + migrations suivantes
 ├── public/                        # Fichiers statiques et logos
 ├── scripts/
 │   ├── backup.mjs                 # Script autonome de sauvegarde SQLite (VACUUM INTO)
+│   ├── db/
+│   │   └── build-provider-schemas.mjs # Génère les 2 variantes de schéma depuis le schéma canonique
 │   └── ...                        # Utilitaires de maintenance et de réconciliation
 ├── src/
 │   ├── app/                       # Routes Next.js App Router & Server Actions
@@ -101,6 +108,11 @@ shop-erp/
 │   │   ├── documents/             # Registre unifié des documents & Fiches d'inventaire
 │   │   ├── reports/               # Analyses financières, Marges & Valorisation
 │   │   └── settings/              # Paramètres boutique, Sauvegardes & Restauration
+│   ├── server/                    # Couche serveur agnostique du moteur de base de données
+│   │   ├── db/                    # Seam de connexion : config (DB_PROVIDER), client.sqlite,
+│   │   │                          #   client.postgres, capabilities, search, singleton prisma
+│   │   ├── repositories/          # Toute la couche d'accès aux données (13 repositories)
+│   │   └── services/              # Services transversaux : inventory, period-lock, backup/
 │   ├── components/                # Composants d'interface modulaires
 │   │   ├── layout/                # Sidebar, TopBar, Navigation
 │   │   ├── common/                # Modalités de confirmation, sélecteurs, inputs sécurisés
@@ -112,19 +124,20 @@ shop-erp/
 │   ├── config/
 │   │   └── navigation.ts          # Définition centrale des menus et sous-menus
 │   ├── generated/
-│   │   └── prisma/                # Client Prisma généré typé
-│   └── lib/                       # Utilitaires transversaux
-│       ├── prisma.ts              # Singleton Prisma avec adaptateur LibSQL
-│       ├── period-lock.ts         # Moteur de verrouillage de période (assertPeriodNotLocked)
-│       ├── inventory-transaction.ts # Gestion atomique des transactions de stock
+│   │   └── prisma/                # Clients Prisma générés typés (sqlite/ et postgres/)
+│   └── lib/                       # Utilitaires transversaux (compat : ré-exports vers src/server)
+│       ├── prisma.ts              # Shim de compatibilité → src/server/db
+│       ├── period-lock.ts         # Shim de compatibilité → src/server/services/period-lock
+│       ├── inventory-transaction.ts # Shim de compatibilité → src/server/services/inventory
 │       ├── formatters.ts          # Formatage Dinar Algérien (DA), dates et nombres
 │       ├── utils.ts               # Utilitaires généraux
 │       └── pdf/                   # Moteurs de rendu jsPDF (factures, inventaires)
-├── tests/                         # Suites de tests automatisées (100% sans cloud)
+├── tests/                         # Suites de tests automatisées (isolées, sans cloud)
 ├── docs/                          # Documentation complète du système
 │   ├── USER_GUIDE.md              # Manuel d'utilisation détaillé en français
 │   ├── MODULES_REFERENCE.md       # Référentiel technique et règles métier
 │   └── DAILY_OPERATIONS.md        # Guide des opérations quotidiennes
+├── prisma.config.ts               # Config CLI Prisma : schéma/migrations/URL selon DB_PROVIDER
 ├── package.json                   # Dépendances et scripts de commande
 ├── run.bat                        # Script Windows de lancement automatique en 1 clic
 └── tsconfig.json                  # Configuration TypeScript stricte
@@ -153,12 +166,19 @@ shop-erp/
    ```
 
 3. **Vérifier le fichier d'environnement `.env`** :
-   Le fichier `.env` doit pointer vers la base SQLite locale :
+   Par défaut, l'application fonctionne sur la base SQLite locale :
    ```env
+   DB_PROVIDER=sqlite
    DATABASE_URL="file:./prisma/shop.db"
    ```
+   Pour cibler un serveur **PostgreSQL** à la place, définir :
+   ```env
+   DB_PROVIDER=postgres
+   POSTGRES_DATABASE_URL=postgresql://user:password@localhost:5432/shop
+   ```
+   *(Voir la section 8 pour le détail du basculement.)*
 
-4. **Générer le client Prisma** :
+4. **Générer les clients Prisma** (double client SQLite + PostgreSQL) :
    ```powershell
    npm run db:generate
    ```
@@ -168,7 +188,8 @@ shop-erp/
    ```powershell
    npx prisma migrate deploy
    ```
-   *(En environnement de développement, `npm run db:migrate` peut être utilisé).*
+   *(Le CLI Prisma cible automatiquement les migrations du fournisseur actif via `prisma.config.ts`.
+   En environnement de développement, `npm run db:migrate` peut être utilisé.)*
 
 ---
 
@@ -208,9 +229,14 @@ npm run dev
 | `npm run build` | Compile l'application Next.js avec Webpack pour la production. |
 | `npm run start` | Démarre le serveur de production compilé. |
 | `npm run lint` | Exécute l'analyse statique du code avec ESLint. |
-| `npm run db:generate` | Régénère le client Prisma typé dans `src/generated/prisma`. |
-| `npm run db:migrate` | Applique les migrations Prisma en mode développement interactif. |
-| `npm run db:backup` | Exécute le script `scripts/backup.mjs` créant un instantané sécurisé de `shop.db`. |
+| `npm run db:build:schemas` | Génère les variantes de schéma `prisma/.generated/{sqlite,postgres}/` depuis le schéma canonique. |
+| `npm run db:generate` | Génère les **deux** clients Prisma typés (`src/generated/prisma/sqlite` et `src/generated/prisma/postgres`). |
+| `npm run db:generate:sqlite` | Génère uniquement le client SQLite. |
+| `npm run db:generate:postgres` | Génère uniquement le client PostgreSQL. |
+| `npm run db:migrate` | Applique les migrations du fournisseur actif (via `DB_PROVIDER`). |
+| `npm run db:migrate:sqlite` | Migrations interactives forcées sur SQLite. |
+| `npm run db:migrate:postgres` | Migrations interactives forcées sur PostgreSQL. |
+| `npm run db:backup` | Exécute le script `scripts/backup.mjs` créant un instantané sécurisé de `shop.db` (SQLite uniquement ; refuse proprement si `DB_PROVIDER=postgres`). |
 | `npm run db:studio` | Ouvre l'interface Web Prisma Studio pour inspecter la base de données. |
 | `npm run test:all` | Exécute séquentiellement l'intégralité des suites de tests automatisées. |
 
@@ -225,16 +251,46 @@ npm run dev
 - `npm run test:settings` : Sauvegardes, vérification d'intégrité et restauration.
 - `npm run test:documents` : Registre unifié des documents et données d'impression.
 - `npm run test:reports` : Agrégats statistiques, calculs de marge et filtres temporels.
+- `npm run test:pg:smoke` : Contrôle sanitaire PostgreSQL (nécessite `TEST_POSTGRES_URL` — voir section 8).
 
 ---
 
 ## 8. Base de Données, Sauvegardes & Restauration
 
-### Emplacement de la base active
+### Fournisseur de base de données : le toggle `DB_PROVIDER`
+Le fournisseur actif est choisi par une **unique variable d'environnement** dans le fichier `.env` :
+
+```env
+DB_PROVIDER=sqlite     # ou "postgres"
+```
+
+| Ce qui bascule automatiquement | Mécanisme |
+|---|---|
+| Client de connexion de l'application (au démarrage du serveur) | `src/server/db/index.ts` instancie `PrismaLibSql` (SQLite) ou `PrismaPg` (PostgreSQL) |
+| CLI Prisma (`migrate`, `generate`, `studio`) | `prisma.config.ts` sélectionne le schéma, le dossier de migrations et l'URL (dotenv chargé explicitement) |
+| Sauvegardes intégrées | Actives uniquement sur SQLite — voir ci-dessous |
+| Point « sauvegarde » de la checklist de clôture mensuelle | Auto-marqué **N/A** sur PostgreSQL |
+
+Règles d'usage :
+- `DATABASE_URL` = SQLite uniquement ; `POSTGRES_DATABASE_URL` = PostgreSQL uniquement (les deux variables coexistent dans le `.env`, seule celle du fournisseur actif est utilisée).
+- Le changement de fournisseur nécessite un **redémarrage** du serveur (`npm run dev` / `next start`) — la sélection a lieu au démarrage du process, jamais à chaud.
+- Les migrations PostgreSQL disposent d'une baseline dédiée dans `prisma/migrations-postgres/` (les migrations SQLite ne sont pas réutilisables telles quelles entre moteurs).
+- Avant toute mise en production sur PostgreSQL, exécuter le contrôle sanitaire :
+  ```powershell
+  $env:TEST_POSTGRES_URL = "postgresql://user:pass@localhost:5432/shop_test"
+  npm run test:pg:smoke    # applique le schéma, puis 1 lecture + 1 transaction + 1 déduction de stock atomique
+  ```
+
+### Emplacement de la base active (SQLite)
 La base de données principale est située à l'adresse :
 `prisma/shop.db`
 
-### Mécanisme de Sauvegarde (Zéro Risque de Corruption)
+### Mécanisme de Sauvegarde (Zéro Risque de Corruption) — SQLite uniquement
+> ⚠️ **Les sauvegardes fichier intégrées s'appliquent exclusivement à SQLite.** Sur PostgreSQL
+> (`DB_PROVIDER=postgres`), l'onglet Sauvegarde des Paramètres affiche un avis explicite et il faut
+> recourir à un dump externe (ex. `pg_dump`). Le script `npm run db:backup` refuse également de
+> s'exécuter sur PostgreSQL.
+
 Le système utilise la directive native SQLite `VACUUM INTO` précédée d'un `PRAGMA wal_checkpoint(TRUNCATE)`. Cette méthode garantit :
 - Un fichier de sauvegarde complet, compacté et cohérent sans verrouiller l'application ni risquer de lire des données partielles.
 - Une vérification d'intégrité immédiate par `PRAGMA integrity_check`.
@@ -245,7 +301,7 @@ Le système utilise la directive native SQLite `VACUUM INTO` précédée d'un `P
 - **Via le terminal** : Exécutez `npm run db:backup`.
 - **Automatisation Windows** : Le script `scripts/backup.mjs` peut être planifié quotidiennement via le Planificateur de tâches Windows (*Task Scheduler*).
 
-### Restauration Assistée et Sécurisée
+### Restauration Assistée et Sécurisée (SQLite)
 La restauration d'une sauvegarde s'effectue depuis **Paramètres** > **Sauvegardes** :
 1. Sélectionner le fichier de sauvegarde dans l'historique.
 2. Saisir obligatoirement le nom exact du fichier pour confirmer l'action.
@@ -265,8 +321,12 @@ npx tsc --noEmit
 # Vérification du style de code
 npm run lint
 
-# Exécution de tous les tests
+# Exécution de tous les tests (22 suites)
 npm run test:all
+
+# Contrôle sanitaire PostgreSQL (base jetable requise)
+$env:TEST_POSTGRES_URL = "postgresql://user:pass@localhost:5432/shop_test"
+npm run test:pg:smoke
 ```
 
 Toutes les suites de tests couvrent les règles financières critiques :
