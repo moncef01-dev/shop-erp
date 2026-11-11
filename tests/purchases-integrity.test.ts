@@ -438,8 +438,9 @@ async function runTests() {
     assert(p?.paymentStatus === "partial", `Statut paiement attendu 'partial', reçu: ${p?.paymentStatus}`);
   });
 
-  // ─── TEST 12: REJET STRICT DES PAIEMENTS NÉGATIFS, NULS OU EXCESSIFS ───────
-  await executeTest(12, "Rejet strict des règlements négatifs, nuls ou supérieurs au solde dû", async () => {
+  // ─── TEST 12: REJET NÉGATIFS/NULS; TROP-PERÇU ACCEPTÉ EN CRÉDIT FOURNISSEUR ─
+  // (comportement aligné sur recordSupplierPaymentAction: l'excédent devient crédit fournisseur)
+  await executeTest(12, "Rejet des règlements négatifs/nuls; trop-perçu accepté en crédit fournisseur", async () => {
     // 1. Zéro ou négatif
     const fdZero = new FormData();
     fdZero.set("purchaseId", purchaseOrderId.toString());
@@ -454,17 +455,28 @@ async function runTests() {
     assert(resNeg.success === false, "Le montant négatif aurait dû être rejeté.");
 
     // 2. Montant excessif (solde restant = 332,500 - 100,000 = 232,500 DA)
+    //    Accepté: l'excédent (250,000 - 232,500 = 17,500 DA) devient crédit fournisseur.
     const fdExcess = new FormData();
     fdExcess.set("purchaseId", purchaseOrderId.toString());
-    fdExcess.set("amount", "250000"); // 250,000 > 232,500
+    fdExcess.set("amount", "250000");
     const resExcess = await purchaseActions.recordSupplierPaymentAction(fdExcess);
-    assert(resExcess.success === false, "Le trop-perçu / paiement excessif aurait dû être rejeté.");
-    assert(Boolean(resExcess.error?.includes("dépasse le solde restant")), `Message attendu sur dépassement de solde, reçu: ${resExcess.error}`);
+    assert(resExcess.success === true, `Le trop-perçu doit être accepté avec crédit fournisseur, erreur: ${resExcess.error}`);
+
+    const payExcess = resExcess.data as any;
+    assert(
+      String(payExcess.notes).includes("Crédit fournisseur"),
+      `Notes attendues avec crédit fournisseur, reçues: ${payExcess.notes}`
+    );
+
+    const pExcess = await prisma.purchase.findUnique({ where: { id: purchaseOrderId } });
+    assert(pExcess?.paidAmount === 350000, `Montant payé attendu 350000, reçu: ${pExcess?.paidAmount}`);
+    assert(pExcess?.paymentStatus === "paid", `Statut paiement attendu 'paid', reçu: ${pExcess?.paymentStatus}`);
   });
 
-  // ─── TEST 13: SOLDE INTÉGRAL DU FOURNISSEUR & STATUT 'PAID' ────────────────
-  await executeTest(13, "Solde intégral du restant dû: passage du statut de paiement à 'paid'", async () => {
-    // Reste dû = 232,500 DA
+  // ─── TEST 13: PAIEMENT SUR FACTURE SOLDÉE => CRÉDIT FOURNISSEUR INTÉGRAL ───
+  await executeTest(13, "Paiement sur facture soldée: crédit fournisseur intégral", async () => {
+    // Facture déjà soldée (350,000 payés pour 332,500). Un paiement de 232,500 DA
+    // devient intégralement un crédit fournisseur.
     const fd = new FormData();
     fd.set("purchaseId", purchaseOrderId.toString());
     fd.set("amount", "232500");
@@ -472,10 +484,16 @@ async function runTests() {
     fd.set("notes", "Virement BNA solde commande");
 
     const res = await purchaseActions.recordSupplierPaymentAction(fd);
-    assert(res.success === true, `Échec paiement solde: ${res.error}`);
+    assert(res.success === true, `Échec paiement sur facture soldée: ${res.error}`);
+
+    const pay = res.data as any;
+    assert(
+      String(pay.notes).includes("Crédit fournisseur"),
+      `Crédit fournisseur intégral attendu dans les notes, reçues: ${pay.notes}`
+    );
 
     const p = await prisma.purchase.findUnique({ where: { id: purchaseOrderId } });
-    assert(p?.paidAmount === 332500, `Montant payé attendu 332500, reçu: ${p?.paidAmount}`);
+    assert(p?.paidAmount === 582500, `Montant payé attendu 582500, reçu: ${p?.paidAmount}`);
     assert(p?.paymentStatus === "paid", `Statut paiement attendu 'paid', reçu: ${p?.paymentStatus}`);
   });
 
@@ -486,7 +504,7 @@ async function runTests() {
     assert(supp !== undefined, "Fournisseur introuvable");
 
     assert(supp!.totalPurchases === 332500, `Achats totaux attendus 332500, reçus: ${supp!.totalPurchases}`);
-    assert(supp!.totalPaid === 332500, `Total réglé attendu 332500, reçu: ${supp!.totalPaid}`);
+    assert(supp!.totalPaid === 582500, `Total réglé attendu 582500 (incluant excédents en crédit), reçu: ${supp!.totalPaid}`);
     assert(supp!.outstandingBalance === 0, `Solde dû attendu 0, reçu: ${supp!.outstandingBalance}`);
   });
 
