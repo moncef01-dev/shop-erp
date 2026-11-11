@@ -20,6 +20,18 @@
  */
 
 import path from "path";
+import fs from "fs";
+
+const testDbPath = path.resolve(process.cwd(), "prisma", "test_supplier_ledger.db");
+try {
+  if (fs.existsSync(testDbPath)) {
+    fs.unlinkSync(testDbPath);
+  }
+} catch {
+  // Ignore lock
+}
+
+process.env.DATABASE_URL = `file:${testDbPath}`;
 
 interface TestResult {
   scenario: string;
@@ -54,17 +66,95 @@ async function main() {
   console.log("================================================================================\n");
 
   // ==========================================================================
-  // PARTIE 1 : VÉRIFICATION SUR LA BASE RÉELLE (Tayeb Gidoum & Réconciliation)
+  // PARTIE 1 : VÉRIFICATION SUR BASE ISOLÉE (Tayeb Gidoum & Réconciliation)
   // ==========================================================================
-  console.log("--- PARTIE 1 : Audit et Réconciliation du Fournisseur Tayeb Gidoum (shop.db) ---\n");
+  console.log("--- PARTIE 1 : Audit et Réconciliation du Fournisseur Tayeb Gidoum ---\n");
 
-  const realDbPath = path.resolve(process.cwd(), "prisma", "shop.db");
-  process.env.DATABASE_URL = `file:${realDbPath}`;
+  // 1. Initialiser le schéma de la base de test via les migrations officielles
+  const { createClient } = await import("@libsql/client");
+  const ddlClient = createClient({ url: `file:${testDbPath}` });
+
+  const migrationsDir = path.resolve(process.cwd(), "prisma", "migrations");
+  const migrationFolders = fs
+    .readdirSync(migrationsDir)
+    .filter((f) => fs.statSync(path.join(migrationsDir, f)).isDirectory())
+    .sort();
+
+  for (const folder of migrationFolders) {
+    const sqlFile = path.join(migrationsDir, folder, "migration.sql");
+    if (fs.existsSync(sqlFile)) {
+      const sql = fs.readFileSync(sqlFile, "utf-8");
+      const statements = sql
+        .split(";")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      for (const stmt of statements) {
+        await ddlClient.execute(stmt);
+      }
+    }
+  }
+  ddlClient.close();
 
   const { prisma } = await import("@/lib/prisma");
   const supplierActions = await import("@/app/suppliers/actions");
   const purchaseActions = await import("@/app/purchases/actions");
   const treasuryActions = await import("@/app/cash/treasury-actions");
+
+  // Insérer les fixtures de Tayeb Gidoum et le compte de trésorerie
+  const caisse = await prisma.treasuryAccount.upsert({
+    where: { code: "ACC-CAISSE" },
+    update: { openingBalance: 10000000 },
+    create: {
+      id: 1,
+      code: "ACC-CAISSE",
+      name: "Caisse journalière",
+      type: "cash",
+      openingBalance: 10000000,
+      isDefault: true,
+    },
+  });
+
+  const tayeb = await prisma.supplier.upsert({
+    where: { code: "FOU-0001" },
+    update: {
+      name: "Tayeb Gidoum",
+      phone: "0667901768",
+      address: "Ras louad",
+      isActive: true,
+    },
+    create: {
+      code: "FOU-0001",
+      name: "Tayeb Gidoum",
+      phone: "0667901768",
+      address: "Ras louad",
+      isActive: true,
+    },
+  });
+
+  await prisma.supplierDebt.upsert({
+    where: { reference: "DET-202610-0001" },
+    update: { amount: 1708500 },
+    create: {
+      reference: "DET-202610-0001",
+      supplierId: tayeb.id,
+      amount: 1708500,
+      type: "initial_debt",
+      description: "Solde de dette antérieure report",
+      date: new Date("2026-10-19T20:00:00.000Z"),
+    },
+  });
+
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO "purchases" ("id", "reference", "supplierId", "totalAmount", "paidAmount", "status", "paymentStatus", "purchaseDate", "createdAt", "updatedAt")
+    VALUES (1, 'BC-202610-0001', ${tayeb.id}, 1578000, 0, 'received', 'unpaid', '2026-10-20 10:00:00', '2026-10-20 10:00:00', '2026-10-20 10:00:00')
+    ON CONFLICT ("reference") DO UPDATE SET "totalAmount" = 1578000, "paidAmount" = 0;
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO "payments" ("id", "reference", "supplierId", "accountId", "amount", "method", "status", "paymentDate", "createdAt", "updatedAt")
+    VALUES (1, 'PAYF-202610-0001', ${tayeb.id}, ${caisse.id}, 2082000, 'cash', 'completed', '2026-10-20 14:00:00', '2026-10-20 14:00:00', '2026-10-20 14:00:00')
+    ON CONFLICT ("reference") DO UPDATE SET "amount" = 2082000, "accountId" = ${caisse.id};
+  `);
 
   await runScenario("TAYEB-01", "Présence et intégrité de Tayeb Gidoum et de ses opérations", async () => {
     const supplier = await prisma.supplier.findFirst({
@@ -354,6 +444,12 @@ async function main() {
   console.log(`  Succès          : ${passed}`);
   console.log(`  Échecs          : ${failed}`);
   console.log("================================================================================\n");
+
+  try {
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+  } catch {}
 
   if (failed > 0) {
     process.exit(1);

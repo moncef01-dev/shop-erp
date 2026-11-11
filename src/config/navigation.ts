@@ -21,6 +21,7 @@ import {
   Lock,
   BookOpen,
   CalendarCheck2,
+  Scale,
 } from "lucide-react";
 
 export interface SubNavItem {
@@ -103,6 +104,11 @@ export const treasurySubItems: SubNavItem[] = [
     href: "/closing/monthly",
     icon: CalendarCheck2,
   },
+  {
+    label: "Zakat commerciale",
+    href: "/zakat",
+    icon: Scale,
+  },
 ];
 
 export const navItems: NavItem[] = [
@@ -160,6 +166,12 @@ export const navItems: NavItem[] = [
     href: "/closing/monthly",
     icon: CalendarCheck2,
     description: "Consolidation, pointage et audit financier de fin de mois",
+  },
+  {
+    label: "Zakat commerciale",
+    href: "/zakat",
+    icon: Scale,
+    description: "Comptabilité de la zakat, évaluations et historique",
   },
   {
     label: "Documents",

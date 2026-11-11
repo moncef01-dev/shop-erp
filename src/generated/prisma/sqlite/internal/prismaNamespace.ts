@@ -427,7 +427,10 @@ export const ModelName = {
   CustomerSavingsAccount: 'CustomerSavingsAccount',
   CustomerSavingsTransaction: 'CustomerSavingsTransaction',
   SupplierAdditionalPayment: 'SupplierAdditionalPayment',
-  SupplierAdditionalPaymentAllocation: 'SupplierAdditionalPaymentAllocation'
+  SupplierAdditionalPaymentAllocation: 'SupplierAdditionalPaymentAllocation',
+  ZakatValuation: 'ZakatValuation',
+  ZakatValuationItem: 'ZakatValuationItem',
+  ZakatAdjustment: 'ZakatAdjustment'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -443,7 +446,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "location" | "productStock" | "stockMovement" | "customer" | "supplier" | "sales" | "saleItem" | "payment" | "customerAdvance" | "customerAdvanceAllocation" | "purchase" | "purchaseItem" | "purchaseReceipt" | "purchaseReceiptItem" | "cashSession" | "expense" | "treasuryAccount" | "treasuryTransfer" | "supplierDebt" | "transaction" | "shopSettings" | "monthlyClosingChecklist" | "monthlyClosingSnapshot" | "monthlyClosingPeriod" | "monthlyClosingAuditLog" | "customerSavingsAccount" | "customerSavingsTransaction" | "supplierAdditionalPayment" | "supplierAdditionalPaymentAllocation"
+    modelProps: "category" | "product" | "location" | "productStock" | "stockMovement" | "customer" | "supplier" | "sales" | "saleItem" | "payment" | "customerAdvance" | "customerAdvanceAllocation" | "purchase" | "purchaseItem" | "purchaseReceipt" | "purchaseReceiptItem" | "cashSession" | "expense" | "treasuryAccount" | "treasuryTransfer" | "supplierDebt" | "transaction" | "shopSettings" | "monthlyClosingChecklist" | "monthlyClosingSnapshot" | "monthlyClosingPeriod" | "monthlyClosingAuditLog" | "customerSavingsAccount" | "customerSavingsTransaction" | "supplierAdditionalPayment" | "supplierAdditionalPaymentAllocation" | "zakatValuation" | "zakatValuationItem" | "zakatAdjustment"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2741,6 +2744,228 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    ZakatValuation: {
+      payload: Prisma.$ZakatValuationPayload<ExtArgs>
+      fields: Prisma.ZakatValuationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ZakatValuationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ZakatValuationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload>
+        }
+        findFirst: {
+          args: Prisma.ZakatValuationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ZakatValuationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload>
+        }
+        findMany: {
+          args: Prisma.ZakatValuationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload>[]
+        }
+        create: {
+          args: Prisma.ZakatValuationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload>
+        }
+        createMany: {
+          args: Prisma.ZakatValuationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ZakatValuationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload>[]
+        }
+        delete: {
+          args: Prisma.ZakatValuationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload>
+        }
+        update: {
+          args: Prisma.ZakatValuationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload>
+        }
+        deleteMany: {
+          args: Prisma.ZakatValuationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ZakatValuationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ZakatValuationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload>[]
+        }
+        upsert: {
+          args: Prisma.ZakatValuationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationPayload>
+        }
+        aggregate: {
+          args: Prisma.ZakatValuationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateZakatValuation>
+        }
+        groupBy: {
+          args: Prisma.ZakatValuationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ZakatValuationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ZakatValuationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ZakatValuationCountAggregateOutputType> | number
+        }
+      }
+    }
+    ZakatValuationItem: {
+      payload: Prisma.$ZakatValuationItemPayload<ExtArgs>
+      fields: Prisma.ZakatValuationItemFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ZakatValuationItemFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ZakatValuationItemFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload>
+        }
+        findFirst: {
+          args: Prisma.ZakatValuationItemFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ZakatValuationItemFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload>
+        }
+        findMany: {
+          args: Prisma.ZakatValuationItemFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload>[]
+        }
+        create: {
+          args: Prisma.ZakatValuationItemCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload>
+        }
+        createMany: {
+          args: Prisma.ZakatValuationItemCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ZakatValuationItemCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload>[]
+        }
+        delete: {
+          args: Prisma.ZakatValuationItemDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload>
+        }
+        update: {
+          args: Prisma.ZakatValuationItemUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload>
+        }
+        deleteMany: {
+          args: Prisma.ZakatValuationItemDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ZakatValuationItemUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ZakatValuationItemUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload>[]
+        }
+        upsert: {
+          args: Prisma.ZakatValuationItemUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatValuationItemPayload>
+        }
+        aggregate: {
+          args: Prisma.ZakatValuationItemAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateZakatValuationItem>
+        }
+        groupBy: {
+          args: Prisma.ZakatValuationItemGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ZakatValuationItemGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ZakatValuationItemCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ZakatValuationItemCountAggregateOutputType> | number
+        }
+      }
+    }
+    ZakatAdjustment: {
+      payload: Prisma.$ZakatAdjustmentPayload<ExtArgs>
+      fields: Prisma.ZakatAdjustmentFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ZakatAdjustmentFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ZakatAdjustmentFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload>
+        }
+        findFirst: {
+          args: Prisma.ZakatAdjustmentFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ZakatAdjustmentFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload>
+        }
+        findMany: {
+          args: Prisma.ZakatAdjustmentFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload>[]
+        }
+        create: {
+          args: Prisma.ZakatAdjustmentCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload>
+        }
+        createMany: {
+          args: Prisma.ZakatAdjustmentCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ZakatAdjustmentCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload>[]
+        }
+        delete: {
+          args: Prisma.ZakatAdjustmentDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload>
+        }
+        update: {
+          args: Prisma.ZakatAdjustmentUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload>
+        }
+        deleteMany: {
+          args: Prisma.ZakatAdjustmentDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ZakatAdjustmentUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ZakatAdjustmentUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload>[]
+        }
+        upsert: {
+          args: Prisma.ZakatAdjustmentUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ZakatAdjustmentPayload>
+        }
+        aggregate: {
+          args: Prisma.ZakatAdjustmentAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateZakatAdjustment>
+        }
+        groupBy: {
+          args: Prisma.ZakatAdjustmentGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ZakatAdjustmentGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ZakatAdjustmentCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ZakatAdjustmentCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -3347,6 +3572,86 @@ export const SupplierAdditionalPaymentAllocationScalarFieldEnum = {
 export type SupplierAdditionalPaymentAllocationScalarFieldEnum = (typeof SupplierAdditionalPaymentAllocationScalarFieldEnum)[keyof typeof SupplierAdditionalPaymentAllocationScalarFieldEnum]
 
 
+export const ZakatValuationScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  valuationDate: 'valuationDate',
+  hawlStartDate: 'hawlStartDate',
+  hawlEndDate: 'hawlEndDate',
+  nisabMethod: 'nisabMethod',
+  nisabValueDZD: 'nisabValueDZD',
+  nisabGoldPriceDZD: 'nisabGoldPriceDZD',
+  nisabSilverPriceDZD: 'nisabSilverPriceDZD',
+  zakatRate: 'zakatRate',
+  zakatYearType: 'zakatYearType',
+  inventoryValuationMethod: 'inventoryValuationMethod',
+  manualLiabilitiesDZD: 'manualLiabilitiesDZD',
+  manualLiabilitiesNote: 'manualLiabilitiesNote',
+  customerFundsConfirmation: 'customerFundsConfirmation',
+  totalInventoryDZD: 'totalInventoryDZD',
+  totalTreasuryDZD: 'totalTreasuryDZD',
+  totalReceivablesDZD: 'totalReceivablesDZD',
+  totalSupplierPrepaymentsDZD: 'totalSupplierPrepaymentsDZD',
+  unverifiedAssetsDZD: 'unverifiedAssetsDZD',
+  customerFundsHeldDZD: 'customerFundsHeldDZD',
+  totalAssetsDZD: 'totalAssetsDZD',
+  totalLiabilitiesDZD: 'totalLiabilitiesDZD',
+  totalAdjustmentsDZD: 'totalAdjustmentsDZD',
+  zakatableBaseDZD: 'zakatableBaseDZD',
+  zakatDueDZD: 'zakatDueDZD',
+  isNisabReached: 'isNisabReached',
+  calculationStatus: 'calculationStatus',
+  approvalStatus: 'approvalStatus',
+  statusReason: 'statusReason',
+  notes: 'notes',
+  metadataJson: 'metadataJson',
+  approvedAt: 'approvedAt',
+  approvedBy: 'approvedBy',
+  approvalNotes: 'approvalNotes',
+  rejectedAt: 'rejectedAt',
+  rejectedBy: 'rejectedBy',
+  rejectionReason: 'rejectionReason',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ZakatValuationScalarFieldEnum = (typeof ZakatValuationScalarFieldEnum)[keyof typeof ZakatValuationScalarFieldEnum]
+
+
+export const ZakatValuationItemScalarFieldEnum = {
+  id: 'id',
+  valuationId: 'valuationId',
+  category: 'category',
+  sourceType: 'sourceType',
+  sourceId: 'sourceId',
+  reference: 'reference',
+  description: 'description',
+  quantity: 'quantity',
+  unitValueDZD: 'unitValueDZD',
+  totalValueDZD: 'totalValueDZD',
+  status: 'status',
+  notes: 'notes',
+  createdAt: 'createdAt'
+} as const
+
+export type ZakatValuationItemScalarFieldEnum = (typeof ZakatValuationItemScalarFieldEnum)[keyof typeof ZakatValuationItemScalarFieldEnum]
+
+
+export const ZakatAdjustmentScalarFieldEnum = {
+  id: 'id',
+  valuationId: 'valuationId',
+  category: 'category',
+  description: 'description',
+  amountDZD: 'amountDZD',
+  adjustmentType: 'adjustmentType',
+  reason: 'reason',
+  createdBy: 'createdBy',
+  createdAt: 'createdAt'
+} as const
+
+export type ZakatAdjustmentScalarFieldEnum = (typeof ZakatAdjustmentScalarFieldEnum)[keyof typeof ZakatAdjustmentScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -3585,6 +3890,9 @@ export type GlobalOmitConfig = {
   customerSavingsTransaction?: Prisma.CustomerSavingsTransactionOmit
   supplierAdditionalPayment?: Prisma.SupplierAdditionalPaymentOmit
   supplierAdditionalPaymentAllocation?: Prisma.SupplierAdditionalPaymentAllocationOmit
+  zakatValuation?: Prisma.ZakatValuationOmit
+  zakatValuationItem?: Prisma.ZakatValuationItemOmit
+  zakatAdjustment?: Prisma.ZakatAdjustmentOmit
 }
 
 /* Types for Logging */
