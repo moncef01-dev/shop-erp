@@ -4,7 +4,21 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/server/db";
 import { roundMoney } from "@/lib/formatters";
 import { assertPeriodNotLocked } from "@/server/services/period-lock";
-import { generateNextExpenseReference } from "@/app/cash/actions";
+import { generateNextExpenseReference } from "@/server/repositories/cash.repository";
+import {
+  generateNextSavingsReference,
+  reverseSavingsDeductionsForSale,
+  findSavingsAccountByCustomer,
+  createSavingsTransactionRecord,
+  updateSavingsAccountBalance,
+  findShopSettingsFirst,
+  fetchSavingsOverviewQueries,
+  fetchSavingsCustomerDetails,
+  findCustomerStatusById,
+  findCustomerNameOnly,
+  findSavingsTransactionWithDetails,
+  fetchSavingsStatementQueries,
+} from "@/server/repositories/savings.repository";
 import type { ShopSettingsData } from "@/app/settings/actions";
 
 export type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
@@ -24,34 +38,7 @@ function safeRevalidate(path: string) {
   }
 }
 
-// ─── GÉNÉRATEUR DE RÉFÉRENCE UNIQUE D'ÉPARGNE (SAV-YYYYMM-XXXX) ───────────────
-
-export async function generateNextSavingsReference(
-  type: "DEPOSIT" | "USAGE" | "REFUND" | "REVERSAL" = "DEPOSIT",
-  txClient?: TxClient
-): Promise<string> {
-  const db = txClient || prisma;
-  const now = new Date();
-  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const prefix = `SAV-${yearMonth}-`;
-
-  const lastTx = await db.customerSavingsTransaction.findFirst({
-    where: { reference: { startsWith: prefix } },
-    orderBy: { reference: "desc" },
-    select: { reference: true },
-  });
-
-  let nextSeq = 1;
-  if (lastTx?.reference) {
-    const parts = lastTx.reference.split("-");
-    const num = parseInt(parts[parts.length - 1], 10);
-    if (!isNaN(num)) {
-      nextSeq = num + 1;
-    }
-  }
-
-  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
+export { generateNextSavingsReference, reverseSavingsDeductionsForSale } from "@/server/repositories/savings.repository";
 
 // ─── RÉCUPÉRATION GLOBALE DES DONNÉES DU MODULE ÉPARGNE CLIENT ─────────────────
 
@@ -94,46 +81,7 @@ export interface CustomerSavingsTransactionView {
 }
 
 export async function getSavingsOverviewData() {
-  const [accounts, recentTransactions, customers, activeSession, settings] = await Promise.all([
-    prisma.customerSavingsAccount.findMany({
-      include: {
-        customer: {
-          select: { id: true, code: true, name: true, phone: true, phone2: true },
-        },
-        _count: {
-          select: { transactions: true },
-        },
-      },
-      orderBy: { balance: "desc" },
-    }),
-    prisma.customerSavingsTransaction.findMany({
-      take: 60,
-      include: {
-        customer: {
-          select: { id: true, name: true },
-        },
-        sale: {
-          select: { id: true, reference: true },
-        },
-        session: {
-          select: { id: true, reference: true },
-        },
-      },
-      orderBy: { date: "desc" },
-    }),
-    prisma.customer.findMany({
-      where: { isActive: true },
-      select: { id: true, code: true, name: true, phone: true, phone2: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.cashSession.findFirst({
-      where: { status: "open" },
-      select: { id: true, reference: true },
-    }),
-    prisma.shopSettings.findFirst({
-      where: { id: 1 },
-    }) as Promise<ShopSettingsData | null>,
-  ]);
+  const [accounts, recentTransactions, customers, activeSession, settings] = await fetchSavingsOverviewQueries();
 
   const totalAvailableSavings = roundMoney(
     accounts.reduce((sum, a) => sum + (a.balance || 0), 0)
@@ -209,39 +157,7 @@ export async function getCustomerSavingsDetailsAction(customerId: number) {
   const id = Number(customerId);
   if (!id || isNaN(id)) return null;
 
-  const [customer, account, transactions, unpaidSales] = await Promise.all([
-    prisma.customer.findUnique({
-      where: { id },
-      select: { id: true, code: true, name: true, phone: true, phone2: true, address: true },
-    }),
-    prisma.customerSavingsAccount.findUnique({
-      where: { customerId: id },
-    }),
-    prisma.customerSavingsTransaction.findMany({
-      where: { customerId: id },
-      include: {
-        sale: { select: { id: true, reference: true, totalAmount: true, paidAmount: true } },
-        session: { select: { id: true, reference: true } },
-      },
-      orderBy: [{ date: "desc" }, { id: "desc" }],
-    }),
-    prisma.sales.findMany({
-      where: {
-        customerId: id,
-        status: { in: ["confirmed", "draft"] },
-        paymentStatus: { in: ["unpaid", "partial"] },
-      },
-      select: {
-        id: true,
-        reference: true,
-        totalAmount: true,
-        paidAmount: true,
-        paymentStatus: true,
-        saleDate: true,
-      },
-      orderBy: { saleDate: "desc" },
-    }),
-  ]);
+  const [customer, account, transactions, unpaidSales] = await fetchSavingsCustomerDetails(id);
 
   if (!customer) return null;
 
@@ -324,10 +240,7 @@ export async function recordSavingsDepositAction(
 
     await assertPeriodNotLocked(depositDate, "Dépôt d'épargne client");
 
-    const customer = await prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { id: true, name: true, isActive: true },
-    });
+    const customer = await findCustomerStatusById(customerId);
     if (!customer) {
       return { success: false, error: "Client introuvable." };
     }
@@ -552,10 +465,7 @@ export async function recordSavingsRefundAction(
 
     await assertPeriodNotLocked(refundDate, "Remboursement d'épargne client");
 
-    const customer = await prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { id: true, name: true },
-    });
+    const customer = await findCustomerNameOnly(customerId);
     if (!customer) {
       return { success: false, error: "Client introuvable." };
     }
@@ -946,86 +856,6 @@ export async function allocateSavingsToInvoiceAction(
   }
 }
 
-// ─── 4. RÉTROCESSION / ANNULATION DE DÉDUCTION SUITE À ANNULATION DE VENTE ────
-
-export async function reverseSavingsDeductionsForSale(
-  tx: TxClient,
-  saleId: number,
-  customerId: number,
-  reason: string
-): Promise<string[]> {
-  // Trouver toutes les transactions USAGE sur cette vente
-  const usages = await tx.customerSavingsTransaction.findMany({
-    where: {
-      saleId,
-      type: "USAGE",
-      status: "completed",
-    },
-    include: {
-      account: true,
-    },
-  });
-
-  if (usages.length === 0) return [];
-
-  const reversedRefs: string[] = [];
-  const now = new Date();
-
-  for (const usage of usages) {
-    // Vérifier si un REVERSAL existe déjà pour cet USAGE (idempotence stricte)
-    const existingReversal = await tx.customerSavingsTransaction.findFirst({
-      where: {
-        relatedTransactionId: usage.id,
-        type: "REVERSAL",
-      },
-    });
-
-    if (existingReversal) continue; // Déjà rétrocédé
-
-    const account = await tx.customerSavingsAccount.findUnique({
-      where: { id: usage.accountId },
-    });
-    if (!account) continue;
-
-    const revRef = await generateNextSavingsReference("REVERSAL", tx);
-    const balanceBefore = account.balance;
-    const balanceAfter = roundMoney(balanceBefore + usage.amount);
-
-    // 1. Écriture compensatoire REVERSAL au grand livre
-    await tx.customerSavingsTransaction.create({
-      data: {
-        reference: revRef,
-        customerId: usage.customerId,
-        accountId: account.id,
-        type: "REVERSAL",
-        amount: usage.amount,
-        direction: "IN",
-        balanceBefore,
-        balanceAfter,
-        paymentMethod: "savings",
-        saleId,
-        relatedTransactionId: usage.id,
-        description: `Rétablissement d'épargne suite annulation vente (${reason})`,
-        notes: `Rétablissement de ${usage.amount.toLocaleString("fr-DZ")} DA. Transaction d'origine : ${usage.reference}`,
-        date: now,
-      },
-    });
-
-    // 2. Mettre à jour le solde d'épargne du client (rétablir l'avoir)
-    await tx.customerSavingsAccount.update({
-      where: { id: account.id },
-      data: {
-        balance: balanceAfter,
-        totalUsed: Math.max(0, roundMoney(account.totalUsed - usage.amount)),
-      },
-    });
-
-    reversedRefs.push(revRef);
-  }
-
-  return reversedRefs;
-}
-
 // ─── 5. DONNÉES DU REÇU D'IMPRESSION (DÉPÔT / REMBOURSEMENT) ───────────────────
 
 export interface PrintableSavingsReceiptData {
@@ -1044,20 +874,11 @@ export interface PrintableSavingsReceiptData {
 export async function getSavingsReceiptDataAction(
   transactionId: number
 ): Promise<PrintableSavingsReceiptData | null> {
-  const txRecord = await prisma.customerSavingsTransaction.findUnique({
-    where: { id: transactionId },
-    include: {
-      customer: true,
-      sale: { select: { id: true, reference: true } },
-      session: { select: { id: true, reference: true } },
-    },
-  });
+  const txRecord = await findSavingsTransactionWithDetails(transactionId);
 
   if (!txRecord) return null;
 
-  const settings = (await prisma.shopSettings.findFirst({
-    where: { id: 1 },
-  })) as ShopSettingsData | null;
+  const settings = (await findShopSettingsFirst()) as ShopSettingsData | null;
 
   return {
     transaction: {
@@ -1143,29 +964,7 @@ export async function getSavingsStatementDataAction(params: {
   const id = Number(customerId);
   if (!id || isNaN(id)) return null;
 
-  const [customer, account, txs, settings] = await Promise.all([
-    prisma.customer.findUnique({
-      where: { id },
-      select: { id: true, code: true, name: true, phone: true, phone2: true, address: true },
-    }),
-    prisma.customerSavingsAccount.findUnique({
-      where: { customerId: id },
-    }),
-    prisma.customerSavingsTransaction.findMany({
-      where: {
-        customerId: id,
-        ...(startDate ? { date: { gte: new Date(startDate) } } : {}),
-        ...(endDate ? { date: { lte: new Date(endDate) } } : {}),
-      },
-      include: {
-        sale: { select: { reference: true } },
-      },
-      orderBy: [{ date: "asc" }, { id: "asc" }],
-    }),
-    prisma.shopSettings.findFirst({
-      where: { id: 1 },
-    }) as Promise<ShopSettingsData | null>,
-  ]);
+  const [customer, account, txs, settings] = await fetchSavingsStatementQueries(id, startDate, endDate);
 
   if (!customer) return null;
 

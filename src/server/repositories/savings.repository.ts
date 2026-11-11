@@ -32,6 +32,141 @@ export function findSavingsAccountByCustomer(customerId: number, db: DbClient = 
   return db.customerSavingsAccount.findUnique({ where: { customerId } });
 }
 
+export function findShopSettingsFirst(db: DbClient = prisma) {
+  return db.shopSettings.findFirst({ where: { id: 1 } });
+}
+
+export function fetchSavingsOverviewQueries(db: DbClient = prisma) {
+  return Promise.all([
+    db.customerSavingsAccount.findMany({
+      include: {
+        customer: {
+          select: { id: true, code: true, name: true, phone: true, phone2: true },
+        },
+        _count: {
+          select: { transactions: true },
+        },
+      },
+      orderBy: { balance: "desc" },
+    }),
+    db.customerSavingsTransaction.findMany({
+      take: 60,
+      include: {
+        customer: {
+          select: { id: true, name: true },
+        },
+        sale: {
+          select: { id: true, reference: true },
+        },
+        session: {
+          select: { id: true, reference: true },
+        },
+      },
+      orderBy: { date: "desc" },
+    }),
+    db.customer.findMany({
+      where: { isActive: true },
+      select: { id: true, code: true, name: true, phone: true, phone2: true },
+      orderBy: { name: "asc" },
+    }),
+    db.cashSession.findFirst({
+      where: { status: "open" },
+      select: { id: true, reference: true },
+    }),
+    findShopSettingsFirst(db),
+  ]);
+}
+
+export function fetchSavingsCustomerDetails(id: number, db: DbClient = prisma) {
+  return Promise.all([
+    db.customer.findUnique({
+      where: { id },
+      select: { id: true, code: true, name: true, phone: true, phone2: true, address: true },
+    }),
+    db.customerSavingsAccount.findUnique({
+      where: { customerId: id },
+    }),
+    db.customerSavingsTransaction.findMany({
+      where: { customerId: id },
+      include: {
+        sale: { select: { id: true, reference: true, totalAmount: true, paidAmount: true } },
+        session: { select: { id: true, reference: true } },
+      },
+      orderBy: [{ date: "desc" }, { id: "desc" }],
+    }),
+    db.sales.findMany({
+      where: {
+        customerId: id,
+        status: { in: ["confirmed", "draft"] },
+        paymentStatus: { in: ["unpaid", "partial"] },
+      },
+      select: {
+        id: true,
+        reference: true,
+        totalAmount: true,
+        paidAmount: true,
+        paymentStatus: true,
+        saleDate: true,
+      },
+      orderBy: { saleDate: "desc" },
+    }),
+  ]);
+}
+
+export function findCustomerStatusById(id: number, db: DbClient = prisma) {
+  return db.customer.findUnique({
+    where: { id },
+    select: { id: true, name: true, isActive: true },
+  });
+}
+
+export function findCustomerNameOnly(id: number, db: DbClient = prisma) {
+  return db.customer.findUnique({
+    where: { id },
+    select: { id: true, name: true },
+  });
+}
+
+export function findSavingsTransactionWithDetails(transactionId: number, db: DbClient = prisma) {
+  return db.customerSavingsTransaction.findUnique({
+    where: { id: transactionId },
+    include: {
+      customer: true,
+      sale: { select: { id: true, reference: true } },
+      session: { select: { id: true, reference: true } },
+    },
+  });
+}
+
+export function fetchSavingsStatementQueries(
+  id: number,
+  startDate?: string,
+  endDate?: string,
+  db: DbClient = prisma
+) {
+  return Promise.all([
+    db.customer.findUnique({
+      where: { id },
+      select: { id: true, code: true, name: true, phone: true, phone2: true, address: true },
+    }),
+    db.customerSavingsAccount.findUnique({
+      where: { customerId: id },
+    }),
+    db.customerSavingsTransaction.findMany({
+      where: {
+        customerId: id,
+        ...(startDate ? { date: { gte: new Date(startDate) } } : {}),
+        ...(endDate ? { date: { lte: new Date(endDate) } } : {}),
+      },
+      include: {
+        sale: { select: { reference: true } },
+      },
+      orderBy: [{ date: "asc" }, { id: "asc" }],
+    }),
+    findShopSettingsFirst(db),
+  ]);
+}
+
 export function createSavingsTransactionRecord(
   tx: TxClient,
   data: {
