@@ -1285,3 +1285,253 @@ export function updateTreasuryTransferRecord(
 export function deleteTreasuryTransferRecord(tx: TxClient, id: number) {
   return tx.treasuryTransfer.delete({ where: { id } });
 }
+
+// ─── COMPTES DE TRÉSORERIE (CRUD & DASHBOARD) ────────────────────────────────
+
+export function findTreasuryAccountsWithTransfers(db: DbClient = prisma) {
+  return db.treasuryAccount.findMany({
+    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    include: {
+      transfersFrom: { select: { amount: true } },
+      transfersTo: { select: { amount: true } },
+    },
+  });
+}
+
+export function findRecentTreasuryTransfers(db: DbClient = prisma) {
+  return db.treasuryTransfer.findMany({
+    take: 100,
+    orderBy: { date: "desc" },
+    include: {
+      fromAccount: { select: { id: true, name: true, code: true } },
+      toAccount: { select: { id: true, name: true, code: true } },
+      session: { select: { id: true, reference: true } },
+    },
+  });
+}
+
+export function findTreasuryAccountByName(name: string, db: DbClient = prisma) {
+  return db.treasuryAccount.findFirst({ where: { name: { equals: name } } });
+}
+
+export function createTreasuryAccountRecord(
+  data: {
+    code: string;
+    name: string;
+    type: string;
+    openingBalance: number;
+    openingDate: Date;
+    notes: string | null;
+    isDefault: boolean;
+    isActive: boolean;
+  },
+  db: DbClient = prisma
+) {
+  return db.treasuryAccount.create({ data });
+}
+
+export function updateTreasuryAccountRecord(
+  id: number,
+  data: { name?: string; notes?: string | null; isActive?: boolean },
+  db: DbClient = prisma
+) {
+  return db.treasuryAccount.update({ where: { id }, data });
+}
+
+export function countTreasuryAccountsWithCodePrefix(prefix: string, db: DbClient = prisma) {
+  return db.treasuryAccount.count({ where: { code: { startsWith: prefix } } });
+}
+
+export function findCashTreasuryAccountActive(db: DbClient = prisma) {
+  return db.treasuryAccount.findFirst({
+    where: { OR: [{ isDefault: true }, { type: "cash" }], isActive: true },
+  });
+}
+
+export function findOpenCashSessionOrdered(db: DbClient = prisma) {
+  return db.cashSession.findFirst({
+    where: { status: "open" },
+    orderBy: { openedAt: "desc" },
+  });
+}
+
+// ─── TRANSFERTS : CRUD COMPLET ───────────────────────────────────────────────
+
+export function findTreasuryTransferWithAccounts(id: number, tx: TxClient) {
+  return tx.treasuryTransfer.findUnique({
+    where: { id },
+    include: { fromAccount: true, toAccount: true },
+  });
+}
+
+export function createTreasuryTransferWithAccounts(
+  tx: TxClient,
+  data: {
+    reference: string;
+    fromAccountId: number;
+    toAccountId: number;
+    amount: number;
+    paymentMethod: string;
+    motif: string;
+    notes: string | null;
+    date: Date;
+    sessionId: number | null;
+  }
+) {
+  return tx.treasuryTransfer.create({
+    data,
+    include: {
+      fromAccount: { select: { id: true, name: true, code: true } },
+      toAccount: { select: { id: true, name: true, code: true } },
+    },
+  });
+}
+
+export function updateTreasuryTransferWithAccounts(
+  tx: TxClient,
+  id: number,
+  data: Record<string, unknown>
+) {
+  return tx.treasuryTransfer.update({
+    where: { id },
+    data,
+    include: {
+      fromAccount: { select: { id: true, name: true, code: true } },
+      toAccount: { select: { id: true, name: true, code: true } },
+    },
+  });
+}
+
+// ─── AJUSTEMENTS DE SOLDE ────────────────────────────────────────────────────
+
+export function findLastAdjustmentReference(prefix: string, db: DbClient = prisma) {
+  return db.expense.findFirst({
+    where: { reference: { startsWith: prefix } },
+    orderBy: { reference: "desc" },
+    select: { reference: true },
+  });
+}
+
+export function createAdjustmentExpense(
+  data: {
+    reference: string;
+    accountId: number;
+    type: string;
+    category: string;
+    description: string;
+    amount: number;
+    method: string;
+    beneficiary: string;
+    notes: string;
+    date: Date;
+  },
+  db: DbClient = prisma
+) {
+  return db.expense.create({ data });
+}
+
+// ─── RELEVÉ DE COMPTE (MOUVEMENTS) ───────────────────────────────────────────
+
+export function findTransfersInToAccount(accountId: number, db: DbClient = prisma) {
+  return db.treasuryTransfer.findMany({
+    where: { toAccountId: accountId },
+    include: { fromAccount: { select: { name: true } } },
+  });
+}
+
+export function findTransfersOutFromAccount(accountId: number, db: DbClient = prisma) {
+  return db.treasuryTransfer.findMany({
+    where: { fromAccountId: accountId },
+    include: { toAccount: { select: { name: true } } },
+  });
+}
+
+export function findAccountSalePayments(
+  accountId: number,
+  isDefault: boolean,
+  cashOnly: boolean,
+  db: DbClient = prisma
+) {
+  return db.payment.findMany({
+    where: {
+      status: { not: "cancelled" },
+      purchaseId: null,
+      supplierId: null,
+      ...(cashOnly ? { method: "cash" } : {}),
+      OR: [
+        { accountId },
+        ...(isDefault ? [{ accountId: null, method: "cash" }] : []),
+      ],
+    },
+    include: { sale: { include: { customer: true } } },
+  });
+}
+
+export function findAccountAdvances(
+  accountId: number,
+  isDefault: boolean,
+  cashOnly: boolean,
+  db: DbClient = prisma
+) {
+  return db.customerAdvance.findMany({
+    where: {
+      status: { not: "cancelled" },
+      ...(cashOnly ? { method: "cash" } : {}),
+      OR: [
+        { accountId },
+        ...(isDefault ? [{ accountId: null, method: "cash" }] : []),
+      ],
+    },
+    include: { customer: true },
+  });
+}
+
+export function findAccountSupplierPayments(
+  accountId: number,
+  isDefault: boolean,
+  cashOnly: boolean,
+  db: DbClient = prisma
+) {
+  return db.payment.findMany({
+    where: {
+      status: { not: "cancelled" },
+      ...(cashOnly ? { method: "cash" } : {}),
+      AND: [
+        { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
+        {
+          OR: [
+            { accountId },
+            ...(isDefault ? [{ accountId: null, method: "cash" }] : []),
+          ],
+        },
+      ],
+    },
+    include: {
+      purchase: { include: { supplier: true } },
+      supplier: true,
+    },
+  });
+}
+
+export function findAccountExpenses(
+  accountId: number,
+  isDefault: boolean,
+  accountCode: string,
+  cashOnly: boolean,
+  db: DbClient = prisma
+) {
+  return db.expense.findMany({
+    where: {
+      status: { not: "cancelled" },
+      ...(cashOnly ? { method: "cash" } : {}),
+      OR: [
+        { accountId },
+        ...(isDefault
+          ? [{ accountId: null, method: "cash" }]
+          : accountCode === "ACC-BANQUE"
+          ? [{ accountId: null, method: "transfer" }]
+          : []),
+      ],
+    },
+  });
+}

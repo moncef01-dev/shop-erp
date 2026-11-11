@@ -5,6 +5,31 @@ import { prisma } from "@/server/db";
 import type { TxClient } from "@/server/db";
 import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
 import { calculateAccountBalance } from "@/server/repositories/cash.repository";
+import {
+  findTreasuryAccountsWithTransfers,
+  findRecentTreasuryTransfers,
+  findTreasuryAccountByName,
+  createTreasuryAccountRecord,
+  updateTreasuryAccountRecord,
+  findTreasuryAccountById,
+  countTreasuryAccountsWithCodePrefix,
+  findCashTreasuryAccountActive,
+  findOpenCashSessionOrdered,
+  findLastClosedSession,
+  findTreasuryTransferById,
+  findTreasuryTransferWithAccounts,
+  createTreasuryTransferWithAccounts,
+  updateTreasuryTransferWithAccounts,
+  findLastAdjustmentReference,
+  createAdjustmentExpense,
+  findTransfersInToAccount,
+  findTransfersOutFromAccount,
+  findAccountSalePayments,
+  findAccountAdvances,
+  findAccountSupplierPayments,
+  findAccountExpenses,
+  findSuppAdditionalPaymentsForAccount,
+} from "@/server/repositories/cash.repository";
 
 export { calculateAccountBalance } from "@/server/repositories/cash.repository";
 
@@ -139,13 +164,7 @@ export async function generateNextTreasuryAccountCode(
 // ─── RÉCUPÉRATION DES COMPTES & TABLEAU DE BORD TRÉSORERIE ────────────────────
 
 export async function getTreasuryDashboardData(): Promise<TreasuryDashboardSummary> {
-  const accounts = await prisma.treasuryAccount.findMany({
-    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-    include: {
-      transfersFrom: { select: { amount: true } },
-      transfersTo: { select: { amount: true } },
-    },
-  });
+  const accounts = await findTreasuryAccountsWithTransfers();
 
   const enrichedAccounts: TreasuryAccountData[] = [];
   let totalTreasuryFunds = 0;
@@ -177,15 +196,7 @@ export async function getTreasuryDashboardData(): Promise<TreasuryDashboardSumma
     });
   }
 
-  const rawTransfers = await prisma.treasuryTransfer.findMany({
-    take: 100,
-    orderBy: { date: "desc" },
-    include: {
-      fromAccount: { select: { id: true, name: true, code: true } },
-      toAccount: { select: { id: true, name: true, code: true } },
-      session: { select: { id: true, reference: true } },
-    },
-  });
+  const rawTransfers = await findRecentTreasuryTransfers();
 
   const transfers: TreasuryTransferData[] = rawTransfers.map((t) => ({
     id: t.id,
@@ -246,9 +257,7 @@ export async function createTreasuryAccountAction(formData: FormData) {
     }
 
     // Unicité du nom
-    const existing = await prisma.treasuryAccount.findFirst({
-      where: { name: { equals: name } },
-    });
+    const existing = await findTreasuryAccountByName(name);
     if (existing) {
       return {
         success: false,
@@ -261,17 +270,15 @@ export async function createTreasuryAccountAction(formData: FormData) {
 
     await assertPeriodNotLocked(openingDate, "Création de compte de trésorerie");
 
-    const account = await prisma.treasuryAccount.create({
-      data: {
-        code,
-        name,
-        type,
-        openingBalance,
-        openingDate,
-        notes,
-        isDefault: false,
-        isActive: true,
-      },
+    const account = await createTreasuryAccountRecord({
+      code,
+      name,
+      type,
+      openingBalance,
+      openingDate,
+      notes,
+      isDefault: false,
+      isActive: true,
     });
 
     safeRevalidate();
@@ -301,9 +308,7 @@ export async function updateTreasuryAccountAction(
     const notes = (formData.get("notes") as string)?.trim() || null;
     const isActiveStr = formData.get("isActive") as string;
 
-    const account = await prisma.treasuryAccount.findUnique({
-      where: { id: accountId },
-    });
+    const account = await findTreasuryAccountById(accountId);
     if (!account) {
       return { success: false, error: "Compte de trésorerie introuvable." };
     }
@@ -321,13 +326,10 @@ export async function updateTreasuryAccountAction(
       };
     }
 
-    const updated = await prisma.treasuryAccount.update({
-      where: { id: accountId },
-      data: {
-        name,
-        notes,
-        isActive,
-      },
+    const updated = await updateTreasuryAccountRecord(accountId, {
+      name,
+      notes,
+      isActive,
     });
 
     safeRevalidate();
@@ -405,12 +407,8 @@ export async function createTreasuryTransferAction(payload: {
     // Exécution transactionnelle atomique avec vérification stricte des fonds
     const result = await prisma.$transaction(
       async (tx) => {
-      const fromAcc = await tx.treasuryAccount.findUnique({
-        where: { id: fromAccountId },
-      });
-      const toAcc = await tx.treasuryAccount.findUnique({
-        where: { id: toAccountId },
-      });
+      const fromAcc = await findTreasuryAccountById(fromAccountId, tx);
+      const toAcc = await findTreasuryAccountById(toAccountId, tx);
 
       if (!fromAcc) {
         throw new Error("Compte source introuvable.");
@@ -439,36 +437,25 @@ export async function createTreasuryTransferAction(payload: {
 
       let sessionId = payload.sessionId || null;
       if (!sessionId) {
-        const cashAcc = await tx.treasuryAccount.findFirst({
-          where: { OR: [{ isDefault: true }, { type: "cash" }], isActive: true },
-        });
+        const cashAcc = await findCashTreasuryAccountActive(tx);
         if (cashAcc && (fromAccountId === cashAcc.id || toAccountId === cashAcc.id)) {
-          const activeSession = await tx.cashSession.findFirst({
-            where: { status: "open" },
-            orderBy: { openedAt: "desc" },
-          });
+          const activeSession = await findOpenCashSessionOrdered(tx);
           if (activeSession) {
             sessionId = activeSession.id;
           }
         }
       }
 
-      const transfer = await tx.treasuryTransfer.create({
-        data: {
-          reference,
-          fromAccountId,
-          toAccountId,
-          amount,
-          paymentMethod,
-          motif,
-          notes,
-          date,
-          sessionId,
-        },
-        include: {
-          fromAccount: { select: { id: true, name: true, code: true } },
-          toAccount: { select: { id: true, name: true, code: true } },
-        },
+      const transfer = await createTreasuryTransferWithAccounts(tx, {
+        reference,
+        fromAccountId,
+        toAccountId,
+        amount,
+        paymentMethod,
+        motif,
+        notes,
+        date,
+        sessionId,
       });
 
       return transfer;
@@ -528,10 +515,7 @@ export async function updateTreasuryTransferAction(payload: {
 
     const updated = await prisma.$transaction(
       async (tx) => {
-      const existing = await tx.treasuryTransfer.findUnique({
-        where: { id: transferId },
-        include: { fromAccount: true, toAccount: true },
-      });
+      const existing = await findTreasuryTransferWithAccounts(transferId, tx);
       if (!existing) {
         throw new Error("Transfert de trésorerie introuvable.");
       }
@@ -614,22 +598,15 @@ export async function updateTreasuryTransferAction(payload: {
       }
       historyArray.push(auditEntry);
 
-      const res = await tx.treasuryTransfer.update({
-        where: { id: transferId },
-        data: {
-          fromAccountId,
-          toAccountId,
-          amount,
-          paymentMethod,
-          motif,
-          notes,
-          date,
-          editHistory: JSON.stringify(historyArray),
-        },
-        include: {
-          fromAccount: { select: { id: true, name: true, code: true } },
-          toAccount: { select: { id: true, name: true, code: true } },
-        },
+      const res = await updateTreasuryTransferWithAccounts(tx, transferId, {
+        fromAccountId,
+        toAccountId,
+        amount,
+        paymentMethod,
+        motif,
+        notes,
+        date,
+        editHistory: JSON.stringify(historyArray),
       });
 
       return res;
@@ -686,9 +663,7 @@ export async function adjustAccountBalanceAction(payload: {
       };
     }
 
-    const account = await prisma.treasuryAccount.findUnique({
-      where: { id: accountId },
-    });
+    const account = await findTreasuryAccountById(accountId);
     if (!account) {
       return { success: false, error: "Compte de trésorerie introuvable." };
     }
@@ -706,11 +681,7 @@ export async function adjustAccountBalanceAction(payload: {
     const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
     const prefix = `AJT-${yearMonth}-`;
 
-    const last = await prisma.expense.findFirst({
-      where: { reference: { startsWith: prefix } },
-      orderBy: { reference: "desc" },
-      select: { reference: true },
-    });
+    const last = await findLastAdjustmentReference(prefix);
 
     let nextSeq = 1;
     if (last?.reference) {
@@ -720,19 +691,17 @@ export async function adjustAccountBalanceAction(payload: {
     }
     const reference = `${prefix}${String(nextSeq).padStart(4, "0")}`;
 
-    await prisma.expense.create({
-      data: {
-        reference,
-        accountId,
-        type: adjustmentType === "increase" ? "income" : "expense",
-        category: "capital",
-        description: `Ajustement de solde (${adjustmentType === "increase" ? "+" : "-"}) : ${reason}`,
-        amount,
-        method: "adjustment",
-        beneficiary: "Audit interne",
-        notes: notes ? `Ajustement tracé. ${notes}` : "Ajustement tracé avec journal d'audit.",
-        date,
-      },
+    await createAdjustmentExpense({
+      reference,
+      accountId,
+      type: adjustmentType === "increase" ? "income" : "expense",
+      category: "capital",
+      description: `Ajustement de solde (${adjustmentType === "increase" ? "+" : "-"}) : ${reason}`,
+      amount,
+      method: "adjustment",
+      beneficiary: "Audit interne",
+      notes: notes ? `Ajustement tracé. ${notes}` : "Ajustement tracé avec journal d'audit.",
+      date,
     });
 
     safeRevalidate();
@@ -765,9 +734,7 @@ export async function getAccountMovements(
   openingBalance: number;
   finalBalance: number;
 }> {
-  const account = await prisma.treasuryAccount.findUnique({
-    where: { id: accountId },
-  });
+  const account = await findTreasuryAccountById(accountId);
   if (!account) {
     return {
       account: null,
@@ -780,10 +747,7 @@ export async function getAccountMovements(
   const movements: AccountMovementItem[] = [];
 
   // 1. Transferts reçus (inflow)
-  const transfersIn = await prisma.treasuryTransfer.findMany({
-    where: { toAccountId: accountId },
-    include: { fromAccount: { select: { name: true } } },
-  });
+  const transfersIn = await findTransfersInToAccount(accountId);
   for (const t of transfersIn) {
     movements.push({
       id: `trf-in-${t.id}`,
@@ -803,10 +767,7 @@ export async function getAccountMovements(
   }
 
   // 2. Transferts émis (outflow)
-  const transfersOut = await prisma.treasuryTransfer.findMany({
-    where: { fromAccountId: accountId },
-    include: { toAccount: { select: { name: true } } },
-  });
+  const transfersOut = await findTransfersOutFromAccount(accountId);
   for (const t of transfersOut) {
     movements.push({
       id: `trf-out-${t.id}`,
@@ -826,19 +787,7 @@ export async function getAccountMovements(
   }
 
   // 3. Encaissements ventes et caisse
-  const salePayments = await prisma.payment.findMany({
-    where: {
-      status: { not: "cancelled" },
-      purchaseId: null,
-      supplierId: null,
-      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
-      OR: [
-        { accountId: accountId },
-        ...(account.isDefault ? [{ accountId: null, method: "cash" }] : []),
-      ],
-    },
-    include: { sale: { include: { customer: true } } },
-  });
+  const salePayments = await findAccountSalePayments(accountId, account.isDefault, account.type === "cash" || account.isDefault);
   for (const p of salePayments) {
     const cust = p.sale?.customer?.name || "Client comptoir";
     movements.push({
@@ -860,17 +809,7 @@ export async function getAccountMovements(
   }
 
   // 4. Acomptes clients
-  const advances = await prisma.customerAdvance.findMany({
-    where: {
-      status: { not: "cancelled" },
-      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
-      OR: [
-        { accountId: accountId },
-        ...(account.isDefault ? [{ accountId: null, method: "cash" }] : []),
-      ],
-    },
-    include: { customer: true },
-  });
+  const advances = await findAccountAdvances(accountId, account.isDefault, account.type === "cash" || account.isDefault);
   for (const adv of advances) {
     const cust = adv.customer.name;
     movements.push({
@@ -891,27 +830,7 @@ export async function getAccountMovements(
   }
 
   // 5. Règlements Fournisseurs
-  const supplierPayments = await prisma.payment.findMany({
-    where: {
-      status: { not: "cancelled" },
-      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
-      AND: [
-        {
-          OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }],
-        },
-        {
-          OR: [
-            { accountId: accountId },
-            ...(account.isDefault ? [{ accountId: null, method: "cash" }] : []),
-          ],
-        },
-      ],
-    },
-    include: {
-      purchase: { include: { supplier: true } },
-      supplier: true,
-    },
-  });
+  const supplierPayments = await findAccountSupplierPayments(accountId, account.isDefault, account.type === "cash" || account.isDefault);
   for (const p of supplierPayments) {
     const supp = p.purchase?.supplier?.name || p.supplier?.name || "Fournisseur";
     movements.push({
@@ -933,20 +852,7 @@ export async function getAccountMovements(
   }
 
   // 6. Dépenses d'exploitation et encaissements exceptionnels
-  const expenses = await prisma.expense.findMany({
-    where: {
-      status: { not: "cancelled" },
-      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
-      OR: [
-        { accountId: accountId },
-        ...(account.isDefault
-          ? [{ accountId: null, method: "cash" }]
-          : account.code === "ACC-BANQUE"
-          ? [{ accountId: null, method: "transfer" }]
-          : []),
-      ],
-    },
-  });
+  const expenses = await findAccountExpenses(accountId, account.isDefault, account.code, account.type === "cash" || account.isDefault);
   for (const e of expenses) {
     const isIncome = e.type === "income";
     let typeLabel = isIncome ? "Recette Exceptionnelle" : "Dépense d'Exploitation";
@@ -978,13 +884,7 @@ export async function getAccountMovements(
 
   // 7. Versements supplémentaires fournisseurs et contrepassations
   try {
-    const additionalPayments = await prisma.supplierAdditionalPayment.findMany({
-      where: { treasuryAccountId: accountId },
-      include: {
-        supplier: { select: { name: true } },
-        reversalOf: { select: { reference: true } },
-      },
-    });
+    const additionalPayments = await findSuppAdditionalPaymentsForAccount(accountId);
     for (const ap of additionalPayments) {
       if (!ap.isReversal) {
         movements.push({
@@ -1029,14 +929,8 @@ export async function getAccountMovements(
   // si aucune date de début spécifique n'est demandée et qu'une session clôturée existe,
   // le relevé part du montant arrêté lors de la dernière clôture.
   if ((account.isDefault || account.type === "cash") && !filters?.startDate) {
-    const activeSession = await prisma.cashSession.findFirst({
-      where: { status: "open" },
-      orderBy: { openedAt: "desc" },
-    });
-    const latestClosed = await prisma.cashSession.findFirst({
-      where: { status: "closed" },
-      orderBy: { closedAt: "desc" },
-    });
+    const activeSession = await findOpenCashSessionOrdered();
+    const latestClosed = await findLastClosedSession();
 
     const getMovementSortTime = (m: AccountMovementItem) => {
       const d = new Date(m.date).getTime();
