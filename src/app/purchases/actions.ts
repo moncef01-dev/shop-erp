@@ -1205,6 +1205,12 @@ export async function recordSupplierPaymentAction(formData: FormData): Promise<P
       }
 
       const remainingBalance = Math.max(0, purchase.totalAmount - purchase.paidAmount);
+      if (amount > remainingBalance) {
+        return {
+          success: false,
+          error: `Le montant saisi (${amount.toLocaleString("fr-DZ")} DA) dépasse le solde restant dû (${remainingBalance.toLocaleString("fr-DZ")} DA). Les trop-perçus ne sont pas autorisés.`,
+        };
+      }
     }
 
     const result = await prisma.$transaction(async (tx) => {

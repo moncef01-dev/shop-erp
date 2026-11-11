@@ -449,36 +449,18 @@ export async function deleteProductAction(id: number): Promise<ActionResponse> {
     }
 
     const totalStock = product.stocks.reduce((sum, s) => sum + s.quantity, 0);
-    const hasHistoricalTransactions =
+    const hasHistory =
       product._count.movements > 0 ||
       product._count.saleItems > 0 ||
       product._count.purchaseItems > 0 ||
-      product._count.purchaseReceiptItems > 0;
+      product._count.purchaseReceiptItems > 0 ||
+      totalStock > 0;
 
-    // Si le produit a un historique d'opérations commerciales ou de mouvements de stock :
-    // Utiliser l'archivage (soft-delete) pour préserver l'intégrité référentielle et la traçabilité comptable
-    if (hasHistoricalTransactions) {
-      await prisma.product.update({
-        where: { id },
-        data: {
-          isActive: false,
-        },
-      });
-
-      safeRevalidate("/products");
-      safeRevalidate("/sales");
-      safeRevalidate("/purchases");
-      safeRevalidate("/");
-
-      const stockDetail =
-        totalStock !== 0
-          ? ` (Stock restant conservé pour l'audit d'inventaire : ${totalStock} unité(s))`
-          : "";
-
+    // Protection stricte : si le produit a du stock ou des opérations historiques, interdire la suppression
+    if (hasHistory) {
       return {
-        success: true,
-        message: `Le meuble "${product.name}" possède un historique comptable/commercial : il a été archivé et retiré du catalogue actif avec succès${stockDetail}.`,
-        data: { action: "archived", totalStock },
+        success: false,
+        error: `Impossible de supprimer définitivement le meuble "${product.name}" car des opérations ou du stock (${totalStock} unité(s)) y sont rattachés. Pour préserver l'historique et la traçabilité comptable, veuillez plutôt le désactiver.`,
       };
     }
 
