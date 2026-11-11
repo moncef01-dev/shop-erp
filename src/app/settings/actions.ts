@@ -10,6 +10,14 @@ import {
   isDatabaseRestoring,
   setDatabaseRestoring,
 } from "@/server/db";
+import {
+  findShopSettingsById1,
+  createShopSettingsDefaults,
+  upsertShopSettings,
+  upsertShopSettingsLogo,
+  clearShopSettingsLogo,
+  findLocationsForSettings,
+} from "@/server/repositories/settings.repository";
 import { createClient } from "@libsql/client";
 
 export interface ShopSettingsData {
@@ -118,16 +126,12 @@ function resolveSafeBackupPath(filename: string): { safePath: string; cleanName:
 
 export async function getShopSettings(): Promise<ShopSettingsData> {
   try {
-    let settings = await prisma.shopSettings.findUnique({
-      where: { id: 1 },
-    });
+    let settings = await findShopSettingsById1();
 
     if (!settings) {
-      settings = await prisma.shopSettings.create({
-        data: {
-          id: 1,
-          ...DEFAULT_SETTINGS,
-        },
+      settings = await createShopSettingsDefaults({
+        id: 1,
+        ...DEFAULT_SETTINGS,
       });
     }
 
@@ -168,8 +172,7 @@ export async function updateShopSettingsAction(
       retentionCount = 30;
     }
 
-    const updated = await prisma.shopSettings.upsert({
-      where: { id: 1 },
+    const updated = await upsertShopSettings({
       create: {
         id: 1,
         shopName,
@@ -279,17 +282,7 @@ export async function uploadLogoAction(
     const logoUrl = `/uploads/${safeFilename}`;
 
     // 5. Sauvegarde en base
-    await prisma.shopSettings.upsert({
-      where: { id: 1 },
-      create: {
-        id: 1,
-        shopName: DEFAULT_SETTINGS.shopName,
-        logoUrl,
-      },
-      update: {
-        logoUrl,
-      },
-    });
+    await upsertShopSettingsLogo(logoUrl, DEFAULT_SETTINGS.shopName);
 
     revalidatePath("/settings");
     revalidatePath("/sales");
@@ -305,7 +298,7 @@ export async function uploadLogoAction(
 
 export async function deleteLogoAction(): Promise<{ success: boolean; error?: string }> {
   try {
-    const current = await prisma.shopSettings.findUnique({ where: { id: 1 } });
+    const current = await findShopSettingsById1();
     if (current?.logoUrl) {
       const cleanPath = path.basename(current.logoUrl);
       const filePath = path.resolve(process.cwd(), "public", "uploads", cleanPath);
@@ -318,10 +311,7 @@ export async function deleteLogoAction(): Promise<{ success: boolean; error?: st
       }
     }
 
-    await prisma.shopSettings.update({
-      where: { id: 1 },
-      data: { logoUrl: null },
-    });
+    await clearShopSettingsLogo();
 
     revalidatePath("/settings");
     revalidatePath("/sales");
@@ -801,10 +791,7 @@ export async function getSystemInfoAction(): Promise<SystemInfo> {
 
 export async function getLocationsAction(): Promise<Array<{ id: number; name: string; code: string }>> {
   try {
-    const locations = await prisma.location.findMany({
-      select: { id: true, name: true, code: true },
-      orderBy: { name: "asc" },
-    });
+    const locations = await findLocationsForSettings();
     return locations;
   } catch {
     return [];
