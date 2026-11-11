@@ -81,7 +81,10 @@ export const ModelName = {
   CustomerSavingsAccount: 'CustomerSavingsAccount',
   CustomerSavingsTransaction: 'CustomerSavingsTransaction',
   SupplierAdditionalPayment: 'SupplierAdditionalPayment',
-  SupplierAdditionalPaymentAllocation: 'SupplierAdditionalPaymentAllocation'
+  SupplierAdditionalPaymentAllocation: 'SupplierAdditionalPaymentAllocation',
+  ZakatValuation: 'ZakatValuation',
+  ZakatValuationItem: 'ZakatValuationItem',
+  ZakatAdjustment: 'ZakatAdjustment'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -665,6 +668,86 @@ export const SupplierAdditionalPaymentAllocationScalarFieldEnum = {
 } as const
 
 export type SupplierAdditionalPaymentAllocationScalarFieldEnum = (typeof SupplierAdditionalPaymentAllocationScalarFieldEnum)[keyof typeof SupplierAdditionalPaymentAllocationScalarFieldEnum]
+
+
+export const ZakatValuationScalarFieldEnum = {
+  id: 'id',
+  reference: 'reference',
+  valuationDate: 'valuationDate',
+  hawlStartDate: 'hawlStartDate',
+  hawlEndDate: 'hawlEndDate',
+  nisabMethod: 'nisabMethod',
+  nisabValueDZD: 'nisabValueDZD',
+  nisabGoldPriceDZD: 'nisabGoldPriceDZD',
+  nisabSilverPriceDZD: 'nisabSilverPriceDZD',
+  zakatRate: 'zakatRate',
+  zakatYearType: 'zakatYearType',
+  inventoryValuationMethod: 'inventoryValuationMethod',
+  manualLiabilitiesDZD: 'manualLiabilitiesDZD',
+  manualLiabilitiesNote: 'manualLiabilitiesNote',
+  customerFundsConfirmation: 'customerFundsConfirmation',
+  totalInventoryDZD: 'totalInventoryDZD',
+  totalTreasuryDZD: 'totalTreasuryDZD',
+  totalReceivablesDZD: 'totalReceivablesDZD',
+  totalSupplierPrepaymentsDZD: 'totalSupplierPrepaymentsDZD',
+  unverifiedAssetsDZD: 'unverifiedAssetsDZD',
+  customerFundsHeldDZD: 'customerFundsHeldDZD',
+  totalAssetsDZD: 'totalAssetsDZD',
+  totalLiabilitiesDZD: 'totalLiabilitiesDZD',
+  totalAdjustmentsDZD: 'totalAdjustmentsDZD',
+  zakatableBaseDZD: 'zakatableBaseDZD',
+  zakatDueDZD: 'zakatDueDZD',
+  isNisabReached: 'isNisabReached',
+  calculationStatus: 'calculationStatus',
+  approvalStatus: 'approvalStatus',
+  statusReason: 'statusReason',
+  notes: 'notes',
+  metadataJson: 'metadataJson',
+  approvedAt: 'approvedAt',
+  approvedBy: 'approvedBy',
+  approvalNotes: 'approvalNotes',
+  rejectedAt: 'rejectedAt',
+  rejectedBy: 'rejectedBy',
+  rejectionReason: 'rejectionReason',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ZakatValuationScalarFieldEnum = (typeof ZakatValuationScalarFieldEnum)[keyof typeof ZakatValuationScalarFieldEnum]
+
+
+export const ZakatValuationItemScalarFieldEnum = {
+  id: 'id',
+  valuationId: 'valuationId',
+  category: 'category',
+  sourceType: 'sourceType',
+  sourceId: 'sourceId',
+  reference: 'reference',
+  description: 'description',
+  quantity: 'quantity',
+  unitValueDZD: 'unitValueDZD',
+  totalValueDZD: 'totalValueDZD',
+  status: 'status',
+  notes: 'notes',
+  createdAt: 'createdAt'
+} as const
+
+export type ZakatValuationItemScalarFieldEnum = (typeof ZakatValuationItemScalarFieldEnum)[keyof typeof ZakatValuationItemScalarFieldEnum]
+
+
+export const ZakatAdjustmentScalarFieldEnum = {
+  id: 'id',
+  valuationId: 'valuationId',
+  category: 'category',
+  description: 'description',
+  amountDZD: 'amountDZD',
+  adjustmentType: 'adjustmentType',
+  reason: 'reason',
+  createdBy: 'createdBy',
+  createdAt: 'createdAt'
+} as const
+
+export type ZakatAdjustmentScalarFieldEnum = (typeof ZakatAdjustmentScalarFieldEnum)[keyof typeof ZakatAdjustmentScalarFieldEnum]
 
 
 export const SortOrder = {

@@ -196,3 +196,18 @@ export type SupplierAdditionalPayment = Prisma.SupplierAdditionalPaymentModel
  * 
  */
 export type SupplierAdditionalPaymentAllocation = Prisma.SupplierAdditionalPaymentAllocationModel
+/**
+ * Model ZakatValuation
+ * 
+ */
+export type ZakatValuation = Prisma.ZakatValuationModel
+/**
+ * Model ZakatValuationItem
+ * 
+ */
+export type ZakatValuationItem = Prisma.ZakatValuationItemModel
+/**
+ * Model ZakatAdjustment
+ * 
+ */
+export type ZakatAdjustment = Prisma.ZakatAdjustmentModel
