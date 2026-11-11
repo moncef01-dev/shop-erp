@@ -1,6 +1,11 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import {
+  fetchDashboardOverview,
+  findDefaultTreasuryAccount,
+  findSessionCashPayments,
+  findSessionCashExpenses,
+} from "@/server/repositories/dashboard.repository";
 import { roundMoney } from "@/lib/formatters";
 
 export type PeriodPreset = "today" | "yesterday" | "7d" | "month" | "custom";
@@ -228,130 +233,7 @@ export async function getDashboardData(
     recentPurchases,
     // Ventes annulées récentes pour alerte opérationnelle
     recentCancelledSales,
-  ] = await Promise.all([
-    // Ventes confirmées de la période
-    prisma.sales.findMany({
-      where: {
-        status: "confirmed",
-        saleDate: { gte: start, lte: end },
-      },
-      include: {
-        customer: { select: { name: true } },
-      },
-      orderBy: { saleDate: "desc" },
-    }),
-
-    // Ventes période précédente
-    prisma.sales.findMany({
-      where: {
-        status: "confirmed",
-        saleDate: { gte: prevStart, lte: prevEnd },
-      },
-      select: { totalAmount: true },
-    }),
-
-    // Règlements encaissés période courante
-    prisma.payment.findMany({
-      where: {
-        status: "completed",
-        paymentDate: { gte: start, lte: end },
-      },
-      include: {
-        sale: {
-          select: {
-            reference: true,
-            customer: { select: { name: true } },
-          },
-        },
-      },
-      orderBy: { paymentDate: "desc" },
-    }),
-
-    // Règlements période précédente
-    prisma.payment.findMany({
-      where: {
-        status: "completed",
-        paymentDate: { gte: prevStart, lte: prevEnd },
-      },
-      select: { amount: true, saleId: true, purchaseId: true },
-    }),
-
-    // Dépenses période courante
-    prisma.expense.findMany({
-      where: {
-        date: { gte: start, lte: end },
-        status: { not: "cancelled" },
-      },
-      orderBy: { date: "desc" },
-    }),
-
-    // Dépenses période précédente
-    prisma.expense.findMany({
-      where: {
-        date: { gte: prevStart, lte: prevEnd },
-        status: { not: "cancelled" },
-      },
-      select: { amount: true, type: true },
-    }),
-
-    // Créances : factures non annulées avec solde dû
-    prisma.sales.findMany({
-      where: {
-        status: { not: "cancelled" },
-        paymentStatus: { in: ["unpaid", "partial"] },
-      },
-      select: {
-        id: true,
-        reference: true,
-        totalAmount: true,
-        paidAmount: true,
-        customer: { select: { name: true } },
-      },
-    }),
-
-    // Session active
-    prisma.cashSession.findFirst({
-      where: { status: "open" },
-    }),
-
-    // Dernière session fermée
-    prisma.cashSession.findFirst({
-      where: { status: "closed" },
-      orderBy: { closedAt: "desc" },
-    }),
-
-    // Produits & catalogue
-    prisma.product.findMany({
-      select: {
-        id: true,
-        sku: true,
-        name: true,
-        stock: true,
-        minStock: true,
-        unit: true,
-      },
-    }),
-
-    // Achats récents
-    prisma.purchase.findMany({
-      where: { status: { not: "cancelled" } },
-      take: 5,
-      orderBy: { purchaseDate: "desc" },
-      include: {
-        supplier: { select: { name: true } },
-      },
-    }),
-
-    // Annulations récentes
-    prisma.sales.findMany({
-      where: {
-        status: "cancelled",
-        updatedAt: { gte: start, lte: end },
-      },
-      select: { id: true, reference: true, totalAmount: true },
-      take: 5,
-    }),
-  ]);
+  ] = await fetchDashboardOverview(start, end, prevStart, prevEnd);
 
   // ─── 2. CALCULS KPI FINANCIERS ET OPÉRATIONNELS ──────────────────────────────
 
@@ -408,27 +290,15 @@ export async function getDashboardData(
     // Calcul autoritaire identique à cash/actions.ts
     // Encaissements espèces liés à la session ou sans session depuis l'ouverture
     const now = new Date();
-    const defaultCaisse =
-      (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
-      (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+    const defaultCaisse = await findDefaultTreasuryAccount();
     const caisseId = activeSession.accountId || defaultCaisse?.id;
 
-    const sessionPayments = await prisma.payment.findMany({
-      where: {
-        status: { not: "cancelled" },
-        method: "cash",
-        AND: [
-          { OR: [{ accountId: caisseId }, { accountId: null }] },
-          {
-            OR: [
-              { sessionId: activeSession.id },
-              { sessionId: null, paymentDate: { gte: activeSession.openedAt, lte: now } },
-            ],
-          },
-        ],
-      },
-      select: { amount: true, saleId: true, purchaseId: true },
-    });
+    const sessionPayments = await findSessionCashPayments(
+      activeSession.id,
+      caisseId,
+      activeSession.openedAt,
+      now
+    );
 
     const cashInSales = sessionPayments
       .filter((p) => p.saleId !== null)
@@ -437,22 +307,12 @@ export async function getDashboardData(
       .filter((p) => p.purchaseId !== null)
       .reduce((acc, p) => acc + p.amount, 0);
 
-    const sessionExpenses = await prisma.expense.findMany({
-      where: {
-        method: "cash",
-        status: { not: "cancelled" },
-        AND: [
-          { OR: [{ accountId: caisseId }, { accountId: null }] },
-          {
-            OR: [
-              { sessionId: activeSession.id },
-              { sessionId: null, date: { gte: activeSession.openedAt, lte: now } },
-            ],
-          },
-        ],
-      },
-      select: { amount: true, type: true },
-    });
+    const sessionExpenses = await findSessionCashExpenses(
+      activeSession.id,
+      caisseId,
+      activeSession.openedAt,
+      now
+    );
 
     const cashInOther = sessionExpenses
       .filter((e) => e.type === "income")
