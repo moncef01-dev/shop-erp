@@ -1,17 +1,46 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import { revalidatePath } from "next/cache";
 import {
   deductStockForSaleItem,
   restoreStockForCancelledSale,
-  type PrismaTransactionClient,
-} from "@/lib/inventory-transaction";
+} from "@/server/services/inventory";
+import type { TxClient } from "@/server/db";
 import { roundMoney } from "@/lib/formatters";
-import { getCustomerAdvancesData } from "./advances-actions";
-import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
-import { generateNextExpenseReference } from "@/app/cash/actions";
-import { generateNextSavingsReference, reverseSavingsDeductionsForSale } from "@/app/savings/actions";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
+import { generateNextExpenseReference, resolvePaymentAccounting, findExistingRefundExpense, createExpenseRecord, findOpenCashSession, findDefaultCashAccountFull, findCashAccountAny } from "@/server/repositories/cash.repository";
+import {
+  generateNextSavingsReference,
+  reverseSavingsDeductionsForSale,
+  findSavingsAccountByCustomer,
+  createSavingsTransactionRecord,
+  updateSavingsAccountBalance,
+} from "@/server/repositories/savings.repository";
+import {
+  generateNextInvoiceNumber,
+  generateNextSalePaymentReference,
+  fetchSalesCatalog,
+  fetchSalesModuleMeta,
+  fetchCustomerAdvancesWithStats,
+  findSaleWithItemsAndCustomer,
+  findSaleWithCustomer,
+  findSaleForCancel,
+  findSaleForPrint,
+  findSaleFullForResponse,
+  findExistingSaleForUpdate,
+  findCurrentSaleForPayment,
+  findCustomerNameById,
+  createSaleRecord,
+  createSaleItemRecord,
+  createSaleItemsBatch,
+  deleteSaleItems,
+  createSalePaymentRecord,
+  updatePaymentRecord,
+  updateSaleRecord,
+  preloadStockCaches,
+  recomputeProductTotals,
+} from "@/server/repositories/sales.repository";
 
 export type SaleActionResponse<T = unknown> = {
   success: boolean;
@@ -28,110 +57,11 @@ function safeRevalidate(path: string) {
   }
 }
 
-// ─── GÉNÉRATEUR DE NUMÉROS UNIQUES DE FACTURE & PAIEMENT ─────────────────────
-
-async function generateNextInvoiceNumber(tx: PrismaTransactionClient, isDraft: boolean): Promise<string> {
-  const now = new Date();
-  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const prefix = isDraft ? `DEV-${yearMonth}-` : `FAC-${yearMonth}-`;
-
-  const lastSale = await tx.sales.findFirst({
-    where: { reference: { startsWith: prefix } },
-    orderBy: { reference: "desc" },
-    select: { reference: true },
-  });
-
-  let nextSeq = 1;
-  if (lastSale?.reference) {
-    const parts = lastSale.reference.split("-");
-    const num = parseInt(parts[parts.length - 1], 10);
-    if (!isNaN(num)) {
-      nextSeq = num + 1;
-    }
-  }
-
-  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
-
-async function generateNextPaymentReference(tx: PrismaTransactionClient): Promise<string> {
-  const now = new Date();
-  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const prefix = `PAY-${yearMonth}-`;
-
-  const lastPayment = await tx.payment.findFirst({
-    where: { reference: { startsWith: prefix } },
-    orderBy: { reference: "desc" },
-    select: { reference: true },
-  });
-
-  let nextSeq = 1;
-  if (lastPayment?.reference) {
-    const parts = lastPayment.reference.split("-");
-    const num = parseInt(parts[parts.length - 1], 10);
-    if (!isNaN(num)) {
-      nextSeq = num + 1;
-    }
-  }
-
-  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
-
 
 // ─── RÉCUPÉRATION GLOBALE DES DONNÉES DU MODULE VENTES ────────────────────────
 
 export async function getSalesModuleData() {
-  const [sales, customers, products, locations] = await Promise.all([
-    prisma.sales.findMany({
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                sku: true,
-                name: true,
-                model: true,
-                color: true,
-                sellingPrice: true,
-              },
-            },
-            location: {
-              select: { id: true, code: true, name: true },
-            },
-          },
-        },
-        payments: {
-          orderBy: { paymentDate: "desc" },
-          include: {
-            session: {
-              select: { id: true, reference: true, status: true },
-            },
-          },
-        },
-        movements: true,
-      },
-      orderBy: { saleDate: "desc" },
-    }),
-    prisma.customer.findMany({
-      orderBy: { name: "asc" },
-    }),
-    prisma.product.findMany({
-      include: {
-        categoryRef: true,
-        stocks: {
-          include: {
-            location: true,
-          },
-        },
-      },
-      orderBy: { name: "asc" },
-    }),
-    prisma.location.findMany({
-      where: { isActive: true },
-      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-    }),
-  ]);
+  const [sales, customers, products, locations] = await fetchSalesCatalog();
 
   // Statistiques calculées à partir des enregistrements réels
   const activeSales = sales.filter((s) => s.status !== "cancelled");
@@ -141,17 +71,20 @@ export async function getSalesModuleData() {
   const totalOutstandingCredit = roundMoney(
     activeSales.reduce((acc, s) => acc + Math.max(0, s.totalAmount - s.paidAmount), 0)
   );
-  const [settings, activeSession, advances, savingsAccounts] = await Promise.all([
-    prisma.shopSettings.findUnique({ where: { id: 1 } }),
-    prisma.cashSession.findFirst({
-      where: { status: "open" },
-      select: { id: true, reference: true },
-    }),
-    getCustomerAdvancesData(),
-    prisma.customerSavingsAccount.findMany({
-      select: { customerId: true, balance: true },
-    }),
+  const [[settings, activeSession, savingsAccounts], advancesRaw] = await Promise.all([
+    fetchSalesModuleMeta(),
+    fetchCustomerAdvancesWithStats(),
   ]);
+
+  const advances = advancesRaw.map((a) => {
+    const remainingAmount = roundMoney(
+      Math.max(0, a.amount - a.allocatedAmount - a.refundedAmount)
+    );
+    return {
+      ...a,
+      remainingAmount,
+    };
+  });
 
   return {
     sales,
@@ -302,46 +235,39 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
       // Récupérer le nom du client si présent
       let customerName: string | null = null;
       if (customerId) {
-        const c = await tx.customer.findUnique({
-          where: { id: customerId },
-          select: { id: true, name: true },
-        });
+        const c = await findCustomerNameById(tx, customerId);
         if (!c) throw new Error("Client introuvable.");
         customerName = c.name;
       }
 
       // 2. Créer l'enregistrement Sales
-      const sale = await tx.sales.create({
-        data: {
-          reference,
-          customerId,
-          status,
-          subtotal,
-          discount: safeGlobalDiscount,
-          deliveryFee: parsedDeliveryFee,
-          includeDeliveryFee: shouldIncludeDeliveryFee,
-          totalAmount,
-          paidAmount: totalInitialPaid,
-          paymentStatus,
-          deliveryStatus,
-          notes,
-          saleDate: new Date(saleDate),
-        },
+      const sale = await createSaleRecord(tx, {
+        reference,
+        customerId,
+        status,
+        subtotal,
+        discount: safeGlobalDiscount,
+        deliveryFee: parsedDeliveryFee,
+        includeDeliveryFee: shouldIncludeDeliveryFee,
+        totalAmount,
+        paidAmount: totalInitialPaid,
+        paymentStatus,
+        deliveryStatus,
+        notes,
+        saleDate: new Date(saleDate),
       });
 
       // 3. Créer les lignes de vente SaleItem
       for (const item of validatedItems) {
-        await tx.saleItem.create({
-          data: {
-            saleId: sale.id,
-            productId: item.productId,
-            locationId: item.locationId,
-            color: item.color ? item.color.trim() : null,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: item.discount,
-            subtotal: item.subtotal,
-          },
+        await createSaleItemRecord(tx, {
+          saleId: sale.id,
+          productId: item.productId,
+          locationId: item.locationId,
+          color: item.color ? item.color.trim() : null,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          subtotal: item.subtotal,
         });
 
         // 4. Si la vente est confirmée : déduction physique du stock et traçabilité du mouvement
@@ -359,86 +285,52 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
 
       // 4bis. Appliquer la déduction d'épargne client si demandée
       if (parsedSavingsUsed > 0 && customerId) {
-        const savingsAcc = await tx.customerSavingsAccount.findUnique({
-          where: { customerId },
-        });
+        const savingsAcc = await findSavingsAccountByCustomer(customerId, tx);
         if (!savingsAcc || savingsAcc.balance < parsedSavingsUsed) {
           throw new Error(
             `Solde d'épargne client insuffisant (${savingsAcc?.balance ?? 0} DA disponibles, ${parsedSavingsUsed} DA demandés).`
           );
         }
         const savingsRef = await generateNextSavingsReference("USAGE", tx);
-        await tx.customerSavingsTransaction.create({
-          data: {
-            reference: savingsRef,
-            customerId,
-            accountId: savingsAcc.id,
-            type: "USAGE",
-            amount: parsedSavingsUsed,
-            direction: "OUT",
-            balanceBefore: savingsAcc.balance,
-            balanceAfter: roundMoney(savingsAcc.balance - parsedSavingsUsed),
-            paymentMethod: "savings",
-            saleId: sale.id,
-            description: `Règlement facture ${sale.reference}`, 
-            notes: `Déduction de ${parsedSavingsUsed.toLocaleString("fr-DZ")} DA d'épargne sur facture ${sale.reference}`,
-            date: new Date(saleDate),
-          },
+        await createSavingsTransactionRecord(tx, {
+          reference: savingsRef,
+          customerId,
+          accountId: savingsAcc.id,
+          type: "USAGE",
+          amount: parsedSavingsUsed,
+          direction: "OUT",
+          balanceBefore: savingsAcc.balance,
+          balanceAfter: roundMoney(savingsAcc.balance - parsedSavingsUsed),
+          paymentMethod: "savings",
+          saleId: sale.id,
+          description: `Règlement facture ${sale.reference}`, 
+          notes: `Déduction de ${parsedSavingsUsed.toLocaleString("fr-DZ")} DA d'épargne sur facture ${sale.reference}`,
+          date: new Date(saleDate),
         });
-        await tx.customerSavingsAccount.update({
-          where: { id: savingsAcc.id },
-          data: {
-            balance: roundMoney(savingsAcc.balance - parsedSavingsUsed),
-            totalUsed: roundMoney(savingsAcc.totalUsed + parsedSavingsUsed),
-          },
+        await updateSavingsAccountBalance(tx, savingsAcc.id, {
+          balance: roundMoney(savingsAcc.balance - parsedSavingsUsed),
+          totalUsed: roundMoney(savingsAcc.totalUsed + parsedSavingsUsed),
         });
-        const savingsPayRef = await generateNextPaymentReference(tx);
-        await tx.payment.create({
-          data: {
-            reference: savingsPayRef,
-            saleId: sale.id,
-            amount: parsedSavingsUsed,
-            method: "savings",
-            status: "completed",
-            notes: `Règlement par déduction d'épargne client (Réf: ${savingsRef})`,
-            paymentDate: new Date(saleDate),
-            sessionId: null,
-            accountId: null,
-          },
+        const savingsPayRef = await generateNextSalePaymentReference(tx);
+        await createSalePaymentRecord(tx, {
+          reference: savingsPayRef,
+          saleId: sale.id,
+          amount: parsedSavingsUsed,
+          method: "savings",
+          status: "completed",
+          notes: `Règlement par déduction d'épargne client (Réf: ${savingsRef})`,
+          paymentDate: new Date(saleDate),
+          sessionId: null,
+          accountId: null,
         });
       }
 
       // 5. Enregistrer le paiement initial / acompte si fourni (valable sur vente confirmée ou commande/devis)
       if (paymentAmount > 0 && initialPayment) {
-        let sessionId: number | null = null;
-        let accountId: number | null = null;
         const payMethod = initialPayment.method || "cash";
-        if (payMethod === "cash") {
-          const activeSession = await tx.cashSession.findFirst({
-            where: { status: "open" },
-            select: { id: true },
-          });
-          if (activeSession) {
-            sessionId = activeSession.id;
-          }
-          const defaultCaisse = await tx.treasuryAccount.findFirst({
-            where: { isDefault: true, isActive: true },
-            select: { id: true },
-          });
-          if (defaultCaisse) {
-            accountId = defaultCaisse.id;
-          }
-        } else if (payMethod === "transfer" || payMethod === "check" || payMethod === "cib") {
-          const bankAcc = await tx.treasuryAccount.findFirst({
-            where: { code: "ACC-BANQUE", isActive: true },
-            select: { id: true },
-          });
-          if (bankAcc) {
-            accountId = bankAcc.id;
-          }
-        }
+        const { sessionId, accountId } = await resolvePaymentAccounting(payMethod, tx);
 
-        const payRef = await generateNextPaymentReference(tx);
+        const payRef = await generateNextSalePaymentReference(tx);
         const parsedPaymentDate = new Date(saleDate);
         const now = new Date();
         const effectivePaymentDate =
@@ -447,53 +339,26 @@ export async function createSaleAction(payload: CreateSaleInput): Promise<SaleAc
             ? now
             : parsedPaymentDate;
 
-        await tx.payment.create({
-          data: {
-            reference: payRef,
-            saleId: sale.id,
-            accountId,
-            amount: paymentAmount,
-            method: payMethod,
-            status: "completed",
-            notes:
-              initialPayment.notes?.trim() ||
-              (isDraft
-                ? `Acompte initial sur commande ${sale.reference}`
-                : `Règlement initial pour facture ${sale.reference}`),
-            paymentDate: effectivePaymentDate,
-            sessionId,
-          },
+        await createSalePaymentRecord(tx, {
+          reference: payRef,
+          saleId: sale.id,
+          accountId,
+          amount: paymentAmount,
+          method: payMethod,
+          status: "completed",
+          notes:
+            initialPayment.notes?.trim() ||
+            (isDraft
+              ? `Acompte initial sur commande ${sale.reference}`
+              : `Règlement initial pour facture ${sale.reference}`),
+          paymentDate: effectivePaymentDate,
+          sessionId,
         });
       }
 
 
 
-      const fullSale = await tx.sales.findUnique({
-        where: { id: sale.id },
-        include: {
-          customer: true,
-          items: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  sku: true,
-                  name: true,
-                  model: true,
-                  color: true,
-                  sellingPrice: true,
-                },
-              },
-              location: {
-                select: { id: true, code: true, name: true },
-              },
-            },
-          },
-          payments: {
-            orderBy: { paymentDate: "desc" },
-          },
-        },
-      });
+      const fullSale = await findSaleFullForResponse(tx, sale.id);
 
       return fullSale || sale;
     });
@@ -523,13 +388,7 @@ export async function confirmDraftSaleAction(
   initialPayment?: { amount: number; method: "cash" | "cib" | "check" | "transfer"; notes?: string }
 ): Promise<SaleActionResponse> {
   try {
-    const sale = await prisma.sales.findUnique({
-      where: { id: saleId },
-      include: {
-        customer: true,
-        items: true,
-      },
-    });
+    const sale = await findSaleWithItemsAndCustomer(saleId);
 
     if (!sale) return { success: false, error: "Vente introuvable." };
     await assertDatesNotLocked([sale.saleDate, new Date()], "Confirmation de vente");
@@ -557,16 +416,7 @@ export async function confirmDraftSaleAction(
           new Set(sale.items.filter((i) => i.locationId).map((i) => i.locationId!))
         );
 
-        const [productsList, locationsList] = await Promise.all([
-          tx.product.findMany({
-            where: { id: { in: uniqueProductIds } },
-            select: { id: true, name: true, sku: true, costPrice: true, isActive: true },
-          }),
-          tx.location.findMany({
-            where: { id: { in: uniqueLocationIds } },
-            select: { id: true, name: true, code: true, isActive: true },
-          }),
-        ]);
+        const [productsList, locationsList] = await preloadStockCaches(tx, uniqueProductIds, uniqueLocationIds, false);
 
         const productCache = new Map(productsList.map((p) => [p.id, p]));
         const locationCache = new Map(locationsList.map((l) => [l.id, l]));
@@ -598,89 +448,34 @@ export async function confirmDraftSaleAction(
         let newPaid = sale.paidAmount;
 
         if (paymentAmount > 0 && initialPayment) {
-          let sessionId: number | null = null;
-          let accountId: number | null = null;
           const payMethod = initialPayment.method || "cash";
-          if (payMethod === "cash") {
-            const activeSession = await tx.cashSession.findFirst({
-              where: { status: "open" },
-              select: { id: true },
-            });
-            if (activeSession) {
-              sessionId = activeSession.id;
-            }
-            const defaultCaisse = await tx.treasuryAccount.findFirst({
-              where: { isDefault: true, isActive: true },
-              select: { id: true },
-            });
-            if (defaultCaisse) {
-              accountId = defaultCaisse.id;
-            }
-          } else if (payMethod === "transfer" || payMethod === "check" || payMethod === "cib") {
-            const bankAcc = await tx.treasuryAccount.findFirst({
-              where: { code: "ACC-BANQUE", isActive: true },
-              select: { id: true },
-            });
-            if (bankAcc) {
-              accountId = bankAcc.id;
-            }
-          }
+          const { sessionId, accountId } = await resolvePaymentAccounting(payMethod, tx);
 
-          const payRef = await generateNextPaymentReference(tx);
-          await tx.payment.create({
-            data: {
-              reference: payRef,
-              saleId: sale.id,
-              accountId,
-              amount: paymentAmount,
-              method: payMethod,
-              status: "completed",
-              notes: initialPayment.notes?.trim() || `Paiement à la confirmation de facture ${reference}`,
-              paymentDate: new Date(),
-              sessionId,
-            },
+          const payRef = await generateNextSalePaymentReference(tx);
+          await createSalePaymentRecord(tx, {
+            reference: payRef,
+            saleId: sale.id,
+            accountId,
+            amount: paymentAmount,
+            method: payMethod,
+            status: "completed",
+            notes: initialPayment.notes?.trim() || `Paiement à la confirmation de facture ${reference}`,
+            paymentDate: new Date(),
+            sessionId,
           });
           newPaid = roundMoney(newPaid + paymentAmount);
           paymentStatus = newPaid >= sale.totalAmount ? "paid" : "partial";
         }
 
         // 3. Mettre à jour la vente
-        const updated = await tx.sales.update({
-          where: { id: sale.id },
-          data: {
-            reference,
-            status: "confirmed",
-            paidAmount: newPaid,
-            paymentStatus,
-          },
+        const updated = await updateSaleRecord(tx, sale.id, {
+          reference,
+          status: "confirmed",
+          paidAmount: newPaid,
+          paymentStatus,
         });
 
-        const fullSale = await tx.sales.findUnique({
-          where: { id: sale.id },
-          include: {
-            customer: true,
-            items: {
-              include: {
-                product: {
-                  select: {
-                    id: true,
-                    sku: true,
-                    name: true,
-                    model: true,
-                    color: true,
-                    sellingPrice: true,
-                  },
-                },
-                location: {
-                  select: { id: true, code: true, name: true },
-                },
-              },
-            },
-            payments: {
-              orderBy: { paymentDate: "desc" },
-            },
-          },
-        });
+        const fullSale = await findSaleFullForResponse(tx, sale.id);
 
         return fullSale || updated;
       },
@@ -787,28 +582,7 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
 
     const result = await prisma.$transaction(async (tx) => {
       // 3. Charger la vente existante avec ses lignes, paiements et allocations
-      const existingSale = await tx.sales.findUnique({
-        where: { id: saleId },
-        include: {
-          customer: true,
-          items: {
-            include: {
-              product: { select: { id: true, name: true, sku: true, costPrice: true } },
-              location: { select: { id: true, name: true } },
-            },
-          },
-          payments: {
-            where: { status: { not: "cancelled" } },
-            include: {
-              session: {
-                select: { id: true, reference: true, status: true },
-              },
-            },
-            orderBy: { paymentDate: "desc" },
-          },
-          advanceAllocations: true,
-        },
-      });
+      const existingSale = await findExistingSaleForUpdate(tx, saleId);
 
       if (!existingSale) {
         throw new Error("Facture introuvable.");
@@ -829,10 +603,7 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
 
       // Valider le client si modifié
       if (customerId && customerId !== existingSale.customerId) {
-        const c = await tx.customer.findUnique({
-          where: { id: customerId },
-          select: { id: true, name: true },
-        });
+        const c = await findCustomerNameById(tx, customerId);
         if (!c) throw new Error("Client sélectionné introuvable.");
       }
 
@@ -873,22 +644,12 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
           new Set(Array.from(allStockKeys).map((k) => (oldStockMap.get(k) || newStockMap.get(k))!.locationId))
         );
 
-        const [productsList, locationsList, stockRecordsList] = await Promise.all([
-          tx.product.findMany({
-            where: { id: { in: uniqueProductIds } },
-            select: { id: true, name: true, sku: true, costPrice: true, isActive: true },
-          }),
-          tx.location.findMany({
-            where: { id: { in: uniqueLocationIds } },
-            select: { id: true, name: true, code: true, isActive: true },
-          }),
-          tx.productStock.findMany({
-            where: {
-              productId: { in: uniqueProductIds },
-              locationId: { in: uniqueLocationIds },
-            },
-          }),
-        ]);
+        const [productsList, locationsList, stockRecordsList] = await preloadStockCaches(
+          tx,
+          uniqueProductIds,
+          uniqueLocationIds,
+          true
+        );
 
         const productCache = new Map(productsList.map((p) => [p.id, p]));
         const locationCache = new Map(locationsList.map((l) => [l.id, l]));
@@ -998,27 +759,16 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
         }
 
         // Recalculer le stock total consolidé pour chaque produit modifié
-        for (const prodId of modifiedProductIds) {
-          const allStocks = await tx.productStock.findMany({
-            where: { productId: prodId },
-            select: { quantity: true },
-          });
-          const newTotal = allStocks.reduce((sum, s) => sum + s.quantity, 0);
-          await tx.product.update({
-            where: { id: prodId },
-            data: { stock: newTotal },
-          });
-        }
+        await recomputeProductTotals(tx, Array.from(modifiedProductIds));
       }
 
       // 5. Remplacement des lignes de vente en une seule requête groupée
-      await tx.saleItem.deleteMany({
-        where: { saleId },
-      });
+      await deleteSaleItems(tx, saleId);
 
       if (validatedItems.length > 0) {
-        await tx.saleItem.createMany({
-          data: validatedItems.map((item) => ({
+        await createSaleItemsBatch(
+          tx,
+          validatedItems.map((item) => ({
             saleId: existingSale.id,
             productId: item.productId,
             locationId: item.locationId,
@@ -1027,8 +777,8 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
             unitPrice: item.unitPrice,
             discount: item.discount,
             subtotal: item.subtotal,
-          })),
-        });
+          }))
+        );
       }
 
       // 6. Gestion financière des paiements existants & éventuelle révision du montant encaissé
@@ -1103,21 +853,15 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
           const auditText = `[Rectification le ${nowTimeStr} : Montant ajusté de ${p.amount.toLocaleString("fr-DZ")} DA à ${newAmount.toLocaleString("fr-DZ")} DA. Motif : ${editReason?.trim() || "Correction d'encaissement sur facture"}]`;
 
           if (newAmount > 0) {
-            await tx.payment.update({
-              where: { id: p.id },
-              data: {
-                amount: newAmount,
-                notes: p.notes ? `${p.notes}\n${auditText}` : auditText,
-              },
+            await updatePaymentRecord(tx, p.id, {
+              amount: newAmount,
+              notes: p.notes ? `${p.notes}\n${auditText}` : auditText,
             });
           } else {
-            await tx.payment.update({
-              where: { id: p.id },
-              data: {
-                amount: 0,
-                status: "cancelled",
-                notes: p.notes ? `${p.notes}\n${auditText}` : auditText,
-              },
+            await updatePaymentRecord(tx, p.id, {
+              amount: 0,
+              status: "cancelled",
+              notes: p.notes ? `${p.notes}\n${auditText}` : auditText,
             });
           }
 
@@ -1130,54 +874,26 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
       } else if (deltaPaid > 0) {
         // Scénario C : Enregistrement d'un versement réel additionnel
         const addAmount = deltaPaid;
-        let sessionId: number | null = null;
-        let accountId: number | null = null;
         const payMethod = additionalPaymentMethod || additionalPayment?.method || "cash";
+        const { sessionId, accountId } = await resolvePaymentAccounting(payMethod, tx);
 
-        if (payMethod === "cash") {
-          const activeSession = await tx.cashSession.findFirst({
-            where: { status: "open" },
-            select: { id: true },
-          });
-          if (activeSession) {
-            sessionId = activeSession.id;
-          }
-          const defaultCaisse = await tx.treasuryAccount.findFirst({
-            where: { isDefault: true, isActive: true },
-            select: { id: true },
-          });
-          if (defaultCaisse) {
-            accountId = defaultCaisse.id;
-          }
-        } else if (payMethod === "transfer" || payMethod === "check" || payMethod === "cib") {
-          const bankAcc = await tx.treasuryAccount.findFirst({
-            where: { code: "ACC-BANQUE", isActive: true },
-            select: { id: true },
-          });
-          if (bankAcc) {
-            accountId = bankAcc.id;
-          }
-        }
-
-        const payRef = await generateNextPaymentReference(tx);
+        const payRef = await generateNextSalePaymentReference(tx);
         const payNotes =
           additionalPaymentNotes?.trim() ||
           additionalPayment?.notes?.trim() ||
           editReason?.trim() ||
           `Encaissement lors de la modification de facture ${existingSale.reference}`;
 
-        await tx.payment.create({
-          data: {
-            reference: payRef,
-            saleId: existingSale.id,
-            accountId,
-            amount: addAmount,
-            method: payMethod,
-            status: "completed",
-            notes: payNotes,
-            paymentDate: new Date(),
-            sessionId,
-          },
+        await createSalePaymentRecord(tx, {
+          reference: payRef,
+          saleId: existingSale.id,
+          accountId,
+          amount: addAmount,
+          method: payMethod,
+          status: "completed",
+          notes: payNotes,
+          paymentDate: new Date(),
+          sessionId,
         });
 
         paymentAuditEntries.push(
@@ -1214,9 +930,10 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
         ? `${existingSale.notes}\n${auditTrailEntry}`
         : auditTrailEntry;
 
-      const updatedSale = await tx.sales.update({
-        where: { id: existingSale.id },
-        data: {
+      const updatedSale = await updateSaleRecord(
+        tx,
+        existingSale.id,
+        {
           customerId,
           subtotal,
           discount: safeGlobalDiscount,
@@ -1228,7 +945,7 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
           notes: notes ? `${notes}\n${auditTrailEntry}` : updatedNotes,
           saleDate: saleDate ? new Date(saleDate) : existingSale.saleDate,
         },
-        include: {
+        {
           customer: true,
           items: {
             include: {
@@ -1250,8 +967,8 @@ export async function updateSaleAction(payload: UpdateSaleInput): Promise<SaleAc
           payments: {
             orderBy: { paymentDate: "desc" },
           },
-        },
-      });
+        }
+      );
 
       return {
         updatedSale,
@@ -1295,14 +1012,7 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
       return { success: false, error: "Le motif d'annulation est obligatoire (au moins 3 caractères)." };
     }
 
-    const sale = await prisma.sales.findUnique({
-      where: { id: saleId },
-      include: {
-        items: true,
-        payments: { include: { session: true } },
-        customer: true,
-      },
-    });
+    const sale = await findSaleForCancel(saleId);
 
     if (!sale) return { success: false, error: "Vente introuvable." };
     await assertDatesNotLocked(
@@ -1314,12 +1024,9 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
     }
 
     const defaultCashAcc =
-      (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
-      (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+      (await findDefaultCashAccountFull()) || (await findCashAccountAny());
 
-    const activeSession = await prisma.cashSession.findFirst({
-      where: { status: "open" },
-    });
+    const activeSession = await findOpenCashSession();
 
     // S'il y a un paiement en espèces issu d'une session clôturée, exiger une session ouverte pour le décaissement
     const hasClosedSessionCashPayment = sale.payments.some(
@@ -1352,12 +1059,9 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
 
         if (p.method === "savings") {
           // Annuler le paiement sans décaissement de trésorerie
-          await tx.payment.update({
-            where: { id: p.id },
-            data: {
-              status: "cancelled",
-              notes: p.notes ? `${p.notes}\n[Annulé le ${nowStr} - Épargne rétablie : ${trimmedReason}]` : `[Annulé le ${nowStr} - Épargne rétablie : ${trimmedReason}]`,
-            },
+          await updatePaymentRecord(tx, p.id, {
+            status: "cancelled",
+            notes: p.notes ? `${p.notes}\n[Annulé le ${nowStr} - Épargne rétablie : ${trimmedReason}]` : `[Annulé le ${nowStr} - Épargne rétablie : ${trimmedReason}]`,
           });
           if (sale.customerId) {
             const revRefs = await reverseSavingsDeductionsForSale(tx, sale.id, sale.customerId, trimmedReason);
@@ -1372,27 +1076,19 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
           // Le paiement appartient à une session déjà clôturée :
           // Préserver l'historique et la clôture de la session passée
           const auditNote = `[Facture ${sale.reference} annulée le ${nowStr} - Acompte remboursé au client : ${trimmedReason}]`;
-          await tx.payment.update({
-            where: { id: p.id },
-            data: {
-              notes: p.notes ? `${p.notes}\n${auditNote}` : auditNote,
-            },
+          await updatePaymentRecord(tx, p.id, {
+            notes: p.notes ? `${p.notes}\n${auditNote}` : auditNote,
           });
 
           // Émettre le décaissement de remboursement en espèces daté du jour
           if (p.method === "cash" && p.amount > 0) {
-            const existingExpense = await tx.expense.findFirst({
-              where: {
-                receiptNumber: sale.reference,
-                type: "expense",
-                amount: p.amount,
-              },
-            });
+            const existingExpense = await findExistingRefundExpense(tx, sale.reference, p.amount);
 
             if (!existingExpense) {
               const expenseRef = await generateNextExpenseReference("expense", tx);
-              await tx.expense.create({
-                data: {
+              await createExpenseRecord(
+                tx,
+                {
                   reference: expenseRef,
                   type: "expense",
                   category: "other",
@@ -1405,32 +1101,26 @@ export async function cancelSaleAction(saleId: number, reason: string): Promise<
                   date: now,
                   sessionId: activeSession ? activeSession.id : null,
                   accountId: p.accountId ?? defaultCashAcc?.id ?? null,
-                },
-              });
+                }
+              );
               createdRefunds.push(expenseRef);
             }
           }
         } else {
           // Session ouverte ou hors session : annulation directe
-          await tx.payment.update({
-            where: { id: p.id },
-            data: {
-              status: "cancelled",
-              notes: p.notes ? `${p.notes}\n[Annulé le ${nowStr} : ${trimmedReason}]` : `[Annulé le ${nowStr} : ${trimmedReason}]`,
-            },
+          await updatePaymentRecord(tx, p.id, {
+            status: "cancelled",
+            notes: p.notes ? `${p.notes}\n[Annulé le ${nowStr} : ${trimmedReason}]` : `[Annulé le ${nowStr} : ${trimmedReason}]`,
           });
         }
       }
 
       // 3. Mettre à jour le statut de la vente
-      await tx.sales.update({
-        where: { id: sale.id },
-        data: {
-          status: "cancelled",
-          notes: sale.notes
-            ? `${sale.notes}\n[Annulé le ${nowStr} : ${trimmedReason}]`
-            : `[Annulé le ${nowStr} : ${trimmedReason}]`,
-        },
+      await updateSaleRecord(tx, sale.id, {
+        status: "cancelled",
+        notes: sale.notes
+          ? `${sale.notes}\n[Annulé le ${nowStr} : ${trimmedReason}]`
+          : `[Annulé le ${nowStr} : ${trimmedReason}]`,
       });
     });
 
@@ -1474,10 +1164,7 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
       return { success: false, error: "Le montant du règlement doit être un nombre strictement supérieur à 0 DA." };
     }
 
-    const sale = await prisma.sales.findUnique({
-      where: { id: saleId },
-      include: { customer: true },
-    });
+    const sale = await findSaleWithCustomer(saleId);
 
     if (!sale) return { success: false, error: "Facture introuvable." };
     if (sale.status === "cancelled") {
@@ -1496,10 +1183,7 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const currentSale = await tx.sales.findUnique({
-        where: { id: saleId },
-        select: { id: true, reference: true, totalAmount: true, paidAmount: true, status: true, customerId: true },
-      });
+      const currentSale = await findCurrentSaleForPayment(tx, saleId);
 
       if (!currentSale) throw new Error("Facture introuvable.");
       if (currentSale.status === "cancelled") {
@@ -1527,87 +1211,56 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
         if (!currentSale.customerId) {
           throw new Error("Impossible d'utiliser l'épargne client sur une vente au comptoir sans client assigné.");
         }
-        const savingsAcc = await tx.customerSavingsAccount.findUnique({
-          where: { customerId: currentSale.customerId },
-        });
+        const savingsAcc = await findSavingsAccountByCustomer(currentSale.customerId, tx);
         if (!savingsAcc || savingsAcc.balance < amount) {
           throw new Error(`Solde d'épargne insuffisant (${savingsAcc?.balance ?? 0} DA disponibles, ${amount} DA demandés).`);
         }
         const savingsRef = await generateNextSavingsReference("USAGE", tx);
-        await tx.customerSavingsTransaction.create({
-          data: {
-            reference: savingsRef,
-            customerId: currentSale.customerId,
-            accountId: savingsAcc.id,
-            type: "USAGE",
-            amount,
-            direction: "OUT",
-            balanceBefore: savingsAcc.balance,
-            balanceAfter: roundMoney(savingsAcc.balance - amount),
-            paymentMethod: "savings",
-            saleId: currentSale.id,
-            description: `Règlement facture ${currentSale.reference}`,
-            notes: notes || `Règlement par déduction d'épargne client`,
-            date: effectivePaymentDate,
-          },
+        await createSavingsTransactionRecord(tx, {
+          reference: savingsRef,
+          customerId: currentSale.customerId,
+          accountId: savingsAcc.id,
+          type: "USAGE",
+          amount,
+          direction: "OUT",
+          balanceBefore: savingsAcc.balance,
+          balanceAfter: roundMoney(savingsAcc.balance - amount),
+          paymentMethod: "savings",
+          saleId: currentSale.id,
+          description: `Règlement facture ${currentSale.reference}`,
+          notes: notes || `Règlement par déduction d'épargne client`,
+          date: effectivePaymentDate,
         });
-        await tx.customerSavingsAccount.update({
-          where: { id: savingsAcc.id },
-          data: {
-            balance: roundMoney(savingsAcc.balance - amount),
-            totalUsed: roundMoney(savingsAcc.totalUsed + amount),
-          },
+        await updateSavingsAccountBalance(tx, savingsAcc.id, {
+          balance: roundMoney(savingsAcc.balance - amount),
+          totalUsed: roundMoney(savingsAcc.totalUsed + amount),
         });
-      } else if (method === "cash") {
-        const activeSession = await tx.cashSession.findFirst({
-          where: { status: "open" },
-          select: { id: true },
-        });
-        if (activeSession) {
-          sessionId = activeSession.id;
-        }
-        const defaultCaisse = await tx.treasuryAccount.findFirst({
-          where: { isDefault: true, isActive: true },
-          select: { id: true },
-        });
-        if (defaultCaisse) {
-          accountId = defaultCaisse.id;
-        }
-      } else if (method === "transfer" || method === "check" || method === "cib") {
-        const bankAcc = await tx.treasuryAccount.findFirst({
-          where: { code: "ACC-BANQUE", isActive: true },
-          select: { id: true },
-        });
-        if (bankAcc) {
-          accountId = bankAcc.id;
-        }
+      } else {
+        const accounting = await resolvePaymentAccounting(method, tx);
+        sessionId = accounting.sessionId;
+        accountId = accounting.accountId;
       }
 
-      const payRef = await generateNextPaymentReference(tx);
+      const payRef = await generateNextSalePaymentReference(tx);
 
-      const payment = await tx.payment.create({
-        data: {
-          reference: payRef,
-          saleId: currentSale.id,
-          accountId,
-          amount,
-          method,
-          status: "completed",
-          notes: notes || `Règlement sur commande/facture ${currentSale.reference}`,
-          paymentDate: effectivePaymentDate,
-          sessionId,
-        },
+      const payment = await createSalePaymentRecord(tx, {
+        reference: payRef,
+        saleId: currentSale.id,
+        accountId,
+        amount,
+        method,
+        status: "completed",
+        notes: notes || `Règlement sur commande/facture ${currentSale.reference}`,
+        paymentDate: effectivePaymentDate,
+        sessionId,
       });
 
       const newPaid = roundMoney(currentSale.paidAmount + amount);
       const newPaymentStatus = newPaid >= currentSale.totalAmount ? "paid" : "partial";
 
-      await tx.sales.update({
-        where: { id: currentSale.id },
-        data: {
-          paidAmount: newPaid,
-          paymentStatus: newPaymentStatus,
-        },
+      await updateSaleRecord(tx, currentSale.id, {
+        paidAmount: newPaid,
+        paymentStatus: newPaymentStatus,
       });
 
       return { payment, newPaid, newPaymentStatus };
@@ -1632,32 +1285,7 @@ export async function recordSalePaymentAction(formData: FormData): Promise<SaleA
 
 export async function getSaleForPrintAction(saleId: number): Promise<SaleActionResponse> {
   try {
-    const sale = await prisma.sales.findUnique({
-      where: { id: saleId },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                sku: true,
-                name: true,
-                model: true,
-                color: true,
-                sellingPrice: true,
-              },
-            },
-            location: {
-              select: { id: true, code: true, name: true },
-            },
-          },
-        },
-        payments: {
-          orderBy: { paymentDate: "desc" },
-        },
-      },
-    });
+    const sale = await findSaleForPrint(saleId);
 
     if (!sale) return { success: false, error: "Vente introuvable." };
     return { success: true, data: sale };
@@ -1667,5 +1295,3 @@ export async function getSaleForPrintAction(saleId: number): Promise<SaleActionR
     return { success: false, error: msg };
   }
 }
-
-

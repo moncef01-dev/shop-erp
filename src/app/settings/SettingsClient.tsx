@@ -40,6 +40,8 @@ interface SettingsClientProps {
   initialLatestVerified?: string;
   initialSystemInfo: SystemInfo;
   locations: Array<{ id: number; name: string; code: string }>;
+  providerLabel: string;
+  supportsBackup: boolean;
 }
 
 export function SettingsClient({
@@ -48,6 +50,8 @@ export function SettingsClient({
   initialLatestVerified,
   initialSystemInfo,
   locations,
+  providerLabel,
+  supportsBackup,
 }: SettingsClientProps) {
   const [activeTab, setActiveTab] = useState<"identity" | "backup" | "scheduler" | "system">("identity");
   const [settings, setSettings] = useState<ShopSettingsData>(initialSettings);
@@ -261,7 +265,7 @@ export function SettingsClient({
             Paramètres, Sauvegarde & Sécurité
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Identité commerciale du magasin, coordonnées pour documents imprimables, sauvegardes SQLite transactionnelles et intégrité.
+            Identité commerciale du magasin, coordonnées pour documents imprimables, sauvegardes transactionnelles et intégrité.
           </p>
         </div>
 
@@ -269,7 +273,7 @@ export function SettingsClient({
         <div className="flex items-center gap-3">
           <div className="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-800 flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Base active : SQLite (LibSQL pure-JS)
+            Base active : {providerLabel}
           </div>
           {latestVerified && (
             <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 flex items-center gap-1.5">
@@ -624,6 +628,18 @@ export function SettingsClient({
       {/* ─── TAB 2: SAUVEGARDES & RESTAURATION ─────────────────────────────────── */}
       {activeTab === "backup" && (
         <div className="space-y-6">
+          {!supportsBackup ? (
+            <div className="bg-amber-50 border border-amber-200 p-6 rounded-xl">
+              <h2 className="text-lg font-bold text-amber-900 flex items-center gap-2">
+                <Database className="h-5 w-5 text-amber-600" />
+                Sauvegarde fichier non disponible sur {providerLabel}
+              </h2>
+              <p className="text-sm text-amber-800 mt-2 leading-relaxed">
+                Le fournisseur actif est <strong>PostgreSQL</strong>. Les sauvegardes fichier intégrées (VACUUM INTO) s&apos;appliquent uniquement à SQLite. Utilisez un dump externe (ex. <code className="font-mono">pg_dump</code>) planifié par vos soins pour sauvegarder la base.
+              </p>
+            </div>
+          ) : (
+          <>
           {/* Action Banner */}
           <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 rounded-xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-1">
@@ -805,11 +821,13 @@ export function SettingsClient({
                         </tr>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                   </tbody>
+                 </table>
+               </div>
+             )}
+           </div>
+           </>
+          )}
         </div>
       )}
 

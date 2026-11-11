@@ -1,9 +1,26 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { roundMoney } from "@/lib/formatters";
-import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
+import {
+  generateNextAdvanceReference,
+  fetchCustomerAdvancesWithStats,
+  findCustomerAdvanceById,
+  createCustomerAdvanceRecord,
+  updateCustomerAdvanceRecord,
+  createAdvanceAllocationRecord,
+  findSaleWithCustomer,
+  updateSaleRecord,
+} from "@/server/repositories/sales.repository";
+import { findCustomerById } from "@/server/repositories/customers.repository";
+import {
+  findOpenCashSessionId,
+  createExpenseRecord,
+  updateSessionCashIn,
+  updateSessionCashOut,
+} from "@/server/repositories/cash.repository";
+import { prisma } from "@/server/db";
 
 export type AdvanceActionResponse<T = unknown> = {
   success: boolean;
@@ -20,53 +37,10 @@ function safeRevalidate(path: string) {
   }
 }
 
-// ─── RÉFÉRENCE UNIQUE AVANCE : AVA-YYYYMM-XXXX ──────────────────────────────
-
-async function generateNextAdvanceReference(): Promise<string> {
-  const now = new Date();
-  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const prefix = `AVA-${yearMonth}-`;
-
-  const lastAdvance = await prisma.customerAdvance.findFirst({
-    where: { reference: { startsWith: prefix } },
-    orderBy: { reference: "desc" },
-    select: { reference: true },
-  });
-
-  let nextSeq = 1;
-  if (lastAdvance?.reference) {
-    const parts = lastAdvance.reference.split("-");
-    const num = parseInt(parts[parts.length - 1], 10);
-    if (!isNaN(num)) {
-      nextSeq = num + 1;
-    }
-  }
-
-  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
-
 // ─── RÉCUPÉRATION DES AVANCES CLIENTS ───────────────────────────────────────
 
 export async function getCustomerAdvancesData() {
-  const advances = await prisma.customerAdvance.findMany({
-    include: {
-      customer: {
-        select: { id: true, code: true, name: true, phone: true, phone2: true },
-      },
-      session: {
-        select: { id: true, reference: true, status: true },
-      },
-      allocations: {
-        include: {
-          sale: {
-            select: { id: true, reference: true, totalAmount: true, paidAmount: true, status: true },
-          },
-        },
-        orderBy: { allocatedAt: "desc" },
-      },
-    },
-    orderBy: { paymentDate: "desc" },
-  });
+  const advances = await fetchCustomerAdvancesWithStats();
 
   return advances.map((a) => {
     const remainingAmount = roundMoney(
@@ -107,26 +81,19 @@ export async function createCustomerAdvanceAction(data: {
 
     await assertPeriodNotLocked(paymentDate, "Création d'acompte client");
 
-    const customer = await prisma.customer.findUnique({
-      where: { id: customerId },
-    });
+    const customer = await findCustomerById(customerId);
     if (!customer) {
       return { success: false, error: "Client introuvable." };
     }
 
     // Trouver la session de caisse ouverte si paiement en espèces
-    const activeSession = method === "cash"
-      ? await prisma.cashSession.findFirst({
-          where: { status: "open" },
-          select: { id: true },
-        })
-      : null;
+    const activeSession = method === "cash" ? await findOpenCashSessionId() : null;
 
     const reference = await generateNextAdvanceReference();
 
     const advance = await prisma.$transaction(async (tx) => {
-      const created = await tx.customerAdvance.create({
-        data: {
+      const created = await createCustomerAdvanceRecord(tx,
+        {
           reference,
           customerId,
           amount,
@@ -138,15 +105,12 @@ export async function createCustomerAdvanceAction(data: {
           notes,
           status: "available",
           sessionId: activeSession?.id || null,
-        },
-        include: {
-          customer: true,
-        },
-      });
+        }
+      );
 
       // Enregistrer l'encaissement d'avance en trésorerie
-      await tx.expense.create({
-        data: {
+      await createExpenseRecord(tx,
+        {
           reference: `ENC-${reference.replace("AVA-", "")}`,
           type: "income",
           category: "misc_income",
@@ -158,17 +122,12 @@ export async function createCustomerAdvanceAction(data: {
           notes: notes ? `Avance client ${reference} : ${notes}` : `Avance client ${reference}`,
           date: paymentDate,
           sessionId: activeSession?.id || null,
-        },
-      });
+        }
+      );
 
       // Mettre à jour la session de caisse si en espèces
       if (activeSession && method === "cash") {
-        await tx.cashSession.update({
-          where: { id: activeSession.id },
-          data: {
-            totalCashIn: { increment: amount },
-          },
-        });
+        await updateSessionCashIn(tx, activeSession.id, amount);
       }
 
       return created;
@@ -207,10 +166,7 @@ export async function allocateCustomerAdvanceAction(data: {
       return { success: false, error: "Paramètres d'affectation invalides." };
     }
 
-    const advance = await prisma.customerAdvance.findUnique({
-      where: { id: advanceId },
-      include: { customer: true },
-    });
+    const advance = await findCustomerAdvanceById(advanceId);
     if (!advance) {
       return { success: false, error: "Avance client introuvable." };
     }
@@ -222,10 +178,7 @@ export async function allocateCustomerAdvanceAction(data: {
       return { success: false, error: "Cette avance a déjà été entièrement consommée ou remboursée." };
     }
 
-    const sale = await prisma.sales.findUnique({
-      where: { id: saleId },
-      include: { customer: true },
-    });
+    const sale = await findSaleWithCustomer(saleId);
     if (!sale) {
       return { success: false, error: "Facture de vente introuvable." };
     }
@@ -262,35 +215,32 @@ export async function allocateCustomerAdvanceAction(data: {
 
     await prisma.$transaction(async (tx) => {
       // 1. Créer l'enregistrement d'affectation
-      await tx.customerAdvanceAllocation.create({
-        data: {
+      await createAdvanceAllocationRecord(tx,
+        {
           advanceId,
           saleId,
           amount: requestedAmount,
           notes,
-        },
-      });
+        }
+      );
 
       // 2. Mettre à jour l'avance
       const newAllocated = roundMoney(advance.allocatedAmount + requestedAmount);
       const isFullyUsed = (newAllocated + advance.refundedAmount) >= advance.amount;
-      await tx.customerAdvance.update({
-        where: { id: advanceId },
-        data: {
+      await updateCustomerAdvanceRecord(tx,
+        advanceId,
+        {
           allocatedAmount: newAllocated,
           status: isFullyUsed ? "fully_used" : "partially_used",
-        },
-      });
+        }
+      );
 
       // 3. Mettre à jour la facture (sans créer de double encaissement en caisse)
       const newPaidAmount = roundMoney(sale.paidAmount + requestedAmount);
       const newPaymentStatus = newPaidAmount >= sale.totalAmount ? "paid" : "partial";
-      await tx.sales.update({
-        where: { id: saleId },
-        data: {
-          paidAmount: newPaidAmount,
-          paymentStatus: newPaymentStatus,
-        },
+      await updateSaleRecord(tx, saleId, {
+        paidAmount: newPaidAmount,
+        paymentStatus: newPaymentStatus,
       });
     });
 
@@ -327,10 +277,7 @@ export async function refundCustomerAdvanceAction(data: {
       return { success: false, error: "Veuillez préciser le motif du remboursement." };
     }
 
-    const advance = await prisma.customerAdvance.findUnique({
-      where: { id: advanceId },
-      include: { customer: true },
-    });
+    const advance = await findCustomerAdvanceById(advanceId);
     if (!advance) {
       return { success: false, error: "Avance introuvable." };
     }
@@ -351,12 +298,7 @@ export async function refundCustomerAdvanceAction(data: {
     }
 
     // Caisse session si remboursement en espèces
-    const activeSession = advance.method === "cash"
-      ? await prisma.cashSession.findFirst({
-          where: { status: "open" },
-          select: { id: true },
-        })
-      : null;
+    const activeSession = advance.method === "cash" ? await findOpenCashSessionId() : null;
 
     await prisma.$transaction(async (tx) => {
       const newRefunded = roundMoney(advance.refundedAmount + refundAmount);
@@ -365,20 +307,20 @@ export async function refundCustomerAdvanceAction(data: {
         ? (advance.allocatedAmount === 0 ? "refunded" : "fully_used")
         : "partially_used";
 
-      await tx.customerAdvance.update({
-        where: { id: advanceId },
-        data: {
+      await updateCustomerAdvanceRecord(tx,
+        advanceId,
+        {
           refundedAmount: newRefunded,
           status: newStatus,
           notes: advance.notes
             ? `${advance.notes} | Remboursement de ${refundAmount} DA le ${new Date().toLocaleDateString("fr-DZ")} : ${reason}`
             : `Remboursement de ${refundAmount} DA : ${reason}`,
-        },
-      });
+        }
+      );
 
       // Mouvement de trésorerie de sortie
-      await tx.expense.create({
-        data: {
+      await createExpenseRecord(tx,
+        {
           reference: `RMB-${Date.now().toString().slice(-6)}`,
           type: "expense",
           category: "other",
@@ -387,16 +329,11 @@ export async function refundCustomerAdvanceAction(data: {
           method: advance.method,
           beneficiary: advance.customer.name,
           sessionId: activeSession?.id || null,
-        },
-      });
+        }
+      );
 
       if (activeSession && advance.method === "cash") {
-        await tx.cashSession.update({
-          where: { id: activeSession.id },
-          data: {
-            totalCashOut: { increment: refundAmount },
-          },
-        });
+        await updateSessionCashOut(tx, activeSession.id, refundAmount);
       }
     });
 

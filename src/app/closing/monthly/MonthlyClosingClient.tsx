@@ -1379,7 +1379,7 @@ export function MonthlyClosingClient({ initialData }: MonthlyClosingClientProps)
                     className="mt-0.5 rounded-sm border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                   />
                   <span className="text-slate-800 font-semibold leading-relaxed">
-                    Je confirme avoir vérifié ou effectué une sauvegarde récente de la base de données SQLite avant verrouillage. *
+                    Je confirme avoir vérifié ou effectué une sauvegarde récente de la base de données avant verrouillage. *
                   </span>
                 </label>
               </div>

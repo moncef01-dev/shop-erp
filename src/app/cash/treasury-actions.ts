@@ -1,9 +1,37 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import type { PrismaTransactionClient } from "@/lib/inventory-transaction";
-import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
+import { prisma } from "@/server/db";
+import type { TxClient } from "@/server/db";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
+import { calculateAccountBalance } from "@/server/repositories/cash.repository";
+import {
+  findTreasuryAccountsWithTransfers,
+  findRecentTreasuryTransfers,
+  findTreasuryAccountByName,
+  createTreasuryAccountRecord,
+  updateTreasuryAccountRecord,
+  findTreasuryAccountById,
+  countTreasuryAccountsWithCodePrefix,
+  findCashTreasuryAccountActive,
+  findOpenCashSessionOrdered,
+  findLastClosedSession,
+  findTreasuryTransferById,
+  findTreasuryTransferWithAccounts,
+  createTreasuryTransferWithAccounts,
+  updateTreasuryTransferWithAccounts,
+  findLastAdjustmentReference,
+  createAdjustmentExpense,
+  findTransfersInToAccount,
+  findTransfersOutFromAccount,
+  findAccountSalePayments,
+  findAccountAdvances,
+  findAccountSupplierPayments,
+  findAccountExpenses,
+  findSuppAdditionalPaymentsForAccount,
+} from "@/server/repositories/cash.repository";
+
+export { calculateAccountBalance } from "@/server/repositories/cash.repository";
 
 export interface TreasuryAccountData {
   id: number;
@@ -89,7 +117,7 @@ function safeRevalidate() {
 // ─── GÉNÉRATION DES RÉFÉRENCES ────────────────────────────────────────────────
 
 export async function generateNextTreasuryTransferReference(
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
@@ -115,7 +143,7 @@ export async function generateNextTreasuryTransferReference(
 
 export async function generateNextTreasuryAccountCode(
   type: string,
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const prefixMap: Record<string, string> = {
@@ -132,472 +160,11 @@ export async function generateNextTreasuryAccountCode(
   return `${prefix}${String(count + 1).padStart(2, "0")}`;
 }
 
-// ─── CALCUL PRÉCIS DES SOLDES DE TRÉSORERIE ───────────────────────────────────
-
-export async function calculateAccountBalance(
-  accountId: number,
-  txClient?: PrismaTransactionClient
-): Promise<number> {
-  const db = txClient || prisma;
-  const account = await db.treasuryAccount.findUnique({
-    where: { id: accountId },
-  });
-  if (!account) return 0;
-
-  // Pour le compte de caisse journalière physique (type "cash" ou isDefault),
-  // le solde réel dépend de la session active ou de la dernière clôture enregistrée.
-  if (account.isDefault || account.type === "cash") {
-    const activeSession = await db.cashSession.findFirst({
-      where: { status: "open" },
-      orderBy: { openedAt: "desc" },
-    });
-    const latestClosedSession = await db.cashSession.findFirst({
-      where: { status: "closed" },
-      orderBy: { closedAt: "desc" },
-    });
-
-    if (activeSession) {
-      const cutoff = latestClosedSession?.closedAt ?? account.openingDate ?? new Date(0);
-      let bal = activeSession.openingAmount;
-
-      const [trIn, trOut, payIn, advIn, incIn, suppOut, expOut] = await Promise.all([
-        db.treasuryTransfer.aggregate({
-          where: {
-            toAccountId: accountId,
-            OR: [
-              { sessionId: activeSession.id },
-              {
-                sessionId: null,
-                OR: [
-                  { date: { gt: cutoff } },
-                  { createdAt: { gt: cutoff } },
-                ],
-              },
-            ],
-          },
-          _sum: { amount: true },
-        }),
-        db.treasuryTransfer.aggregate({
-          where: {
-            fromAccountId: accountId,
-            OR: [
-              { sessionId: activeSession.id },
-              {
-                sessionId: null,
-                OR: [
-                  { date: { gt: cutoff } },
-                  { createdAt: { gt: cutoff } },
-                ],
-              },
-            ],
-          },
-          _sum: { amount: true },
-        }),
-        db.payment.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            method: "cash",
-            purchaseId: null,
-            supplierId: null,
-            OR: [
-              { sessionId: activeSession.id },
-              {
-                sessionId: null,
-                OR: [
-                  { paymentDate: { gt: cutoff } },
-                  { createdAt: { gt: cutoff } },
-                ],
-              },
-            ],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
-          },
-          _sum: { amount: true },
-        }),
-        db.customerAdvance.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            method: "cash",
-            OR: [
-              { sessionId: activeSession.id },
-              {
-                sessionId: null,
-                OR: [
-                  { paymentDate: { gt: cutoff } },
-                  { createdAt: { gt: cutoff } },
-                ],
-              },
-            ],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
-          },
-          _sum: { amount: true },
-        }),
-        db.expense.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            type: "income",
-            method: "cash",
-            OR: [
-              { sessionId: activeSession.id },
-              {
-                sessionId: null,
-                OR: [
-                  { date: { gt: cutoff } },
-                  { createdAt: { gt: cutoff } },
-                ],
-              },
-            ],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
-          },
-          _sum: { amount: true },
-        }),
-        db.payment.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            method: "cash",
-            OR: [
-              { sessionId: activeSession.id },
-              {
-                sessionId: null,
-                OR: [
-                  { paymentDate: { gt: cutoff } },
-                  { createdAt: { gt: cutoff } },
-                ],
-              },
-            ],
-            AND: [
-              { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
-              { OR: [{ accountId: accountId }, { accountId: null }] },
-            ],
-          },
-          _sum: { amount: true },
-        }),
-        db.expense.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            type: "expense",
-            method: "cash",
-            OR: [
-              { sessionId: activeSession.id },
-              {
-                sessionId: null,
-                OR: [
-                  { date: { gt: cutoff } },
-                  { createdAt: { gt: cutoff } },
-                ],
-              },
-            ],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
-          },
-          _sum: { amount: true },
-        }),
-      ]);
-
-      bal += (trIn._sum.amount ?? 0) - (trOut._sum.amount ?? 0);
-      bal += (payIn._sum.amount ?? 0) + (advIn._sum.amount ?? 0) + (incIn._sum.amount ?? 0);
-      bal -= (suppOut._sum.amount ?? 0) + (expOut._sum.amount ?? 0);
-
-      // Versements supplémentaires fournisseur
-      try {
-        const [suppAddOut, suppAddRevIn] = await Promise.all([
-          db.supplierAdditionalPayment.aggregate({
-            where: {
-              treasuryAccountId: accountId,
-              isReversal: false,
-              OR: [
-                { sessionId: activeSession.id },
-                {
-                  sessionId: null,
-                  OR: [
-                    { date: { gt: cutoff } },
-                    { createdAt: { gt: cutoff } },
-                  ],
-                },
-              ],
-            },
-            _sum: { amount: true },
-          }),
-          db.supplierAdditionalPayment.aggregate({
-            where: {
-              treasuryAccountId: accountId,
-              isReversal: true,
-              status: "completed",
-              OR: [
-                { sessionId: activeSession.id },
-                {
-                  sessionId: null,
-                  OR: [
-                    { date: { gt: cutoff } },
-                    { createdAt: { gt: cutoff } },
-                  ],
-                },
-              ],
-            },
-            _sum: { amount: true },
-          }),
-        ]);
-        bal -= (suppAddOut._sum.amount ?? 0);
-        bal += (suppAddRevIn._sum.amount ?? 0);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes("no such table")) throw err;
-      }
-      return Math.round(bal * 100) / 100;
-    } else if (latestClosedSession && latestClosedSession.closedAt) {
-      let bal = latestClosedSession.retainedAmount ?? latestClosedSession.closingAmount ?? 0;
-      const closedAt = latestClosedSession.closedAt;
-
-      const [trIn, trOut, payIn, advIn, incIn, suppOut, expOut] = await Promise.all([
-        db.treasuryTransfer.aggregate({
-          where: {
-            toAccountId: accountId,
-            sessionId: null,
-            OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-          },
-          _sum: { amount: true },
-        }),
-        db.treasuryTransfer.aggregate({
-          where: {
-            fromAccountId: accountId,
-            sessionId: null,
-            OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-          },
-          _sum: { amount: true },
-        }),
-        db.payment.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            method: "cash",
-            purchaseId: null,
-            supplierId: null,
-            sessionId: null,
-            OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
-          },
-          _sum: { amount: true },
-        }),
-        db.customerAdvance.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            method: "cash",
-            sessionId: null,
-            OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
-          },
-          _sum: { amount: true },
-        }),
-        db.expense.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            type: "income",
-            method: "cash",
-            sessionId: null,
-            OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
-          },
-          _sum: { amount: true },
-        }),
-        db.payment.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            method: "cash",
-            sessionId: null,
-            OR: [{ paymentDate: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            AND: [
-              { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
-              { OR: [{ accountId: accountId }, { accountId: null }] },
-            ],
-          },
-          _sum: { amount: true },
-        }),
-        db.expense.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            type: "expense",
-            method: "cash",
-            sessionId: null,
-            OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            AND: [{ OR: [{ accountId: accountId }, { accountId: null }] }],
-          },
-          _sum: { amount: true },
-        }),
-      ]);
-
-      bal += (trIn._sum.amount ?? 0) - (trOut._sum.amount ?? 0);
-      bal += (payIn._sum.amount ?? 0) + (advIn._sum.amount ?? 0) + (incIn._sum.amount ?? 0);
-      bal -= (suppOut._sum.amount ?? 0) + (expOut._sum.amount ?? 0);
-
-      // Versements supplémentaires après clôture
-      try {
-        const [suppAddOut, suppAddRevIn] = await Promise.all([
-          db.supplierAdditionalPayment.aggregate({
-            where: {
-              treasuryAccountId: accountId,
-              isReversal: false,
-              sessionId: null,
-              OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            },
-            _sum: { amount: true },
-          }),
-          db.supplierAdditionalPayment.aggregate({
-            where: {
-              treasuryAccountId: accountId,
-              isReversal: true,
-              status: "completed",
-              sessionId: null,
-              OR: [{ date: { gt: closedAt } }, { createdAt: { gt: closedAt } }],
-            },
-            _sum: { amount: true },
-          }),
-        ]);
-        bal -= (suppAddOut._sum.amount ?? 0);
-        bal += (suppAddRevIn._sum.amount ?? 0);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes("no such table")) throw err;
-      }
-      return Math.round(bal * 100) / 100;
-    }
-  }
-
-  // 1. Solde initial standard
-  let balance = account.openingBalance;
-
-  // 2 à 8 : Exécution parallèle optimisée des flux de trésorerie
-  const [
-    transfersIn,
-    transfersOut,
-    salePaymentsIn,
-    advancesIn,
-    incomes,
-    supplierPaymentsOut,
-    expensesOut,
-  ] = await Promise.all([
-    db.treasuryTransfer.aggregate({
-      where: { toAccountId: accountId },
-      _sum: { amount: true },
-    }),
-    db.treasuryTransfer.aggregate({
-      where: { fromAccountId: accountId },
-      _sum: { amount: true },
-    }),
-    db.payment.aggregate({
-      where: {
-        status: { not: "cancelled" },
-        purchaseId: null,
-        supplierId: null,
-        OR: [
-          { accountId: accountId },
-          ...(account.isDefault
-            ? [{ accountId: null, method: "cash" }]
-            : []),
-        ],
-      },
-      _sum: { amount: true },
-    }),
-    db.customerAdvance.aggregate({
-      where: {
-        status: { not: "cancelled" },
-        OR: [
-          { accountId: accountId },
-          ...(account.isDefault
-            ? [{ accountId: null, method: "cash" }]
-            : []),
-        ],
-      },
-      _sum: { amount: true },
-    }),
-    db.expense.aggregate({
-      where: {
-        status: { not: "cancelled" },
-        type: "income",
-        OR: [
-          { accountId: accountId },
-          ...(account.isDefault
-            ? [{ accountId: null, method: "cash" }]
-            : []),
-        ],
-      },
-      _sum: { amount: true },
-    }),
-    db.payment.aggregate({
-      where: {
-        status: { not: "cancelled" },
-        AND: [
-          {
-            OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }],
-          },
-          {
-            OR: [
-              { accountId: accountId },
-              ...(account.isDefault
-                ? [{ accountId: null, method: "cash" }]
-                : []),
-            ],
-          },
-        ],
-      },
-      _sum: { amount: true },
-    }),
-    db.expense.aggregate({
-      where: {
-        status: { not: "cancelled" },
-        type: "expense",
-        OR: [
-          { accountId: accountId },
-          ...(account.isDefault
-            ? [{ accountId: null, method: "cash" }]
-            : account.code === "ACC-BANQUE"
-            ? [{ accountId: null, method: "transfer" }]
-            : []),
-        ],
-      },
-      _sum: { amount: true },
-    }),
-  ]);
-
-  balance += (transfersIn._sum.amount ?? 0) - (transfersOut._sum.amount ?? 0);
-  balance += (salePaymentsIn._sum.amount ?? 0) + (advancesIn._sum.amount ?? 0) + (incomes._sum.amount ?? 0);
-  balance -= (supplierPaymentsOut._sum.amount ?? 0) + (expensesOut._sum.amount ?? 0);
-
-  // Versements supplémentaires fournisseur (comptes généraux)
-  try {
-    const [suppAddOut, suppAddRevIn] = await Promise.all([
-      db.supplierAdditionalPayment.aggregate({
-        where: {
-          treasuryAccountId: accountId,
-          isReversal: false,
-        },
-        _sum: { amount: true },
-      }),
-      db.supplierAdditionalPayment.aggregate({
-        where: {
-          treasuryAccountId: accountId,
-          isReversal: true,
-          status: "completed",
-        },
-        _sum: { amount: true },
-      }),
-    ]);
-    balance -= (suppAddOut._sum.amount ?? 0);
-    balance += (suppAddRevIn._sum.amount ?? 0);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (!msg.includes("no such table")) throw err;
-  }
-
-  return Math.round(balance * 100) / 100;
-}
 
 // ─── RÉCUPÉRATION DES COMPTES & TABLEAU DE BORD TRÉSORERIE ────────────────────
 
 export async function getTreasuryDashboardData(): Promise<TreasuryDashboardSummary> {
-  const accounts = await prisma.treasuryAccount.findMany({
-    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-    include: {
-      transfersFrom: { select: { amount: true } },
-      transfersTo: { select: { amount: true } },
-    },
-  });
+  const accounts = await findTreasuryAccountsWithTransfers();
 
   const enrichedAccounts: TreasuryAccountData[] = [];
   let totalTreasuryFunds = 0;
@@ -629,15 +196,7 @@ export async function getTreasuryDashboardData(): Promise<TreasuryDashboardSumma
     });
   }
 
-  const rawTransfers = await prisma.treasuryTransfer.findMany({
-    take: 100,
-    orderBy: { date: "desc" },
-    include: {
-      fromAccount: { select: { id: true, name: true, code: true } },
-      toAccount: { select: { id: true, name: true, code: true } },
-      session: { select: { id: true, reference: true } },
-    },
-  });
+  const rawTransfers = await findRecentTreasuryTransfers();
 
   const transfers: TreasuryTransferData[] = rawTransfers.map((t) => ({
     id: t.id,
@@ -698,9 +257,7 @@ export async function createTreasuryAccountAction(formData: FormData) {
     }
 
     // Unicité du nom
-    const existing = await prisma.treasuryAccount.findFirst({
-      where: { name: { equals: name } },
-    });
+    const existing = await findTreasuryAccountByName(name);
     if (existing) {
       return {
         success: false,
@@ -713,17 +270,15 @@ export async function createTreasuryAccountAction(formData: FormData) {
 
     await assertPeriodNotLocked(openingDate, "Création de compte de trésorerie");
 
-    const account = await prisma.treasuryAccount.create({
-      data: {
-        code,
-        name,
-        type,
-        openingBalance,
-        openingDate,
-        notes,
-        isDefault: false,
-        isActive: true,
-      },
+    const account = await createTreasuryAccountRecord({
+      code,
+      name,
+      type,
+      openingBalance,
+      openingDate,
+      notes,
+      isDefault: false,
+      isActive: true,
     });
 
     safeRevalidate();
@@ -753,9 +308,7 @@ export async function updateTreasuryAccountAction(
     const notes = (formData.get("notes") as string)?.trim() || null;
     const isActiveStr = formData.get("isActive") as string;
 
-    const account = await prisma.treasuryAccount.findUnique({
-      where: { id: accountId },
-    });
+    const account = await findTreasuryAccountById(accountId);
     if (!account) {
       return { success: false, error: "Compte de trésorerie introuvable." };
     }
@@ -773,13 +326,10 @@ export async function updateTreasuryAccountAction(
       };
     }
 
-    const updated = await prisma.treasuryAccount.update({
-      where: { id: accountId },
-      data: {
-        name,
-        notes,
-        isActive,
-      },
+    const updated = await updateTreasuryAccountRecord(accountId, {
+      name,
+      notes,
+      isActive,
     });
 
     safeRevalidate();
@@ -857,12 +407,8 @@ export async function createTreasuryTransferAction(payload: {
     // Exécution transactionnelle atomique avec vérification stricte des fonds
     const result = await prisma.$transaction(
       async (tx) => {
-      const fromAcc = await tx.treasuryAccount.findUnique({
-        where: { id: fromAccountId },
-      });
-      const toAcc = await tx.treasuryAccount.findUnique({
-        where: { id: toAccountId },
-      });
+      const fromAcc = await findTreasuryAccountById(fromAccountId, tx);
+      const toAcc = await findTreasuryAccountById(toAccountId, tx);
 
       if (!fromAcc) {
         throw new Error("Compte source introuvable.");
@@ -891,36 +437,25 @@ export async function createTreasuryTransferAction(payload: {
 
       let sessionId = payload.sessionId || null;
       if (!sessionId) {
-        const cashAcc = await tx.treasuryAccount.findFirst({
-          where: { OR: [{ isDefault: true }, { type: "cash" }], isActive: true },
-        });
+        const cashAcc = await findCashTreasuryAccountActive(tx);
         if (cashAcc && (fromAccountId === cashAcc.id || toAccountId === cashAcc.id)) {
-          const activeSession = await tx.cashSession.findFirst({
-            where: { status: "open" },
-            orderBy: { openedAt: "desc" },
-          });
+          const activeSession = await findOpenCashSessionOrdered(tx);
           if (activeSession) {
             sessionId = activeSession.id;
           }
         }
       }
 
-      const transfer = await tx.treasuryTransfer.create({
-        data: {
-          reference,
-          fromAccountId,
-          toAccountId,
-          amount,
-          paymentMethod,
-          motif,
-          notes,
-          date,
-          sessionId,
-        },
-        include: {
-          fromAccount: { select: { id: true, name: true, code: true } },
-          toAccount: { select: { id: true, name: true, code: true } },
-        },
+      const transfer = await createTreasuryTransferWithAccounts(tx, {
+        reference,
+        fromAccountId,
+        toAccountId,
+        amount,
+        paymentMethod,
+        motif,
+        notes,
+        date,
+        sessionId,
       });
 
       return transfer;
@@ -980,10 +515,7 @@ export async function updateTreasuryTransferAction(payload: {
 
     const updated = await prisma.$transaction(
       async (tx) => {
-      const existing = await tx.treasuryTransfer.findUnique({
-        where: { id: transferId },
-        include: { fromAccount: true, toAccount: true },
-      });
+      const existing = await findTreasuryTransferWithAccounts(transferId, tx);
       if (!existing) {
         throw new Error("Transfert de trésorerie introuvable.");
       }
@@ -1066,22 +598,15 @@ export async function updateTreasuryTransferAction(payload: {
       }
       historyArray.push(auditEntry);
 
-      const res = await tx.treasuryTransfer.update({
-        where: { id: transferId },
-        data: {
-          fromAccountId,
-          toAccountId,
-          amount,
-          paymentMethod,
-          motif,
-          notes,
-          date,
-          editHistory: JSON.stringify(historyArray),
-        },
-        include: {
-          fromAccount: { select: { id: true, name: true, code: true } },
-          toAccount: { select: { id: true, name: true, code: true } },
-        },
+      const res = await updateTreasuryTransferWithAccounts(tx, transferId, {
+        fromAccountId,
+        toAccountId,
+        amount,
+        paymentMethod,
+        motif,
+        notes,
+        date,
+        editHistory: JSON.stringify(historyArray),
       });
 
       return res;
@@ -1138,9 +663,7 @@ export async function adjustAccountBalanceAction(payload: {
       };
     }
 
-    const account = await prisma.treasuryAccount.findUnique({
-      where: { id: accountId },
-    });
+    const account = await findTreasuryAccountById(accountId);
     if (!account) {
       return { success: false, error: "Compte de trésorerie introuvable." };
     }
@@ -1158,11 +681,7 @@ export async function adjustAccountBalanceAction(payload: {
     const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
     const prefix = `AJT-${yearMonth}-`;
 
-    const last = await prisma.expense.findFirst({
-      where: { reference: { startsWith: prefix } },
-      orderBy: { reference: "desc" },
-      select: { reference: true },
-    });
+    const last = await findLastAdjustmentReference(prefix);
 
     let nextSeq = 1;
     if (last?.reference) {
@@ -1172,19 +691,17 @@ export async function adjustAccountBalanceAction(payload: {
     }
     const reference = `${prefix}${String(nextSeq).padStart(4, "0")}`;
 
-    await prisma.expense.create({
-      data: {
-        reference,
-        accountId,
-        type: adjustmentType === "increase" ? "income" : "expense",
-        category: "capital",
-        description: `Ajustement de solde (${adjustmentType === "increase" ? "+" : "-"}) : ${reason}`,
-        amount,
-        method: "adjustment",
-        beneficiary: "Audit interne",
-        notes: notes ? `Ajustement tracé. ${notes}` : "Ajustement tracé avec journal d'audit.",
-        date,
-      },
+    await createAdjustmentExpense({
+      reference,
+      accountId,
+      type: adjustmentType === "increase" ? "income" : "expense",
+      category: "capital",
+      description: `Ajustement de solde (${adjustmentType === "increase" ? "+" : "-"}) : ${reason}`,
+      amount,
+      method: "adjustment",
+      beneficiary: "Audit interne",
+      notes: notes ? `Ajustement tracé. ${notes}` : "Ajustement tracé avec journal d'audit.",
+      date,
     });
 
     safeRevalidate();
@@ -1217,9 +734,7 @@ export async function getAccountMovements(
   openingBalance: number;
   finalBalance: number;
 }> {
-  const account = await prisma.treasuryAccount.findUnique({
-    where: { id: accountId },
-  });
+  const account = await findTreasuryAccountById(accountId);
   if (!account) {
     return {
       account: null,
@@ -1232,10 +747,7 @@ export async function getAccountMovements(
   const movements: AccountMovementItem[] = [];
 
   // 1. Transferts reçus (inflow)
-  const transfersIn = await prisma.treasuryTransfer.findMany({
-    where: { toAccountId: accountId },
-    include: { fromAccount: { select: { name: true } } },
-  });
+  const transfersIn = await findTransfersInToAccount(accountId);
   for (const t of transfersIn) {
     movements.push({
       id: `trf-in-${t.id}`,
@@ -1255,10 +767,7 @@ export async function getAccountMovements(
   }
 
   // 2. Transferts émis (outflow)
-  const transfersOut = await prisma.treasuryTransfer.findMany({
-    where: { fromAccountId: accountId },
-    include: { toAccount: { select: { name: true } } },
-  });
+  const transfersOut = await findTransfersOutFromAccount(accountId);
   for (const t of transfersOut) {
     movements.push({
       id: `trf-out-${t.id}`,
@@ -1278,19 +787,7 @@ export async function getAccountMovements(
   }
 
   // 3. Encaissements ventes et caisse
-  const salePayments = await prisma.payment.findMany({
-    where: {
-      status: { not: "cancelled" },
-      purchaseId: null,
-      supplierId: null,
-      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
-      OR: [
-        { accountId: accountId },
-        ...(account.isDefault ? [{ accountId: null, method: "cash" }] : []),
-      ],
-    },
-    include: { sale: { include: { customer: true } } },
-  });
+  const salePayments = await findAccountSalePayments(accountId, account.isDefault, account.type === "cash" || account.isDefault);
   for (const p of salePayments) {
     const cust = p.sale?.customer?.name || "Client comptoir";
     movements.push({
@@ -1312,17 +809,7 @@ export async function getAccountMovements(
   }
 
   // 4. Acomptes clients
-  const advances = await prisma.customerAdvance.findMany({
-    where: {
-      status: { not: "cancelled" },
-      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
-      OR: [
-        { accountId: accountId },
-        ...(account.isDefault ? [{ accountId: null, method: "cash" }] : []),
-      ],
-    },
-    include: { customer: true },
-  });
+  const advances = await findAccountAdvances(accountId, account.isDefault, account.type === "cash" || account.isDefault);
   for (const adv of advances) {
     const cust = adv.customer.name;
     movements.push({
@@ -1343,27 +830,7 @@ export async function getAccountMovements(
   }
 
   // 5. Règlements Fournisseurs
-  const supplierPayments = await prisma.payment.findMany({
-    where: {
-      status: { not: "cancelled" },
-      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
-      AND: [
-        {
-          OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }],
-        },
-        {
-          OR: [
-            { accountId: accountId },
-            ...(account.isDefault ? [{ accountId: null, method: "cash" }] : []),
-          ],
-        },
-      ],
-    },
-    include: {
-      purchase: { include: { supplier: true } },
-      supplier: true,
-    },
-  });
+  const supplierPayments = await findAccountSupplierPayments(accountId, account.isDefault, account.type === "cash" || account.isDefault);
   for (const p of supplierPayments) {
     const supp = p.purchase?.supplier?.name || p.supplier?.name || "Fournisseur";
     movements.push({
@@ -1385,20 +852,7 @@ export async function getAccountMovements(
   }
 
   // 6. Dépenses d'exploitation et encaissements exceptionnels
-  const expenses = await prisma.expense.findMany({
-    where: {
-      status: { not: "cancelled" },
-      ...(account.type === "cash" || account.isDefault ? { method: "cash" } : {}),
-      OR: [
-        { accountId: accountId },
-        ...(account.isDefault
-          ? [{ accountId: null, method: "cash" }]
-          : account.code === "ACC-BANQUE"
-          ? [{ accountId: null, method: "transfer" }]
-          : []),
-      ],
-    },
-  });
+  const expenses = await findAccountExpenses(accountId, account.isDefault, account.code, account.type === "cash" || account.isDefault);
   for (const e of expenses) {
     const isIncome = e.type === "income";
     let typeLabel = isIncome ? "Recette Exceptionnelle" : "Dépense d'Exploitation";
@@ -1430,13 +884,7 @@ export async function getAccountMovements(
 
   // 7. Versements supplémentaires fournisseurs et contrepassations
   try {
-    const additionalPayments = await prisma.supplierAdditionalPayment.findMany({
-      where: { treasuryAccountId: accountId },
-      include: {
-        supplier: { select: { name: true } },
-        reversalOf: { select: { reference: true } },
-      },
-    });
+    const additionalPayments = await findSuppAdditionalPaymentsForAccount(accountId);
     for (const ap of additionalPayments) {
       if (!ap.isReversal) {
         movements.push({
@@ -1481,14 +929,8 @@ export async function getAccountMovements(
   // si aucune date de début spécifique n'est demandée et qu'une session clôturée existe,
   // le relevé part du montant arrêté lors de la dernière clôture.
   if ((account.isDefault || account.type === "cash") && !filters?.startDate) {
-    const activeSession = await prisma.cashSession.findFirst({
-      where: { status: "open" },
-      orderBy: { openedAt: "desc" },
-    });
-    const latestClosed = await prisma.cashSession.findFirst({
-      where: { status: "closed" },
-      orderBy: { closedAt: "desc" },
-    });
+    const activeSession = await findOpenCashSessionOrdered();
+    const latestClosed = await findLastClosedSession();
 
     const getMovementSortTime = (m: AccountMovementItem) => {
       const d = new Date(m.date).getTime();

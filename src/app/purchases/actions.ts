@@ -1,14 +1,15 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma, type TxClient } from "@/server/db";
 import { revalidatePath } from "next/cache";
 import {
   receiveStockForPurchaseItem,
   reverseStockForCancelledPurchase,
-  type PrismaTransactionClient,
-} from "@/lib/inventory-transaction";
-import { calculateSupplierDebt } from "@/app/suppliers/actions";
-import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
+} from "@/server/services/inventory";
+import { calculateSupplierDebt, findSuppliersWithPurchaseHistory, findLastSupplierPayment, findSupplierByPhone, createSupplierRecord, updateSupplierRecord, findSupplierStatusById, findSupplierWithCounts, findSupplierWithFullHistory, deleteSupplierRecord } from "@/server/repositories/suppliers.repository";
+import { findPurchaseForUpdate, findPurchaseWithSupplier, findPurchaseForCancel, findReceiptWithDetails, findPurchasesWithDetails, findActiveSuppliersLite, findProductsLite, findActiveLocationsLite, findActiveTreasuryAccountsLite, updatePurchaseRecord, cancelPaymentsForPurchase } from "@/server/repositories/purchases.repository";
+import { findShopSettingsById } from "@/server/repositories/cash.repository";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
 
 export type PurchaseActionResponse<T = unknown> = {
   success: boolean;
@@ -27,7 +28,7 @@ function safeRevalidate(path: string) {
 
 // ─── GÉNÉRATION DES RÉFÉRENCES SÉQUENTIELLES IMMUABLES ─────────────────────────
 
-export async function generateNextSupplierCode(txClient?: PrismaTransactionClient): Promise<string> {
+export async function generateNextSupplierCode(txClient?: TxClient): Promise<string> {
   const db = txClient || prisma;
   const lastSupplier = await db.supplier.findFirst({
     where: { code: { startsWith: "FOU-" } },
@@ -46,7 +47,7 @@ export async function generateNextSupplierCode(txClient?: PrismaTransactionClien
   return `FOU-${String(nextSeq).padStart(4, "0")}`;
 }
 
-export async function generateNextPurchaseOrderNumber(txClient?: PrismaTransactionClient): Promise<string> {
+export async function generateNextPurchaseOrderNumber(txClient?: TxClient): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
   const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -69,7 +70,7 @@ export async function generateNextPurchaseOrderNumber(txClient?: PrismaTransacti
   return `${prefix}${String(nextSeq).padStart(4, "0")}`;
 }
 
-export async function generateNextReceiptNumber(txClient?: PrismaTransactionClient): Promise<string> {
+export async function generateNextReceiptNumber(txClient?: TxClient): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
   const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -92,7 +93,7 @@ export async function generateNextReceiptNumber(txClient?: PrismaTransactionClie
   return `${prefix}${String(nextSeq).padStart(4, "0")}`;
 }
 
-export async function generateNextSupplierPaymentReference(txClient?: PrismaTransactionClient): Promise<string> {
+export async function generateNextSupplierPaymentReference(txClient?: TxClient): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
   const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -118,56 +119,13 @@ export async function generateNextSupplierPaymentReference(txClient?: PrismaTran
 // ─── GESTION DES FOURNISSEURS (SUPPLIERS) ────────────────────────────────────
 
 export async function getSuppliersData(searchQuery?: string) {
-  const query = searchQuery?.trim();
-
-  const whereClause = query
-    ? {
-        OR: [
-          { name: { contains: query } },
-          { phone: { contains: query } },
-          { code: { contains: query } },
-          { email: { contains: query } },
-          { address: { contains: query } },
-        ],
-      }
-    : {};
-
-  const suppliers = await prisma.supplier.findMany({
-    where: whereClause,
-    include: {
-      purchases: {
-        where: { status: { not: "cancelled" } },
-        select: {
-          id: true,
-          reference: true,
-          totalAmount: true,
-          paidAmount: true,
-          status: true,
-          paymentStatus: true,
-          receiptStatus: true,
-          purchaseDate: true,
-        },
-        orderBy: { purchaseDate: "desc" },
-      },
-      _count: {
-        select: { purchases: true },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const suppliers = await findSuppliersWithPurchaseHistory(searchQuery);
 
   const suppliersWithData = await Promise.all(
     suppliers.map(async (s) => {
       const debtInfo = await calculateSupplierDebt(s.id);
       const lastPurchase = s.purchases[0];
-      const lastPayment = await prisma.payment.findFirst({
-        where: {
-          status: { not: "cancelled" },
-          OR: [{ supplierId: s.id }, { purchase: { supplierId: s.id } }],
-        },
-        orderBy: { paymentDate: "desc" },
-        select: { paymentDate: true },
-      });
+      const lastPayment = await findLastSupplierPayment(s.id);
 
       return {
         ...s,
@@ -198,9 +156,7 @@ export async function createSupplierAction(formData: FormData): Promise<Purchase
     }
 
     if (phone) {
-      const existing = await prisma.supplier.findFirst({
-        where: { phone: { equals: phone } },
-      });
+      const existing = await findSupplierByPhone(phone);
       if (existing) {
         return {
           success: false,
@@ -211,16 +167,14 @@ export async function createSupplierAction(formData: FormData): Promise<Purchase
 
     const code = await generateNextSupplierCode();
 
-    const supplier = await prisma.supplier.create({
-      data: {
-        code,
-        name,
-        phone,
-        email,
-        address,
-        notes,
-        isActive: true,
-      },
+    const supplier = await createSupplierRecord({
+      code,
+      name,
+      phone,
+      email,
+      address,
+      notes,
+      isActive: true,
     });
 
     safeRevalidate("/purchases");
@@ -250,12 +204,7 @@ export async function updateSupplierAction(supplierId: number, formData: FormDat
     }
 
     if (phone) {
-      const duplicatePhone = await prisma.supplier.findFirst({
-        where: {
-          phone: { equals: phone },
-          id: { not: supplierId },
-        },
-      });
+      const duplicatePhone = await findSupplierByPhone(phone, supplierId);
       if (duplicatePhone) {
         return {
           success: false,
@@ -264,10 +213,7 @@ export async function updateSupplierAction(supplierId: number, formData: FormDat
       }
     }
 
-    const updated = await prisma.supplier.update({
-      where: { id: supplierId },
-      data: { name, phone, email, address, notes },
-    });
+    const updated = await updateSupplierRecord(supplierId, { name, phone, email, address, notes });
 
     safeRevalidate("/purchases");
     safeRevalidate("/suppliers");
@@ -285,17 +231,11 @@ export async function updateSupplierAction(supplierId: number, formData: FormDat
 
 export async function toggleSupplierStatusAction(supplierId: number): Promise<PurchaseActionResponse> {
   try {
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: supplierId },
-      select: { id: true, name: true, isActive: true },
-    });
+    const supplier = await findSupplierStatusById(supplierId);
     if (!supplier) return { success: false, error: "Fournisseur introuvable." };
 
     const newStatus = !supplier.isActive;
-    await prisma.supplier.update({
-      where: { id: supplierId },
-      data: { isActive: newStatus },
-    });
+    await updateSupplierRecord(supplierId, { isActive: newStatus });
 
     safeRevalidate("/purchases");
     safeRevalidate("/suppliers");
@@ -313,12 +253,7 @@ export async function toggleSupplierStatusAction(supplierId: number): Promise<Pu
 
 export async function deleteSupplierAction(supplierId: number): Promise<PurchaseActionResponse> {
   try {
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: supplierId },
-      include: {
-        _count: { select: { purchases: true, payments: true, debts: true } },
-      },
-    });
+    const supplier = await findSupplierWithCounts(supplierId);
 
     if (!supplier) return { success: false, error: "Fournisseur introuvable." };
 
@@ -330,7 +265,7 @@ export async function deleteSupplierAction(supplierId: number): Promise<Purchase
       };
     }
 
-    await prisma.supplier.delete({ where: { id: supplierId } });
+    await deleteSupplierRecord(supplierId);
 
     safeRevalidate("/purchases");
     safeRevalidate("/suppliers");
@@ -347,36 +282,7 @@ export async function deleteSupplierAction(supplierId: number): Promise<Purchase
 
 export async function getSupplierDetailsAction(supplierId: number): Promise<PurchaseActionResponse> {
   try {
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: supplierId },
-      include: {
-        purchases: {
-          include: {
-            items: {
-              include: {
-                product: { select: { id: true, sku: true, name: true, model: true, color: true } },
-                location: { select: { id: true, name: true, code: true } },
-              },
-            },
-            payments: {
-              orderBy: { paymentDate: "desc" },
-            },
-            receipts: {
-              include: {
-                items: {
-                  include: {
-                    product: { select: { id: true, sku: true, name: true } },
-                    location: { select: { id: true, name: true } },
-                  },
-                },
-              },
-              orderBy: { receiptDate: "desc" },
-            },
-          },
-          orderBy: { purchaseDate: "desc" },
-        },
-      },
-    });
+    const supplier = await findSupplierWithFullHistory(supplierId);
 
     if (!supplier) return { success: false, error: "Fournisseur introuvable." };
 
@@ -600,26 +506,7 @@ export async function updatePurchaseOrderAction(
     }
 
     // Récupérer la commande existante
-    const existingPurchase = await prisma.purchase.findUnique({
-      where: { id: purchaseId },
-      include: {
-        supplier: true,
-        items: {
-          include: {
-            product: true,
-            receiptItems: true,
-          },
-        },
-        receipts: {
-          include: {
-            items: true,
-          },
-        },
-        payments: {
-          where: { status: { not: "cancelled" } },
-        },
-      },
-    });
+    const existingPurchase = await findPurchaseForUpdate(purchaseId);
 
     if (!existingPurchase) {
       return { success: false, error: "Commande fournisseur introuvable." };
@@ -1122,29 +1009,7 @@ export async function receivePurchaseGoodsAction(payload: ReceiveGoodsInput): Pr
 
 export async function getReceiptDetailsAction(receiptId: number): Promise<PurchaseActionResponse> {
   try {
-    const receipt = await prisma.purchaseReceipt.findUnique({
-      where: { id: receiptId },
-      include: {
-        purchase: {
-          include: {
-            supplier: true,
-          },
-        },
-        items: {
-          include: {
-            product: {
-              select: { id: true, sku: true, name: true, model: true, color: true, costPrice: true },
-            },
-            location: {
-              select: { id: true, name: true, code: true },
-            },
-            purchaseItem: {
-              select: { id: true, quantity: true, unitCost: true },
-            },
-          },
-        },
-      },
-    });
+    const receipt = await findReceiptWithDetails(receiptId);
 
     if (!receipt) {
       return { success: false, error: "Bon de réception introuvable." };
@@ -1190,10 +1055,7 @@ export async function recordSupplierPaymentAction(formData: FormData): Promise<P
     let targetSupplierId = supplierIdStr ? parseInt(supplierIdStr, 10) : null;
 
     if (purchaseId) {
-      purchase = await prisma.purchase.findUnique({
-        where: { id: purchaseId },
-        include: { supplier: true },
-      });
+      purchase = await findPurchaseWithSupplier(purchaseId);
 
       if (!purchase) return { success: false, error: "Commande introuvable." };
       if (purchase.status === "cancelled") {
@@ -1339,14 +1201,7 @@ export async function cancelPurchaseOrderAction(purchaseId: number, reason: stri
       return { success: false, error: "Le motif d'annulation est obligatoire (au moins 3 caractères)." };
     }
 
-    const purchase = await prisma.purchase.findUnique({
-      where: { id: purchaseId },
-      include: {
-        items: true,
-        receipts: true,
-        payments: true,
-      },
-    });
+    const purchase = await findPurchaseForCancel(purchaseId);
 
     if (!purchase) return { success: false, error: "Commande fournisseur introuvable." };
     if (purchase.status === "cancelled") {
@@ -1373,20 +1228,14 @@ export async function cancelPurchaseOrderAction(purchaseId: number, reason: stri
       }
 
       // 2. Annuler les paiements associés
-      await tx.payment.updateMany({
-        where: { purchaseId: purchase.id },
-        data: { status: "cancelled", notes: `Annulé : ${trimmedReason}` },
-      });
+      await cancelPaymentsForPurchase(tx, purchase.id, `Annulé : ${trimmedReason}`);
 
       // 3. Mettre à jour le statut
-      await tx.purchase.update({
-        where: { id: purchase.id },
-        data: {
-          status: "cancelled",
-          notes: purchase.notes
-            ? `${purchase.notes}\n[Annulé le ${new Date().toLocaleDateString("fr-DZ")} : ${trimmedReason}]`
-            : `[Annulé le ${new Date().toLocaleDateString("fr-DZ")} : ${trimmedReason}]`,
-        },
+      await updatePurchaseRecord(tx, purchase.id, {
+        status: "cancelled",
+        notes: purchase.notes
+          ? `${purchase.notes}\n[Annulé le ${new Date().toLocaleDateString("fr-DZ")} : ${trimmedReason}]`
+          : `[Annulé le ${new Date().toLocaleDateString("fr-DZ")} : ${trimmedReason}]`,
       });
     });
 
@@ -1408,92 +1257,13 @@ export async function cancelPurchaseOrderAction(purchaseId: number, reason: stri
 // ─── RÉCUPÉRATION GLOBALE DES DONNÉES ACHATS & FOURNISSEURS ─────────────────
 
 export async function getPurchasesData(searchQuery?: string) {
-  const query = searchQuery?.trim();
+  const purchases = await findPurchasesWithDetails(searchQuery);
 
-  const whereClause = query
-    ? {
-        OR: [
-          { reference: { contains: query } },
-          { supplier: { name: { contains: query } } },
-          { supplier: { code: { contains: query } } },
-          { notes: { contains: query } },
-        ],
-      }
-    : {};
+  const suppliers = await findActiveSuppliersLite();
 
-  const purchases = await prisma.purchase.findMany({
-    where: whereClause,
-    include: {
-      supplier: true,
-      items: {
-        include: {
-          product: {
-            select: {
-              id: true,
-              sku: true,
-              name: true,
-              model: true,
-              color: true,
-              costPrice: true,
-              sellingPrice: true,
-              stock: true,
-            },
-          },
-          location: {
-            select: { id: true, name: true, code: true },
-          },
-        },
-      },
-      receipts: {
-        include: {
-          items: {
-            include: {
-              product: {
-                select: { id: true, sku: true, name: true, model: true, color: true, costPrice: true },
-              },
-              location: {
-                select: { id: true, name: true, code: true },
-              },
-              purchaseItem: {
-                select: { id: true, quantity: true, unitCost: true },
-              },
-            },
-          },
-        },
-        orderBy: { receiptDate: "desc" },
-      },
-      payments: {
-        orderBy: { paymentDate: "desc" },
-      },
-    },
-    orderBy: { purchaseDate: "desc" },
-  });
+  const products = await findProductsLite();
 
-  const suppliers = await prisma.supplier.findMany({
-    where: { isActive: true },
-    select: { id: true, code: true, name: true, phone: true, address: true },
-    orderBy: { name: "asc" },
-  });
-
-  const products = await prisma.product.findMany({
-    select: {
-      id: true,
-      sku: true,
-      name: true,
-      model: true,
-      color: true,
-      costPrice: true,
-      sellingPrice: true,
-      stock: true,
-    },
-    orderBy: { name: "asc" },
-  });
-
-  const locations = await prisma.location.findMany({
-    where: { isActive: true },
-    select: { id: true, code: true, name: true, isDefault: true },
-    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-  });
+  const locations = await findActiveLocationsLite();
 
   // Métriques globales
   const confirmedPurchases = purchases.filter((p) => p.status !== "cancelled");
@@ -1503,12 +1273,8 @@ export async function getPurchasesData(searchQuery?: string) {
   const pendingReceiptsCount = purchases.filter((p) => p.status !== "cancelled" && p.receiptStatus !== "received").length;
 
   const allSuppliers = await getSuppliersData();
-  const settings = await prisma.shopSettings.findUnique({ where: { id: 1 } });
-  const treasuryAccounts = await prisma.treasuryAccount.findMany({
-    where: { isActive: true },
-    select: { id: true, name: true, code: true, type: true },
-    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-  });
+  const settings = await findShopSettingsById();
+  const treasuryAccounts = await findActiveTreasuryAccountsLite();
 
   return {
     purchases,

@@ -1,13 +1,63 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import type { ShopSettingsData } from "@/app/settings/actions";
-import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
+import {
+  findDailyCaisseAccount,
+  findDailyCaisseAccountLenient,
+  findDailyCaisseAccountWithInactive,
+  findTreasuryAccountById,
+  findDefaultTreasuryAccountRaw,
+  findBankAccountRaw,
+  createDefaultCashAccount,
+  findCashSessionById,
+  findCashSessionWithTransfers,
+  findLastClosedSession,
+  findSessionsWithTransfers,
+  findSessionsOfDay,
+  findAllSessionsLite,
+  findPriorClosedSessionBefore,
+  createCashSessionRecord,
+  updateCashSessionRecord,
+  findPendingCashPayments,
+  findPendingCashExpenses,
+  findUnlinkedCashPayments,
+  findUnlinkedCashExpenses,
+  attachPendingCashToSession,
+  attachPaymentsToSession,
+  attachAdvancesToSession,
+  attachExpensesToSession,
+  attachTransfersToSession,
+  findSessionWindowCashSales,
+  findSessionWindowCashSupplierPayments,
+  findSessionWindowCashAdvances,
+  findSessionWindowCashExpenses,
+  findSessionWindowTransfers,
+  findExpenseWithSession,
+  createExpenseEntry,
+  cancelExpenseRecord,
+  findLedgerPayments,
+  findLedgerExpenses,
+  findLedgerTransfers,
+  findLedgerAdvances,
+  findSuppAdditionalPaymentsWithLedger,
+  findSuppAdditionalPaymentsForAccount,
+  findShopSettingsById,
+  findOpeningBalanceAggregates,
+  fetchDailyCashFlux,
+  findTreasuryTransferById,
+  createTreasuryTransferRecord,
+  updateTreasuryTransferRecord,
+  deleteTreasuryTransferRecord,
+  generateNextExpenseReference,
+  generateNextCashSessionReference,
+  findOpenCashSession,
+} from "@/server/repositories/cash.repository";
 import {
   generateNextTreasuryTransferReference,
   generateNextTreasuryAccountCode,
-  calculateAccountBalance,
   getTreasuryDashboardData,
   createTreasuryAccountAction,
   updateTreasuryAccountAction,
@@ -20,6 +70,7 @@ import {
   type AccountMovementItem,
   type TreasuryDashboardSummary,
 } from "./treasury-actions";
+import { calculateAccountBalance } from "@/server/repositories/cash.repository";
 
 export {
   generateNextTreasuryTransferReference,
@@ -38,7 +89,7 @@ export {
   type TreasuryDashboardSummary,
 };
 
-export type PrismaTransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+export type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 export interface CashActionResponse<T = unknown> {
   success: boolean;
@@ -56,55 +107,7 @@ function safeRevalidate(path: string) {
 }
 
 // ─── GÉNÉRATEURS DE RÉFÉRENCES SÉQUENTIELLES UNIQUE ──────────────────────────
-
-export async function generateNextCashSessionReference(txClient?: PrismaTransactionClient): Promise<string> {
-  const db = txClient || prisma;
-  const now = new Date();
-  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const prefix = `CS-${yearMonth}-`;
-
-  const last = await db.cashSession.findFirst({
-    where: { reference: { startsWith: prefix } },
-    orderBy: { reference: "desc" },
-    select: { reference: true },
-  });
-
-  let nextSeq = 1;
-  if (last?.reference) {
-    const parts = last.reference.split("-");
-    const lastSeq = parseInt(parts[2], 10);
-    if (!isNaN(lastSeq)) {
-      nextSeq = lastSeq + 1;
-    }
-  }
-  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
-
-export async function generateNextExpenseReference(
-  type: "expense" | "income" = "expense",
-  txClient?: PrismaTransactionClient
-): Promise<string> {
-  const db = txClient || prisma;
-  const now = new Date();
-  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const prefix = type === "income" ? `ENC-${yearMonth}-` : `DEP-${yearMonth}-`;
-
-  const last = await db.expense.findFirst({
-    where: { reference: { startsWith: prefix } },
-    orderBy: { reference: "desc" },
-    select: { reference: true },
-  });
-
-  let nextSeq = 1;
-  if (last?.reference) {
-    const parts = last.reference.split("-");
-    const lastSeq = parseInt(parts[2], 10);
-    if (!isNaN(lastSeq)) {
-      nextSeq = lastSeq + 1;
-    }
-  }
-  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
+export { generateNextExpenseReference, generateNextCashSessionReference } from "@/server/repositories/cash.repository";
 
 // ─── GESTION DES SESSIONS DE CAISSE (OUVERTURE & CLÔTURE) ────────────────────
 
@@ -128,45 +131,16 @@ export async function openCashSessionAction(
 
     await assertPeriodNotLocked(openedAt, "Ouverture de session de caisse");
 
-    const defaultCaisse =
-      (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
-      (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+    const defaultCaisse = await findDailyCaisseAccount();
     const caisseId = defaultCaisse?.id;
 
     if (includePendingCash) {
-      const lastClosedSession = await prisma.cashSession.findFirst({
-        where: { status: "closed" },
-        orderBy: { closedAt: "desc" },
-      });
+      const lastClosedSession = await findLastClosedSession();
       const cutoff = lastClosedSession?.closedAt ?? new Date(0);
 
       const [pendingPayments, pendingExpenses] = await Promise.all([
-        prisma.payment.findMany({
-          where: {
-            sessionId: null,
-            method: "cash",
-            status: { not: "cancelled" },
-            OR: [
-              { paymentDate: { gt: cutoff } },
-              { createdAt: { gt: cutoff } },
-            ],
-            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
-          },
-          select: { paymentDate: true },
-        }),
-        prisma.expense.findMany({
-          where: {
-            sessionId: null,
-            method: "cash",
-            status: { not: "cancelled" },
-            OR: [
-              { date: { gt: cutoff } },
-              { createdAt: { gt: cutoff } },
-            ],
-            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
-          },
-          select: { date: true },
-        }),
+        findPendingCashPayments(cutoff, caisseId),
+        findPendingCashExpenses(cutoff, caisseId),
       ]);
       await assertDatesNotLocked(
         [
@@ -186,9 +160,7 @@ export async function openCashSessionAction(
     }
 
     // Vérifier si une session est déjà ouverte (conception mono-caisse)
-    const existingActive = await prisma.cashSession.findFirst({
-      where: { status: "open" },
-    });
+    const existingActive = await findOpenCashSession();
 
     if (existingActive) {
       return {
@@ -202,48 +174,19 @@ export async function openCashSessionAction(
     const reference = await generateNextCashSessionReference();
 
     const session = await prisma.$transaction(async (tx) => {
-      const created = await tx.cashSession.create({
-        data: {
-          reference,
-          status: "open",
-          openingAmount,
-          openedAt,
-          openingNotes,
-        },
+      const created = await createCashSessionRecord(tx, {
+        reference,
+        status: "open",
+        openingAmount,
+        openedAt,
+        openingNotes,
       });
 
       if (includePendingCash) {
-        const lastClosedSession = await tx.cashSession.findFirst({
-          where: { status: "closed" },
-          orderBy: { closedAt: "desc" },
-        });
+        const lastClosedSession = await findLastClosedSession(undefined, tx);
         const cutoff = lastClosedSession?.closedAt ?? new Date(0);
 
-        await tx.payment.updateMany({
-          where: {
-            sessionId: null,
-            method: "cash",
-            status: { not: "cancelled" },
-            OR: [
-              { paymentDate: { gt: cutoff } },
-              { createdAt: { gt: cutoff } },
-            ],
-            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
-          },
-          data: { sessionId: created.id },
-        });
-        await tx.expense.updateMany({
-          where: {
-            sessionId: null,
-            method: "cash",
-            OR: [
-              { date: { gt: cutoff } },
-              { createdAt: { gt: cutoff } },
-            ],
-            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
-          },
-          data: { sessionId: created.id },
-        });
+        await attachPendingCashToSession(tx, created.id, caisseId, cutoff);
       }
 
       return created;
@@ -270,52 +213,20 @@ export async function openCashSessionAction(
 
 export async function reconcileOutOfSessionCashAction(sessionId: number): Promise<CashActionResponse> {
   try {
-    const session = await prisma.cashSession.findUnique({
-      where: { id: sessionId },
-    });
+    const session = await findCashSessionById(sessionId);
     if (!session) return { success: false, error: "Session de caisse introuvable." };
     if (session.status !== "open") {
       return { success: false, error: "Les encaissements ne peuvent être rattachés qu'à une session de caisse ouverte." };
     }
 
-    const defaultCaisse =
-      (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
-      (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+    const defaultCaisse = await findDailyCaisseAccount();
     const caisseId = defaultCaisse?.id;
 
-    const lastClosedSession = await prisma.cashSession.findFirst({
-      where: { status: "closed", closedAt: { lt: session.openedAt } },
-      orderBy: { closedAt: "desc" },
-    });
+    const lastClosedSession = await findLastClosedSession({ before: session.openedAt });
     const cutoff = lastClosedSession?.closedAt ?? new Date(0);
 
-    const unlinkedPayments = await prisma.payment.findMany({
-      where: {
-        sessionId: null,
-        method: "cash",
-        status: { not: "cancelled" },
-        OR: [
-          { paymentDate: { gt: cutoff } },
-          { createdAt: { gt: cutoff } },
-        ],
-        AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
-      },
-      select: { id: true, amount: true, paymentDate: true },
-    });
-
-    const unlinkedExpenses = await prisma.expense.findMany({
-      where: {
-        sessionId: null,
-        method: "cash",
-        status: { not: "cancelled" },
-        OR: [
-          { date: { gt: cutoff } },
-          { createdAt: { gt: cutoff } },
-        ],
-        AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
-      },
-      select: { id: true, amount: true, type: true, date: true },
-    });
+    const unlinkedPayments = await findUnlinkedCashPayments(cutoff, caisseId);
+    const unlinkedExpenses = await findUnlinkedCashExpenses(cutoff, caisseId);
 
     if (unlinkedPayments.length === 0 && unlinkedExpenses.length === 0) {
       return { success: false, error: "Aucun mouvement en espèces hors session en attente de réconciliation." };
@@ -334,18 +245,8 @@ export async function reconcileOutOfSessionCashAction(sessionId: number): Promis
     const expenseIds = unlinkedExpenses.map((e) => e.id);
 
     await prisma.$transaction(async (tx) => {
-      if (paymentIds.length > 0) {
-        await tx.payment.updateMany({
-          where: { id: { in: paymentIds } },
-          data: { sessionId: session.id },
-        });
-      }
-      if (expenseIds.length > 0) {
-        await tx.expense.updateMany({
-          where: { id: { in: expenseIds } },
-          data: { sessionId: session.id },
-        });
-      }
+      await attachPaymentsToSession(tx, paymentIds, session.id);
+      await attachExpensesToSession(tx, expenseIds, session.id);
     });
 
     safeRevalidate("/cash");
@@ -422,9 +323,7 @@ export async function closeCashSessionAction(
       };
     }
 
-    const session = await prisma.cashSession.findUnique({
-      where: { id: sessionId },
-    });
+    const session = await findCashSessionById(sessionId);
 
     if (!session) {
       return { success: false, error: "Session de caisse introuvable." };
@@ -441,119 +340,27 @@ export async function closeCashSessionAction(
 
     await assertDatesNotLocked([session.openedAt, now], "Clôture de session de caisse");
 
-    const defaultCaisse =
-      (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
-      (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+    const defaultCaisse = await findDailyCaisseAccount();
     const caisseId = session.accountId || defaultCaisse?.id;
 
-    const lastClosedBefore = await prisma.cashSession.findFirst({
-      where: { status: "closed", closedAt: { lt: session.openedAt } },
-      orderBy: { closedAt: "desc" },
-    });
+    const lastClosedBefore = await findLastClosedSession({ before: session.openedAt });
     const cutoff = lastClosedBefore?.closedAt ?? session.openedAt;
 
     // Calcul autoritaire côté serveur sur la fenêtre [openedAt, now] et les opérations rattachées
     // 1. Encaissements physiques (Ventes et encaissements en espèces)
-    const salesPayments = await prisma.payment.findMany({
-      where: {
-        status: { not: "cancelled" },
-        method: "cash",
-        purchaseId: null,
-        supplierId: null,
-        AND: [
-          { OR: [{ accountId: caisseId }, { accountId: null }] },
-          {
-            OR: [
-              { sessionId: sessionId },
-              {
-                sessionId: null,
-                OR: [
-                  { paymentDate: { gt: cutoff, lte: now } },
-                  { createdAt: { gt: cutoff, lte: now } },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      select: { id: true, amount: true },
-    });
+    const salesPayments = await findSessionWindowCashSales(sessionId, caisseId, cutoff, now);
     const cashInSales = salesPayments.reduce((acc, p) => acc + p.amount, 0);
 
     // 2. Décaissements physiques (Fournisseurs en espèces)
-    const supplierPayments = await prisma.payment.findMany({
-      where: {
-        status: { not: "cancelled" },
-        method: "cash",
-        AND: [
-          { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
-          { OR: [{ accountId: caisseId }, { accountId: null }] },
-          {
-            OR: [
-              { sessionId: sessionId },
-              {
-                sessionId: null,
-                OR: [
-                  { paymentDate: { gt: cutoff, lte: now } },
-                  { createdAt: { gt: cutoff, lte: now } },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      select: { id: true, amount: true },
-    });
+    const supplierPayments = await findSessionWindowCashSupplierPayments(sessionId, caisseId, cutoff, now);
     const cashOutPurchases = supplierPayments.reduce((acc, p) => acc + p.amount, 0);
 
     // 3. Acomptes clients reçus en espèces
-    const customerAdvances = await prisma.customerAdvance.findMany({
-      where: {
-        status: { not: "cancelled" },
-        method: "cash",
-        AND: [
-          { OR: [{ accountId: caisseId }, { accountId: null }] },
-          {
-            OR: [
-              { sessionId: sessionId },
-              {
-                sessionId: null,
-                OR: [
-                  { paymentDate: { gt: cutoff, lte: now } },
-                  { createdAt: { gt: cutoff, lte: now } },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      select: { id: true, amount: true },
-    });
+    const customerAdvances = await findSessionWindowCashAdvances(sessionId, caisseId, cutoff, now);
     const cashInAdvances = customerAdvances.reduce((acc, a) => acc + a.amount, 0);
 
     // 4. Charges et encaissements exceptionnels en espèces
-    const expenses = await prisma.expense.findMany({
-      where: {
-        method: "cash",
-        status: { not: "cancelled" },
-        AND: [
-          { OR: [{ accountId: caisseId }, { accountId: null }] },
-          {
-            OR: [
-              { sessionId: sessionId },
-              {
-                sessionId: null,
-                OR: [
-                  { date: { gt: cutoff, lte: now } },
-                  { createdAt: { gt: cutoff, lte: now } },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      select: { id: true, amount: true, type: true },
-    });
+    const expenses = await findSessionWindowCashExpenses(sessionId, caisseId, cutoff, now);
     const cashOutExpenses = expenses
       .filter((e) => e.type === "expense")
       .reduce((acc, e) => acc + e.amount, 0);
@@ -563,42 +370,12 @@ export async function closeCashSessionAction(
 
     // 5. Transferts internes affectant la caisse pendant la session
     const transfersIn = caisseId
-      ? await prisma.treasuryTransfer.findMany({
-          where: {
-            toAccountId: caisseId,
-            OR: [
-              { sessionId: sessionId },
-              {
-                sessionId: null,
-                OR: [
-                  { date: { gt: cutoff, lte: now } },
-                  { createdAt: { gt: cutoff, lte: now } },
-                ],
-              },
-            ],
-          },
-          select: { id: true, amount: true },
-        })
+      ? await findSessionWindowTransfers(sessionId, caisseId, cutoff, now, "in")
       : [];
     const cashInTransfers = transfersIn.reduce((acc, t) => acc + t.amount, 0);
 
     const transfersOut = caisseId
-      ? await prisma.treasuryTransfer.findMany({
-          where: {
-            fromAccountId: caisseId,
-            OR: [
-              { sessionId: sessionId },
-              {
-                sessionId: null,
-                OR: [
-                  { date: { gt: cutoff, lte: now } },
-                  { createdAt: { gt: cutoff, lte: now } },
-                ],
-              },
-            ],
-          },
-          select: { id: true, amount: true },
-        })
+      ? await findSessionWindowTransfers(sessionId, caisseId, cutoff, now, "out")
       : [];
     const cashOutTransfers = transfersOut.reduce((acc, t) => acc + t.amount, 0);
 
@@ -610,78 +387,46 @@ export async function closeCashSessionAction(
     // Mise à jour atomique de clôture & transfert optionnel
     const { updatedSession, transferInfo } = await prisma.$transaction(async (tx) => {
       // 1. Clôturer la session
-      const updated = await tx.cashSession.update({
-        where: { id: sessionId },
-        data: {
-          status: "closed",
-          closedAt: now,
-          totalCashIn,
-          totalCashOut,
-          theoreticalAmount,
-          closingAmount,
-          difference,
-          originalClosingAmount: closingAmount,
-          originalTheoreticalAmount: theoreticalAmount,
-          originalDifference: difference,
-          retainedAmount: Math.max(0, closingAmount - transferAmount),
-          closingNotes: closingNotes?.trim() || null,
-        },
+      const updated = await updateCashSessionRecord(tx, sessionId, {
+        status: "closed",
+        closedAt: now,
+        totalCashIn,
+        totalCashOut,
+        theoreticalAmount,
+        closingAmount,
+        difference,
+        originalClosingAmount: closingAmount,
+        originalTheoreticalAmount: theoreticalAmount,
+        originalDifference: difference,
+        retainedAmount: Math.max(0, closingAmount - transferAmount),
+        closingNotes: closingNotes?.trim() || null,
       });
 
       // 2. Lier la session aux paiements, dépenses, acomptes et transferts concernés
       const paymentIds = [...salesPayments.map((p) => p.id), ...supplierPayments.map((p) => p.id)];
-      if (paymentIds.length > 0) {
-        await tx.payment.updateMany({
-          where: { id: { in: paymentIds } },
-          data: { sessionId: sessionId },
-        });
-      }
+      await attachPaymentsToSession(tx, paymentIds, sessionId);
 
       const advanceIds = customerAdvances.map((a) => a.id);
-      if (advanceIds.length > 0) {
-        await tx.customerAdvance.updateMany({
-          where: { id: { in: advanceIds } },
-          data: { sessionId: sessionId },
-        });
-      }
+      await attachAdvancesToSession(tx, advanceIds, sessionId);
 
       const expenseIds = expenses.map((e) => e.id);
-      if (expenseIds.length > 0) {
-        await tx.expense.updateMany({
-          where: { id: { in: expenseIds } },
-          data: { sessionId: sessionId },
-        });
-      }
+      await attachExpensesToSession(tx, expenseIds, sessionId);
 
       const transferIds = [...transfersIn.map((t) => t.id), ...transfersOut.map((t) => t.id)];
-      if (transferIds.length > 0) {
-        await tx.treasuryTransfer.updateMany({
-          where: { id: { in: transferIds } },
-          data: { sessionId: sessionId },
-        });
-      }
+      await attachTransfersToSession(tx, transferIds, sessionId);
 
       // 3. Enregistrer le transfert de clôture si un montant a été spécifié par l'utilisateur
       let transferResult: { reference: string; destName: string } | null = null;
       if (transferAmount > 0 && transferDestinationAccountId) {
-        let sourceAccount = await tx.treasuryAccount.findFirst({
-          where: { isDefault: true },
-        });
+        let sourceAccount = await findDailyCaisseAccountLenient(tx);
         if (!sourceAccount) {
-          sourceAccount = await tx.treasuryAccount.findFirst({
-            where: { type: "cash" },
-          });
-        }
-        if (!sourceAccount) {
-          sourceAccount = await tx.treasuryAccount.create({
-            data: {
-              code: "ACC-CAISSE",
-              name: "Caisse journalière",
-              type: "cash",
-              openingBalance: 0,
-              isDefault: true,
-              isActive: true,
-            },
+          sourceAccount = await createDefaultCashAccount(tx, {
+            code: "ACC-CAISSE",
+            name: "Caisse journalière",
+            type: "cash",
+            openingBalance: 0,
+            isDefault: true,
+            isActive: true,
           });
         }
 
@@ -689,24 +434,20 @@ export async function closeCashSessionAction(
           throw new Error("Le compte de destination du transfert doit être différent de la caisse journalière.");
         }
 
-        const destAccount = await tx.treasuryAccount.findUnique({
-          where: { id: transferDestinationAccountId },
-        });
+        const destAccount = await findTreasuryAccountById(transferDestinationAccountId, tx);
         if (!destAccount || !destAccount.isActive) {
           throw new Error("Compte de destination du transfert introuvable ou inactif.");
         }
 
         const trfRef = await generateNextTreasuryTransferReference(tx);
-        await tx.treasuryTransfer.create({
-          data: {
-            reference: trfRef,
-            fromAccountId: sourceAccount.id,
-            toAccountId: destAccount.id,
-            amount: transferAmount,
-            motif: transferNotes?.trim() || `Transfert clôture de caisse ${session.reference}`,
-            date: now,
-            sessionId: sessionId,
-          },
+        await createTreasuryTransferRecord(tx, {
+          reference: trfRef,
+          fromAccountId: sourceAccount.id,
+          toAccountId: destAccount.id,
+          amount: transferAmount,
+          motif: transferNotes?.trim() || `Transfert clôture de caisse ${session.reference}`,
+          date: now,
+          sessionId: sessionId,
         });
 
         transferResult = { reference: trfRef, destName: destAccount.name };
@@ -793,12 +534,7 @@ export async function editClosedCashSessionAction(payload: {
       };
     }
 
-    const session = await prisma.cashSession.findUnique({
-      where: { id: sessionId },
-      include: {
-        transfers: true,
-      },
-    });
+    const session = await findCashSessionWithTransfers(sessionId);
 
     if (!session) {
       return { success: false, error: "Session de caisse introuvable." };
@@ -860,18 +596,15 @@ export async function editClosedCashSessionAction(payload: {
 
     await prisma.$transaction(async (tx) => {
       // 1. Mise à jour des valeurs corrigées de la session
-      await tx.cashSession.update({
-        where: { id: sessionId },
-        data: {
-          closingAmount: newClosingAmount,
-          difference: newDifference,
-          retainedAmount: newRetainedAmount,
-          originalClosingAmount: origClosing,
-          originalTheoreticalAmount: origTheoretical,
-          originalDifference: origDiff,
-          closingNotes: newClosingNotes || session.closingNotes,
-          closingEditAudit: JSON.stringify(existingAudit),
-        },
+      await updateCashSessionRecord(tx, sessionId, {
+        closingAmount: newClosingAmount,
+        difference: newDifference,
+        retainedAmount: newRetainedAmount,
+        originalClosingAmount: origClosing,
+        originalTheoreticalAmount: origTheoretical,
+        originalDifference: origDiff,
+        closingNotes: newClosingNotes || session.closingNotes,
+        closingEditAudit: JSON.stringify(existingAudit),
       });
 
       // 2. Réconciliation sans doublon avec le virement existant
@@ -880,38 +613,29 @@ export async function editClosedCashSessionAction(payload: {
 
       if (newTransferAmount > 0 && targetDestAccountId) {
         if (existingTransfer) {
-          await tx.treasuryTransfer.update({
-            where: { id: existingTransfer.id },
-            data: {
-              amount: newTransferAmount,
-              toAccountId: targetDestAccountId,
-              motif: `Correction clôture de caisse ${session.reference} (${reason})`,
-            },
+          await updateTreasuryTransferRecord(tx, existingTransfer.id, {
+            amount: newTransferAmount,
+            toAccountId: targetDestAccountId,
+            motif: `Correction clôture de caisse ${session.reference} (${reason})`,
           });
         } else {
-          const defaultCashAcc =
-            (await tx.treasuryAccount.findFirst({ where: { isDefault: true } })) ||
-            (await tx.treasuryAccount.findFirst({ where: { type: "cash" } }));
+          const defaultCashAcc = await findDailyCaisseAccountLenient(tx);
 
           if (defaultCashAcc) {
             const trfRef = await generateNextTreasuryTransferReference(tx);
-            await tx.treasuryTransfer.create({
-              data: {
-                reference: trfRef,
-                fromAccountId: defaultCashAcc.id,
-                toAccountId: targetDestAccountId,
-                amount: newTransferAmount,
-                motif: `Transfert correction clôture ${session.reference}`,
-                date: now,
-                sessionId: sessionId,
-              },
+            await createTreasuryTransferRecord(tx, {
+              reference: trfRef,
+              fromAccountId: defaultCashAcc.id,
+              toAccountId: targetDestAccountId,
+              amount: newTransferAmount,
+              motif: `Transfert correction clôture ${session.reference}`,
+              date: now,
+              sessionId: sessionId,
             });
           }
         }
       } else if (newTransferAmount === 0 && existingTransfer) {
-        await tx.treasuryTransfer.delete({
-          where: { id: existingTransfer.id },
-        });
+        await deleteTreasuryTransferRecord(tx, existingTransfer.id);
       }
     });
 
@@ -984,7 +708,7 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
     let accountId: number | null = accountIdStr ? parseInt(accountIdStr, 10) : null;
     let selectedAccount: { id: number; name: string; type: string; isDefault: boolean; isActive: boolean } | null = null;
     if (accountId) {
-      const acc = await prisma.treasuryAccount.findUnique({ where: { id: accountId } });
+      const acc = await findTreasuryAccountById(accountId);
       if (!acc) return { success: false, error: "Compte de trésorerie sélectionné introuvable." };
       if (!acc.isActive) return { success: false, error: `Le compte "${acc.name}" est inactif.` };
       selectedAccount = acc;
@@ -1001,13 +725,13 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
       }
     } else {
       if (method === "cash") {
-        const def = await prisma.treasuryAccount.findFirst({ where: { isDefault: true } });
+        const def = await findDefaultTreasuryAccountRaw();
         if (def) {
           accountId = def.id;
           selectedAccount = def;
         }
       } else if (method === "transfer") {
-        const defBank = await prisma.treasuryAccount.findFirst({ where: { code: "ACC-BANQUE" } });
+        const defBank = await findBankAccountRaw();
         if (defBank) {
           accountId = defBank.id;
           selectedAccount = defBank;
@@ -1024,9 +748,7 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
         : true;
 
       if (isDailyCash) {
-        const activeSession = await prisma.cashSession.findFirst({
-          where: { status: "open" },
-        });
+        const activeSession = await findOpenCashSession();
         if (activeSession) {
           sessionId = activeSession.id;
         }
@@ -1035,8 +757,7 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
 
     const reference = await generateNextExpenseReference(type === "income" ? "income" : "expense");
 
-    const expense = await prisma.expense.create({
-      data: {
+    const expense = await createExpenseEntry({
         reference,
         type: type === "income" ? "income" : "expense",
         category,
@@ -1049,7 +770,6 @@ export async function createExpenseAction(formData: FormData): Promise<CashActio
         date,
         sessionId,
         accountId,
-      },
     });
 
     safeRevalidate("/cash");
@@ -1089,10 +809,7 @@ export async function cancelExpenseAction(payload: {
   cancelledBy?: string;
 }): Promise<CashActionResponse> {
   try {
-    const expense = await prisma.expense.findUnique({
-      where: { id: payload.expenseId },
-      include: { session: true },
-    });
+    const expense = await findExpenseWithSession(payload.expenseId);
 
     if (!expense) {
       return { success: false, error: "Pièce de dépense ou ajustement introuvable." };
@@ -1118,15 +835,12 @@ export async function cancelExpenseAction(payload: {
     const auditEntry = `[ANNULATION AUDITÉE le ${now.toISOString()} par ${cancelledBy} : ${reason}]`;
     const updatedNotes = expense.notes ? `${expense.notes} ${auditEntry}` : auditEntry;
 
-    await prisma.expense.update({
-      where: { id: payload.expenseId },
-      data: {
-        status: "cancelled",
-        cancelledAt: now,
-        cancellationReason: reason,
-        cancelledBy: cancelledBy,
-        notes: updatedNotes,
-      },
+    await cancelExpenseRecord(payload.expenseId, {
+      status: "cancelled",
+      cancelledAt: now,
+      cancellationReason: reason,
+      cancelledBy: cancelledBy,
+      notes: updatedNotes,
     });
 
     safeRevalidate("/cash");
@@ -1300,89 +1014,23 @@ export async function getCashDashboardData(filters?: {
   const query = filters?.searchQuery?.trim().toLowerCase();
 
   // 1. Récupérer toutes les sessions de caisse
-  const sessions = await prisma.cashSession.findMany({
-    orderBy: { openedAt: "desc" },
-    include: {
-      transfers: {
-        include: {
-          toAccount: { select: { id: true, name: true, code: true } },
-          fromAccount: { select: { id: true, name: true, code: true } },
-        },
-      },
-    },
-  });
+  const sessions = await findSessionsWithTransfers();
 
   const activeRaw = sessions.find((s) => s.status === "open") || null;
 
   // 2. Récupérer l'ensemble des paiements existants (Clients & Fournisseurs) non annulés
-  const payments = await prisma.payment.findMany({
-    where: {
-      status: { not: "cancelled" },
-    },
-    include: {
-      sale: {
-        include: {
-          customer: true,
-        },
-      },
-      purchase: {
-        include: {
-          supplier: true,
-        },
-      },
-      supplier: true,
-      account: {
-        select: { id: true, name: true, code: true },
-      },
-      session: {
-        select: { id: true, reference: true },
-      },
-    },
-    orderBy: { paymentDate: "desc" },
-  });
+  const payments = await findLedgerPayments();
 
   // 3. Récupérer l'ensemble des dépenses et mouvements manuels non annulés
-  const expenses = await prisma.expense.findMany({
-    where: {
-      status: { not: "cancelled" },
-    },
-    include: {
-      account: {
-        select: { id: true, name: true, code: true },
-      },
-      session: {
-        select: { id: true, reference: true },
-      },
-    },
-    orderBy: { date: "desc" },
-  });
+  const expenses = await findLedgerExpenses();
 
   // 4. Récupérer l'ensemble des transferts de trésorerie
-  const transfers = await prisma.treasuryTransfer.findMany({
-    include: {
-      fromAccount: { select: { id: true, name: true, code: true, type: true } },
-      toAccount: { select: { id: true, name: true, code: true, type: true } },
-      session: { select: { id: true, reference: true } },
-    },
-    orderBy: { date: "desc" },
-  });
+  const transfers = await findLedgerTransfers();
 
   // 4.1 Récupérer l'ensemble des acomptes clients non annulés
-  const advances = await prisma.customerAdvance.findMany({
-    where: {
-      status: { not: "cancelled" },
-    },
-    include: {
-      customer: { select: { name: true } },
-      account: { select: { id: true, name: true, code: true } },
-      session: { select: { id: true, reference: true } },
-    },
-    orderBy: { paymentDate: "desc" },
-  });
+  const advances = await findLedgerAdvances();
 
-  const defaultCashAcc =
-    (await prisma.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
-    (await prisma.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }));
+  const defaultCashAcc = await findDailyCaisseAccount();
   const defaultCashAccId = defaultCashAcc?.id;
 
   // 5. Construire le Grand Livre unifié (Ledger) sans doublons
@@ -1530,14 +1178,7 @@ export async function getCashDashboardData(filters?: {
 
   // 5.5 Versements supplémentaires fournisseur
   try {
-    const suppAddPayments = await prisma.supplierAdditionalPayment.findMany({
-      include: {
-        supplier: { select: { name: true } },
-        treasuryAccount: { select: { id: true, name: true, type: true, isDefault: true } },
-        session: { select: { reference: true } },
-        reversalOf: { select: { reference: true } },
-      },
-    });
+    const suppAddPayments = await findSuppAdditionalPaymentsWithLedger();
 
     for (const ap of suppAddPayments) {
       const isFromCash =
@@ -1758,7 +1399,7 @@ export async function getCashDashboardData(filters?: {
     : channels.cash.inflows - channels.cash.outflows;
 
   const treasuryData = await getTreasuryDashboardData();
-  const settings = await prisma.shopSettings.findUnique({ where: { id: 1 } });
+  const settings = await findShopSettingsById();
 
   return {
     activeSession: activeSessionData,
@@ -1863,16 +1504,7 @@ export interface DailyCashJournalData {
 
 export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJournalData> {
   // 1. Identification du compte de caisse physique principale
-  const defaultCaisse =
-    (await prisma.treasuryAccount.findFirst({
-      where: { isDefault: true, isActive: true },
-    })) ||
-    (await prisma.treasuryAccount.findFirst({
-      where: { type: "cash", isActive: true },
-    })) ||
-    (await prisma.treasuryAccount.findFirst({
-      where: { type: "cash" },
-    }));
+  const defaultCaisse = await findDailyCaisseAccountWithInactive();
 
   if (!defaultCaisse) {
     throw new Error("Compte de caisse journalière introuvable.");
@@ -1896,25 +1528,10 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
   });
 
   // 3. Identification des sessions de caisse ouvertes ou enregistrées pour ce jour
-  const sessionsOnDay = await prisma.cashSession.findMany({
-    where: {
-      OR: [
-        {
-          openedAt: {
-            gte: new Date(`${targetDayStr}T00:00:00.000Z`),
-            lte: new Date(`${targetDayStr}T23:59:59.999Z`),
-          },
-        },
-        {
-          createdAt: {
-            gte: new Date(`${targetDayStr}T00:00:00.000Z`),
-            lte: new Date(`${targetDayStr}T23:59:59.999Z`),
-          },
-        },
-      ],
-    },
-    orderBy: { openedAt: "asc" },
-  });
+  const sessionsOnDay = await findSessionsOfDay(
+    new Date(`${targetDayStr}T00:00:00.000Z`),
+    new Date(`${targetDayStr}T23:59:59.999Z`)
+  );
 
   const sessionIdsForDay = new Set(sessionsOnDay.map((s) => s.id));
   const firstSessionOfDay = sessionsOnDay[0] || null;
@@ -1926,79 +1543,18 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
     openingBalance = firstSessionOfDay.openingAmount;
   } else {
     // Si aucune session n'a été ouverte ce jour, chercher la dernière session clôturée antérieure
-    const priorClosedSession = await prisma.cashSession.findFirst({
-      where: {
-        status: "closed",
-        closedAt: { lt: new Date(`${targetDayStr}T00:00:00.000Z`) },
-      },
-      orderBy: { closedAt: "desc" },
-    });
+    const priorClosedSession = await findPriorClosedSessionBefore(new Date(`${targetDayStr}T00:00:00.000Z`));
 
     if (priorClosedSession && priorClosedSession.closedAt) {
       let bal = priorClosedSession.retainedAmount ?? priorClosedSession.closingAmount ?? 0;
       const cutoff = priorClosedSession.closedAt;
       const dayStart = new Date(`${targetDayStr}T00:00:00.000Z`);
 
-      const [trIn, trOut, pIn, advIn, incIn, suppOut, expOut] = await Promise.all([
-        prisma.treasuryTransfer.aggregate({
-          where: { toAccountId: caisseId, date: { gt: cutoff, lt: dayStart } },
-          _sum: { amount: true },
-        }),
-        prisma.treasuryTransfer.aggregate({
-          where: { fromAccountId: caisseId, date: { gt: cutoff, lt: dayStart } },
-          _sum: { amount: true },
-        }),
-        prisma.payment.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            method: "cash",
-            purchaseId: null,
-            supplierId: null,
-            OR: [{ accountId: caisseId }, { accountId: null }],
-            paymentDate: { gt: cutoff, lt: dayStart },
-          },
-          _sum: { amount: true },
-        }),
-        prisma.customerAdvance.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            method: "cash",
-            OR: [{ accountId: caisseId }, { accountId: null }],
-            paymentDate: { gt: cutoff, lt: dayStart },
-          },
-          _sum: { amount: true },
-        }),
-        prisma.expense.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            type: "income",
-            method: "cash",
-            OR: [{ accountId: caisseId }, { accountId: null }],
-            date: { gt: cutoff, lt: dayStart },
-          },
-          _sum: { amount: true },
-        }),
-        prisma.payment.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            method: "cash",
-            OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }],
-            AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
-            paymentDate: { gt: cutoff, lt: dayStart },
-          },
-          _sum: { amount: true },
-        }),
-        prisma.expense.aggregate({
-          where: {
-            status: { not: "cancelled" },
-            type: "expense",
-            method: "cash",
-            OR: [{ accountId: caisseId }, { accountId: null }],
-            date: { gt: cutoff, lt: dayStart },
-          },
-          _sum: { amount: true },
-        }),
-      ]);
+      const [trIn, trOut, pIn, advIn, incIn, suppOut, expOut] = await findOpeningBalanceAggregates(
+        caisseId,
+        cutoff,
+        dayStart
+      );
 
       bal += (trIn._sum.amount ?? 0) - (trOut._sum.amount ?? 0);
       bal += (pIn._sum.amount ?? 0) + (advIn._sum.amount ?? 0) + (incIn._sum.amount ?? 0);
@@ -2011,53 +1567,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
 
   // 5. Requêtage de tous les flux physiques en espèces liés à la caisse
   const [salePayments, customerAdvances, allExpenses, suppPayments, transfers, allSessions] =
-    await Promise.all([
-      prisma.payment.findMany({
-        where: {
-          status: { not: "cancelled" },
-          method: "cash",
-          purchaseId: null,
-          supplierId: null,
-          OR: [{ accountId: caisseId }, { accountId: null }],
-        },
-        include: { sale: { include: { customer: true } } },
-      }),
-      prisma.customerAdvance.findMany({
-        where: {
-          status: { not: "cancelled" },
-          method: "cash",
-          OR: [{ accountId: caisseId }, { accountId: null }],
-        },
-        include: { customer: true },
-      }),
-      prisma.expense.findMany({
-        where: {
-          status: { not: "cancelled" },
-          method: "cash",
-          OR: [{ accountId: caisseId }, { accountId: null }],
-        },
-      }),
-      prisma.payment.findMany({
-        where: {
-          status: { not: "cancelled" },
-          method: "cash",
-          AND: [
-            { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
-            { OR: [{ accountId: caisseId }, { accountId: null }] },
-          ],
-        },
-        include: { purchase: { include: { supplier: true } }, supplier: true },
-      }),
-      prisma.treasuryTransfer.findMany({
-        where: {
-          OR: [{ fromAccountId: caisseId }, { toAccountId: caisseId }],
-        },
-        include: { fromAccount: true, toAccount: true },
-      }),
-      prisma.cashSession.findMany({
-        select: { id: true, openedAt: true, createdAt: true },
-      }),
-    ]);
+    await fetchDailyCashFlux(caisseId);
 
   // 6. Détection des dates disponibles pour l'historique
   const getEffectiveDayStr = (d: Date): string => {
@@ -2330,15 +1840,7 @@ export async function getDailyCashJournal(dateStr?: string): Promise<DailyCashJo
 
   // 7.6 Versements supplémentaires fournisseurs
   try {
-    const dailySuppAdd = await prisma.supplierAdditionalPayment.findMany({
-      where: {
-        treasuryAccountId: caisseId,
-      },
-      include: {
-        supplier: { select: { name: true } },
-        reversalOf: { select: { reference: true } },
-      },
-    });
+    const dailySuppAdd = await findSuppAdditionalPaymentsForAccount(caisseId);
 
     for (const ap of dailySuppAdd) {
       if (ap.sessionId && sessionDayMap.has(ap.sessionId)) {

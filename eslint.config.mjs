@@ -13,6 +13,33 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    files: ["src/app/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/lib/prisma", "@/lib/prisma.*"],
+              message:
+                "Les actions ne doivent pas importer le client Prisma directement : utiliser @/server/db, @/server/repositories/* ou @/server/services/*.",
+            },
+            {
+              group: ["@/generated/prisma", "@/generated/prisma/**"],
+              message:
+                "Le client généré ne doit être importé que par @/server/db : utiliser @/server/db, @/server/repositories/* ou @/server/services/*.",
+            },
+            {
+              group: ["@/lib/inventory-transaction", "@/lib/period-lock"],
+              message:
+                "Utiliser les services déplacés : @/server/services/inventory ou @/server/services/period-lock.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

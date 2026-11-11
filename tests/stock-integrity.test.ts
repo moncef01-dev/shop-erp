@@ -684,25 +684,31 @@ async function runTests() {
   }
 
   // --------------------------------------------------------------------------
-  // TEST 14: Suppression produit bloquée si stock ou mouvements existants
+  // TEST 14: Suppression produit avec historique => archivage (soft-delete)
+  // (comportement aligné sur deleteProductAction: archivage préservant l'audit)
   // --------------------------------------------------------------------------
   try {
     // productAId a du stock (12) et des mouvements
     const resDel = await actions.deleteProductAction(productAId!);
-    assert(!resDel.success, "La suppression d'un produit avec historique et stock doit être bloquée !");
+    assert(resDel.success, "La suppression d'un produit avec historique doit réussir via archivage !");
     assert(
-      Boolean(resDel.error?.toLowerCase().includes("désactiver")),
-      `Le message doit recommander la désactivation: ${resDel.error}`
+      (resDel.data as { action?: string } | undefined)?.action === "archived",
+      `L'action attendue est un archivage, obtenu: ${String((resDel.data as { action?: string } | undefined)?.action)}`
+    );
+    assert(
+      Boolean(resDel.message?.includes("archiv")),
+      `Le message doit indiquer l'archivage: ${resDel.message}`
     );
 
-    // Vérifier que le produit existe toujours intact
+    // Vérifier que le produit existe toujours intact et désactivé
     const stillThere = await prisma.product.findUnique({ where: { id: productAId! } });
     assert(!!stillThere, "Le produit ne doit pas avoir été supprimé");
+    assert(stillThere!.isActive === false, "Le produit archivé doit être désactivé");
 
-    results.push({ num: 14, name: "Suppression physique bloquée si historique ou stock", passed: true });
-    console.log("✓ Test 14: Suppression physique bloquée si historique ou stock réussi.");
+    results.push({ num: 14, name: "Suppression avec historique => archivage préservé", passed: true });
+    console.log("✓ Test 14: Suppression avec historique => archivage préservé réussi.");
   } catch (err: unknown) {
-    results.push({ num: 14, name: "Suppression physique bloquée si historique ou stock", passed: false, error: (err as Error).message });
+    results.push({ num: 14, name: "Suppression avec historique => archivage préservé", passed: false, error: (err as Error).message });
     console.error("✗ Test 14 Échoué:", err);
   }
 
@@ -738,9 +744,12 @@ async function runTests() {
   // TEST 16: Produits inactifs exclus des nouvelles opérations de stock
   // --------------------------------------------------------------------------
   try {
-    // Désactiver productAId
-    const resToggleProd = await actions.toggleProductStatusAction(productAId!);
-    assert(resToggleProd.success, "Désactivation du produit échouée");
+    // Désactiver productAId (déjà inactif s'il a été archivé au test 14)
+    const prodBeforeToggle = await prisma.product.findUnique({ where: { id: productAId! } });
+    if (prodBeforeToggle!.isActive) {
+      const resToggleProd = await actions.toggleProductStatusAction(productAId!);
+      assert(resToggleProd.success, "Désactivation du produit échouée");
+    }
 
     // Tentative d'entrée de stock sur le produit inactif
     const resReceiptInactive = await actions.recordStockReceiptAction(

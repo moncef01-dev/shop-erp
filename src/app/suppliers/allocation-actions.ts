@@ -1,10 +1,10 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import { revalidatePath } from "next/cache";
-import type { PrismaTransactionClient } from "@/lib/inventory-transaction";
-import { assertPeriodNotLocked } from "@/lib/period-lock";
-import { calculateSupplierDebt } from "./actions";
+import type { TxClient } from "@/server/db";
+import { assertPeriodNotLocked } from "@/server/services/period-lock";
+import { calculateSupplierDebt, aggregateSupplierAllocations, findEligibleAdditionalPayments, findSupplierAllocationHistory, findSupplierUnpaidPurchases } from "@/server/repositories/suppliers.repository";
 import { getSupplierAdditionalPaymentTotal } from "./additional-payment-actions";
 
 export type AllocationActionResponse<T = unknown> = {
@@ -26,7 +26,7 @@ function safeRevalidate() {
 // ─── GÉNÉRATION DE RÉFÉRENCE D'IMPUTATION ────────────────────────────────────
 
 export async function generateNextSupplierAllocationReference(
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
@@ -59,14 +59,7 @@ export async function getSupplierAllocationsSummary(supplierId: number): Promise
   try {
     const totalGiven = await getSupplierAdditionalPaymentTotal(supplierId);
 
-    const allocationsAgg = await prisma.supplierAdditionalPaymentAllocation.aggregate({
-      where: {
-        supplierId,
-        isReversal: false,
-        status: "completed",
-      },
-      _sum: { amount: true },
-    });
+    const allocationsAgg = await aggregateSupplierAllocations(supplierId);
 
     const totalAllocated = allocationsAgg._sum.amount ?? 0;
     const unallocatedAmount = Math.max(0, Math.round((totalGiven - totalAllocated) * 100) / 100);
@@ -101,28 +94,7 @@ export async function getSupplierEligibleAdditionalPayments(
   supplierId: number
 ): Promise<EligibleAdditionalPaymentItem[]> {
   try {
-    const payments = await prisma.supplierAdditionalPayment.findMany({
-      where: {
-        supplierId,
-        isReversal: false,
-        status: "completed",
-      },
-      include: {
-        treasuryAccount: {
-          select: { name: true },
-        },
-        allocations: {
-          where: {
-            isReversal: false,
-            status: "completed",
-          },
-          select: {
-            amount: true,
-          },
-        },
-      },
-      orderBy: { date: "asc" },
-    });
+    const payments = await findEligibleAdditionalPayments(supplierId);
 
     const items: EligibleAdditionalPaymentItem[] = [];
 
@@ -156,24 +128,7 @@ export async function getSupplierEligibleAdditionalPayments(
 
 export async function getSupplierAllocationHistory(supplierId: number) {
   try {
-    const items = await prisma.supplierAdditionalPaymentAllocation.findMany({
-      where: { supplierId },
-      include: {
-        payment: {
-          select: { id: true, reference: true, amount: true, date: true },
-        },
-        purchase: {
-          select: { id: true, reference: true, totalAmount: true, paidAmount: true },
-        },
-        reversal: {
-          select: { id: true, reference: true, date: true, reversalReason: true },
-        },
-        reversalOf: {
-          select: { id: true, reference: true },
-        },
-      },
-      orderBy: { date: "desc" },
-    });
+    const items = await findSupplierAllocationHistory(supplierId);
 
     return items;
   } catch (err: unknown) {
@@ -186,14 +141,7 @@ export async function getSupplierAllocationHistory(supplierId: number) {
 
 export async function getSupplierUnpaidPurchases(supplierId: number) {
   try {
-    const purchases = await prisma.purchase.findMany({
-      where: {
-        supplierId,
-        status: { not: "cancelled" },
-        paymentStatus: { in: ["unpaid", "partial"] },
-      },
-      orderBy: { purchaseDate: "desc" },
-    });
+    const purchases = await findSupplierUnpaidPurchases(supplierId);
 
     return purchases.map((p) => ({
       id: p.id,

@@ -1,10 +1,31 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import type { PrismaTransactionClient } from "@/lib/inventory-transaction";
-import { calculateAccountBalance } from "@/app/cash/treasury-actions";
-import { assertPeriodNotLocked, assertDatesNotLocked } from "@/lib/period-lock";
+import { prisma } from "@/server/db";
+import type { TxClient } from "@/server/db";
+import { calculateAccountBalance } from "@/server/repositories/cash.repository";
+import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
+import { calculateSupplierDebt } from "@/server/repositories/suppliers.repository";
+import {
+  findSupplierById,
+  findSupplierDebtDuplicate,
+  findRecentSupplierDebt,
+  findSupplierDebtByReference,
+  createSupplierDebtRecord,
+  findSupplierDebtsOrdered,
+  findPurchaseLiteForPayment,
+  findPaymentWithFullDetails,
+  findSupplierPurchasesOrdered,
+  findSupplierPaymentsOrdered,
+  findSupplierAllocations,
+  findSuppliersOrderedByName,
+  countSupplierPurchases,
+  countSupplierPayments,
+  findLastSupplierPayment,
+  findLastPurchaseForSupplier,
+} from "@/server/repositories/suppliers.repository";
+
+export { calculateSupplierDebt } from "@/server/repositories/suppliers.repository";
 
 export interface SupplierStatementEvent {
   id: string;
@@ -80,7 +101,7 @@ function safeRevalidate() {
 // ─── GÉNÉRATEURS DE RÉFÉRENCES ────────────────────────────────────────────────
 
 export async function generateNextSupplierDebtReference(
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
@@ -105,7 +126,7 @@ export async function generateNextSupplierDebtReference(
 }
 
 export async function generateNextSupplierPaymentRef(
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
@@ -130,7 +151,7 @@ export async function generateNextSupplierPaymentRef(
 }
 
 export async function generateNextSupplierReturnReference(
-  txClient?: PrismaTransactionClient
+  txClient?: TxClient
 ): Promise<string> {
   const db = txClient || prisma;
   const now = new Date();
@@ -152,90 +173,6 @@ export async function generateNextSupplierReturnReference(
     }
   }
   return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
-
-// ─── CALCUL DU SOLDE D'UN FOURNISSEUR ──────────────────────────────────────────
-
-export async function calculateSupplierDebt(
-  supplierId: number,
-  txClient?: PrismaTransactionClient
-): Promise<{
-  initialDebt: number;
-  totalPurchases: number;
-  totalPaid: number;
-  totalReturns: number;
-  totalAllocated: number;
-  outstandingDebt: number;
-  outstandingCredit: number;
-}> {
-  const db = txClient || prisma;
-
-  // 1. Dettes initiales / antérieures (hors retours)
-  const debtsAgg = await db.supplierDebt.aggregate({
-    where: { supplierId, type: { notIn: ["supplier_return", "return"] } },
-    _sum: { amount: true },
-  });
-  const initialDebt = debtsAgg._sum.amount ?? 0;
-
-  // 2. Retours marchandises / Avoirs (déduits de la dette)
-  const returnsAgg = await db.supplierDebt.aggregate({
-    where: { supplierId, type: { in: ["supplier_return", "return"] } },
-    _sum: { amount: true },
-  });
-  const totalReturns = returnsAgg._sum.amount ?? 0;
-
-  // 3. Achats confirmés dans le système
-  const purchasesAgg = await db.purchase.aggregate({
-    where: {
-      supplierId,
-      status: { not: "cancelled" },
-    },
-    _sum: { totalAmount: true },
-  });
-  const totalPurchases = purchasesAgg._sum.totalAmount ?? 0;
-
-  // 4. Paiements effectués au fournisseur
-  const paymentsAgg = await db.payment.aggregate({
-    where: {
-      status: { not: "cancelled" },
-      OR: [
-        { supplierId },
-        { purchase: { supplierId } },
-      ],
-    },
-    _sum: { amount: true },
-  });
-  const totalPaid = paymentsAgg._sum.amount ?? 0;
-
-  // 5. Imputations de versements supplémentaires sur la dette
-  let totalAllocated = 0;
-  try {
-    const allocAgg = await db.supplierAdditionalPaymentAllocation.aggregate({
-      where: {
-        supplierId,
-        status: "completed",
-        isReversal: false,
-      },
-      _sum: { amount: true },
-    });
-    totalAllocated = allocAgg._sum.amount ?? 0;
-  } catch {
-    // Ignore si la table n'est pas encore initialisée
-  }
-
-  const netBalance = initialDebt + totalPurchases - totalPaid - totalReturns - totalAllocated;
-  const outstandingDebt = Math.max(0, netBalance);
-  const outstandingCredit = Math.max(0, -netBalance);
-
-  return {
-    initialDebt: Math.round(initialDebt * 100) / 100,
-    totalPurchases: Math.round(totalPurchases * 100) / 100,
-    totalPaid: Math.round(totalPaid * 100) / 100,
-    totalReturns: Math.round(totalReturns * 100) / 100,
-    totalAllocated: Math.round(totalAllocated * 100) / 100,
-    outstandingDebt: Math.round(outstandingDebt * 100) / 100,
-    outstandingCredit: Math.round(outstandingCredit * 100) / 100,
-  };
 }
 
 // ─── ENREGISTRER UNE DETTE INITIALE ────────────────────────────────────────────
@@ -295,21 +232,13 @@ export async function recordSupplierInitialDebtAction(
       };
     }
 
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: supplierId },
-    });
+    const supplier = await findSupplierById(supplierId);
     if (!supplier) {
       return { success: false, error: "Fournisseur introuvable." };
     }
 
     // Protection anti-doublon strict (même fournisseur, même montant, même description)
-    const existing = await prisma.supplierDebt.findFirst({
-      where: {
-        supplierId,
-        amount,
-        description,
-      },
-    });
+    const existing = await findSupplierDebtDuplicate(supplierId, amount, description);
     if (existing) {
       return {
         success: false,
@@ -320,13 +249,7 @@ export async function recordSupplierInitialDebtAction(
     }
 
     // Protection anti-double soumission rapide (15 secondes)
-    const recent = await prisma.supplierDebt.findFirst({
-      where: {
-        supplierId,
-        amount,
-        createdAt: { gte: new Date(Date.now() - 15000) },
-      },
-    });
+    const recent = await findRecentSupplierDebt(supplierId, amount, new Date(Date.now() - 15000));
     if (recent) {
       return {
         success: false,
@@ -338,9 +261,7 @@ export async function recordSupplierInitialDebtAction(
 
     // Protection anti-doublon référence explicite
     if (reference && reference.trim()) {
-      const existingByRef = await prisma.supplierDebt.findUnique({
-        where: { reference: reference.trim() },
-      });
+      const existingByRef = await findSupplierDebtByReference(reference.trim());
       if (existingByRef) {
         return {
           success: false,
@@ -351,16 +272,14 @@ export async function recordSupplierInitialDebtAction(
 
     const finalReference = reference && reference.trim() ? reference.trim() : await generateNextSupplierDebtReference();
 
-    const createdDebt = await prisma.supplierDebt.create({
-      data: {
-        reference: finalReference,
-        supplierId,
-        amount,
-        type: "initial_debt",
-        description,
-        notes,
-        date,
-      },
+    const createdDebt = await createSupplierDebtRecord({
+      reference: finalReference,
+      supplierId,
+      amount,
+      type: "initial_debt",
+      description,
+      notes,
+      date,
     });
 
     safeRevalidate();
@@ -440,9 +359,7 @@ export async function recordSupplierReturnAction(
     const returnEffectiveDate = dateStr ? new Date(dateStr) : new Date();
     await assertPeriodNotLocked(returnEffectiveDate, "Enregistrement retour marchandise fournisseur");
 
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: supplierId },
-    });
+    const supplier = await findSupplierById(supplierId);
     if (!supplier) {
       return { success: false, error: "Fournisseur introuvable." };
     }
@@ -621,18 +538,13 @@ export async function recordSupplierPaymentMultiAccountAction(
     let targetSupplierId = supplierIdStr ? parseInt(supplierIdStr, 10) : 0;
 
     if (purchaseId) {
-      const p = await prisma.purchase.findUnique({
-        where: { id: purchaseId },
-        select: { supplierId: true, totalAmount: true, paidAmount: true, status: true },
-      });
+      const p = await findPurchaseLiteForPayment(purchaseId);
       if (!p) return { success: false, error: "Commande fournisseur introuvable." };
       if (p.status === "cancelled") return { success: false, error: "Impossible de payer une commande annulée." };
       if (p.supplierId) targetSupplierId = p.supplierId;
     }
 
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: targetSupplierId },
-    });
+    const supplier = await findSupplierById(targetSupplierId);
     if (!supplier) return { success: false, error: "Fournisseur introuvable." };
 
     // Transaction atomique avec vérification stricte du solde compte et de la dette
@@ -837,15 +749,7 @@ export async function cancelSupplierPaymentAction(
       return { success: false, error: "Identifiant de versement manquant." };
     }
 
-    const payment = await prisma.payment.findUnique({
-      where: { id: paymentId },
-      include: {
-        supplier: true,
-        purchase: true,
-        session: true,
-        account: true,
-      },
-    });
+    const payment = await findPaymentWithFullDetails(paymentId);
 
     if (!payment) {
       return { success: false, error: "Versement introuvable." };
@@ -1074,19 +978,14 @@ export async function getSupplierStatement(
   supplierId: number,
   filters?: { startDate?: string; endDate?: string }
 ): Promise<SupplierStatementData | null> {
-  const supplier = await prisma.supplier.findUnique({
-    where: { id: supplierId },
-  });
+  const supplier = await findSupplierById(supplierId);
   if (!supplier) return null;
 
   const events: SupplierStatementEvent[] = [];
 
   // 1. Dettes initiales
   // 1. Dettes et Retours
-  const debts = await prisma.supplierDebt.findMany({
-    where: { supplierId },
-    orderBy: { date: "asc" },
-  });
+  const debts = await findSupplierDebtsOrdered(supplierId);
   for (const d of debts) {
     const isReturn = d.type === "supplier_return" || d.type === "return";
     const isRefund = d.type === "supplier_refund";
@@ -1133,13 +1032,7 @@ export async function getSupplierStatement(
   }
 
   // 2. Factures achats
-  const purchases = await prisma.purchase.findMany({
-    where: {
-      supplierId,
-      status: { not: "cancelled" },
-    },
-    orderBy: { purchaseDate: "asc" },
-  });
+  const purchases = await findSupplierPurchasesOrdered(supplierId);
   for (const p of purchases) {
     events.push({
       id: `pur-${p.id}`,
@@ -1156,20 +1049,7 @@ export async function getSupplierStatement(
   }
 
   // 3. Règlements
-  const payments = await prisma.payment.findMany({
-    where: {
-      status: { not: "cancelled" },
-      OR: [
-        { supplierId },
-        { purchase: { supplierId } },
-      ],
-    },
-    include: {
-      account: { select: { name: true } },
-      purchase: { select: { reference: true } },
-    },
-    orderBy: { paymentDate: "asc" },
-  });
+  const payments = await findSupplierPaymentsOrdered(supplierId);
   for (const pay of payments) {
     events.push({
       id: `pay-${pay.id}`,
@@ -1206,18 +1086,7 @@ export async function getSupplierStatement(
     purchase?: { reference: string } | null;
   }> = [];
   try {
-    allocations = await prisma.supplierAdditionalPaymentAllocation.findMany({
-      where: {
-        supplierId,
-        status: "completed",
-        isReversal: false,
-      },
-      include: {
-        payment: { select: { reference: true } },
-        purchase: { select: { reference: true } },
-      },
-      orderBy: { date: "asc" },
-    });
+    allocations = await findSupplierAllocations(supplierId);
   } catch {
     // Ignore si la table n'est pas encore initialisée
   }
@@ -1357,22 +1226,7 @@ export async function getAllSuppliersWithDebts(searchQuery?: string): Promise<{
     totalPaidAmount: number;
   };
 }> {
-  const query = searchQuery?.trim();
-  const whereClause = query
-    ? {
-        OR: [
-          { name: { contains: query } },
-          { phone: { contains: query } },
-          { code: { contains: query } },
-          { address: { contains: query } },
-        ],
-      }
-    : {};
-
-  const suppliers = await prisma.supplier.findMany({
-    where: whereClause,
-    orderBy: { name: "asc" },
-  });
+  const suppliers = await findSuppliersOrderedByName(searchQuery);
 
   const list: SupplierDetailsWithBalance[] = [];
   let totalOutstandingDebt = 0;
@@ -1382,30 +1236,12 @@ export async function getAllSuppliersWithDebts(searchQuery?: string): Promise<{
 
   for (const s of suppliers) {
     const debtInfo = await calculateSupplierDebt(s.id);
-    const purchasesCount = await prisma.purchase.count({
-      where: { supplierId: s.id, status: { not: "cancelled" } },
-    });
-    const paymentsCount = await prisma.payment.count({
-      where: {
-        status: { not: "cancelled" },
-        OR: [{ supplierId: s.id }, { purchase: { supplierId: s.id } }],
-      },
-    });
+    const purchasesCount = await countSupplierPurchases(s.id);
+    const paymentsCount = await countSupplierPayments(s.id);
 
-    const lastPayment = await prisma.payment.findFirst({
-      where: {
-        status: { not: "cancelled" },
-        OR: [{ supplierId: s.id }, { purchase: { supplierId: s.id } }],
-      },
-      orderBy: { paymentDate: "desc" },
-      select: { paymentDate: true },
-    });
+    const lastPayment = await findLastSupplierPayment(s.id);
 
-    const lastPurchase = await prisma.purchase.findFirst({
-      where: { supplierId: s.id, status: { not: "cancelled" } },
-      orderBy: { purchaseDate: "desc" },
-      select: { purchaseDate: true },
-    });
+    const lastPurchase = await findLastPurchaseForSupplier(s.id);
 
     totalOutstandingDebt += debtInfo.outstandingDebt;
     totalOutstandingCredit += debtInfo.outstandingCredit;

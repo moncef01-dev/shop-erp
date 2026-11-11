@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { prisma } from "@/lib/prisma";
+import { fetchAdvancesForPage } from "@/server/repositories/sales.repository";
 import { AdvancesClient, type AdvanceItem } from "./AdvancesClient";
 
 export const metadata: Metadata = {
@@ -10,13 +10,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AdvancesPage() {
-  const rawAdvances = await prisma.customerAdvance.findMany({
-    orderBy: { paymentDate: "desc" },
-    include: {
-      customer: { select: { id: true, name: true, phone: true } },
-      account: { select: { id: true, name: true, code: true } },
-    },
-  });
+  const rawAdvances = await fetchAdvancesForPage();
 
   const advances: AdvanceItem[] = rawAdvances.map((a) => {
     const available = Math.max(0, a.amount - a.allocatedAmount - a.refundedAmount);

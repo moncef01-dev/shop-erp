@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db";
 import { revalidatePath } from "next/cache";
 import {
   MonthlyClosingDashboardData,
@@ -17,7 +17,22 @@ import {
   MonthlyClosingPeriodInfo,
   MonthlyClosingAuditLogItem,
 } from "./types";
-import { isMonthLocked } from "@/lib/period-lock";
+import { isMonthLocked } from "@/server/services/period-lock";
+import {
+  generateNextMonthlySnapshotReference,
+  fetchMonthlyClosingDataQueries,
+  findMonthlyClosingPeriod,
+  findMonthlyAuditLogs,
+  upsertMonthlyChecklistItem,
+  countMonthlySnapshots,
+  createMonthlySnapshot,
+  findMonthlySnapshotById,
+  updateMonthlySnapshot,
+  upsertMonthlyPeriod,
+  createMonthlyAuditLog,
+} from "@/server/repositories/closing.repository";
+import { findShopSettingsFirst } from "@/server/repositories/savings.repository";
+import { supportsFileBackup } from "@/server/db/capabilities";
 import {
   getEffectiveDayStr,
   getCurrentMonthStr,
@@ -96,8 +111,8 @@ const STANDARD_CHECKLIST_DEFINITIONS: {
   },
   {
     key: "backup_completed",
-    label: "10. Sauvegarde de la base de données SQLite effectuée",
-    description: "Contrôle de l'intégrité de la base de données SQLite (PRAGMA integrity_check) et archivage d'une copie de sauvegarde horodatée.",
+    label: "10. Sauvegarde de la base de données effectuée",
+    description: "Contrôle de l'intégrité de la base de données et archivage d'une copie de sauvegarde horodatée (sur SQLite : PRAGMA integrity_check + VACUUM INTO).",
     category: "audit",
   },
 ];
@@ -117,26 +132,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 // ─── GÉNÉRATION DES RÉFÉRENCES DE SNAPSHOT : CLM-YYYYMM-XXXX ───────────────────
 
-export async function generateNextMonthlySnapshotReference(monthStr: string): Promise<string> {
-  const cleanMonth = monthStr.replace("-", "");
-  const prefix = `CLM-${cleanMonth}-`;
-
-  const lastSnapshot = await prisma.monthlyClosingSnapshot.findFirst({
-    where: { reference: { startsWith: prefix } },
-    orderBy: { reference: "desc" },
-    select: { reference: true },
-  });
-
-  let nextSeq = 1;
-  if (lastSnapshot?.reference) {
-    const parts = lastSnapshot.reference.split("-");
-    const lastSeq = parseInt(parts[2], 10);
-    if (!isNaN(lastSeq)) {
-      nextSeq = lastSeq + 1;
-    }
-  }
-  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
+export { generateNextMonthlySnapshotReference } from "@/server/repositories/closing.repository";
 
 // ─── CALCUL COMPLET DU DASHBOARD MENSUEL ──────────────────────────────────────
 
@@ -151,7 +147,7 @@ export async function getMonthlyClosingData(
   const { startDayStr, endDayStr } = boundaries;
 
   // 1. Paramètres de l'entreprise
-  const rawSettings = await prisma.shopSettings.findFirst({ where: { id: 1 } });
+  const rawSettings = await findShopSettingsFirst();
   const shopSettings = {
     shopName: rawSettings?.shopName || "Shop ERP",
     activity: rawSettings?.activity || "Magasin d'Ameublement & Décoration",
@@ -179,126 +175,7 @@ export async function getMonthlyClosingData(
     allLocations,
     savedChecklistItems,
     savedSnapshots,
-  ] = await Promise.all([
-    // Ventes
-    prisma.sales.findMany({
-      where: { status: { not: "cancelled" } },
-      include: {
-        customer: { select: { id: true, name: true, code: true } },
-        items: {
-          include: {
-            product: { select: { costPrice: true, sellingPrice: true } },
-          },
-        },
-      },
-      orderBy: { saleDate: "asc" },
-    }),
-
-    // Règlements (Ventes et Fournisseurs)
-    prisma.payment.findMany({
-      where: { status: { not: "cancelled" } },
-      include: {
-        account: { select: { id: true, name: true, code: true, type: true } },
-        sale: { select: { id: true, reference: true, saleDate: true, customerId: true } },
-        purchase: { select: { id: true, reference: true, supplierId: true } },
-      },
-      orderBy: { paymentDate: "asc" },
-    }),
-
-    // Acomptes clients
-    prisma.customerAdvance.findMany({
-      where: { status: { not: "cancelled" } },
-      include: {
-        customer: { select: { id: true, name: true, code: true } },
-        account: { select: { id: true, name: true, code: true } },
-        allocations: {
-          select: { id: true, amount: true, allocatedAt: true, saleId: true },
-        },
-      },
-      orderBy: { paymentDate: "asc" },
-    }),
-
-    // Achats
-    prisma.purchase.findMany({
-      where: { status: { not: "cancelled" } },
-      include: {
-        supplier: { select: { id: true, name: true, code: true } },
-      },
-      orderBy: { purchaseDate: "asc" },
-    }),
-
-    // Dettes et retours fournisseurs
-    prisma.supplierDebt.findMany({
-      include: {
-        supplier: { select: { id: true, name: true, code: true } },
-      },
-      orderBy: { date: "asc" },
-    }),
-
-    // Charges et produits exceptionnels
-    prisma.expense.findMany({
-      where: {
-        status: { not: "cancelled" },
-      },
-      include: {
-        account: { select: { id: true, name: true, code: true, type: true } },
-      },
-      orderBy: { date: "asc" },
-    }),
-
-    // Comptes de trésorerie
-    prisma.treasuryAccount.findMany({
-      where: { isActive: true },
-      orderBy: [{ isDefault: "desc" }, { id: "asc" }],
-    }),
-
-    // Virements inter-comptes
-    prisma.treasuryTransfer.findMany({
-      include: {
-        fromAccount: { select: { id: true, name: true, code: true } },
-        toAccount: { select: { id: true, name: true, code: true } },
-      },
-      orderBy: { date: "asc" },
-    }),
-
-    // Sessions de caisse
-    prisma.cashSession.findMany({
-      include: {
-        account: { select: { id: true, name: true, code: true } },
-      },
-      orderBy: { openedAt: "desc" },
-    }),
-
-    // Produits et valorisation de stock
-    prisma.product.findMany({
-      where: { isActive: true },
-      include: {
-        categoryRef: { select: { name: true } },
-        stocks: {
-          include: {
-            location: { select: { id: true, name: true, code: true } },
-          },
-        },
-      },
-    }),
-
-    // Dépôts / Magasins
-    prisma.location.findMany({
-      where: { isActive: true },
-      orderBy: { id: "asc" },
-    }),
-
-    // Pointage sauvegardé pour le mois
-    prisma.monthlyClosingChecklist.findMany({
-      where: { month },
-    }),
-
-    // Snapshots existants pour le mois
-    prisma.monthlyClosingSnapshot.findMany({
-      where: { month },
-      orderBy: { version: "desc" },
-    }),
-  ]);
+  ] = await fetchMonthlyClosingDataQueries(month);
 
   // ─── 3. TRAITEMENT DES VENTES DU MOIS ───────────────────────────────────────
   const salesInMonth = allSales.filter((s) => {
@@ -883,6 +760,20 @@ export async function getMonthlyClosingData(
 
   const checklist: MonthlyClosingChecklistItem[] = STANDARD_CHECKLIST_DEFINITIONS.map((def) => {
     const saved = savedChecklistMap.get(def.key);
+    // Sur PostgreSQL, la sauvegarde fichier (VACUUM INTO) n'est pas applicable :
+    // le point est automatiquement marqué N/A et ne bloque pas la clôture.
+    if (def.key === "backup_completed" && !supportsFileBackup()) {
+      return {
+        key: def.key,
+        label: def.label,
+        description: def.description,
+        category: def.category,
+        status: "NOT_APPLICABLE" as ChecklistStatus,
+        note: "Sauvegarde fichier non applicable sur PostgreSQL (utilisez un dump externe).",
+        checkedBy: "Système",
+        checkedAt: new Date().toISOString(),
+      };
+    }
     return {
       key: def.key,
       label: def.label,
@@ -1023,14 +914,9 @@ export async function getMonthlyClosingData(
   const availableMonths = Array.from(availableMonthsSet).sort().reverse();
 
   // ─── 16. INFORMATIONS DE PÉRIODE & ÉVALUATION DU WORKFLOW ───────────────────
-  const periodRecord = await prisma.monthlyClosingPeriod.findUnique({
-    where: { month },
-  });
+  const periodRecord = await findMonthlyClosingPeriod(month);
 
-  const auditLogRecords = await prisma.monthlyClosingAuditLog.findMany({
-    where: { month },
-    orderBy: { createdAt: "desc" },
-  });
+  const auditLogRecords = await findMonthlyAuditLogs(month);
 
   const rawStatus = (periodRecord?.status as ClosingWorkflowStatus) || "DRAFT";
   const isLocked = Boolean(periodRecord?.isLocked || rawStatus === "FINAL");
@@ -1172,6 +1058,11 @@ export async function updateChecklistItemAction(
       return { success: false, error: "Paramètres manquants pour mettre à jour le contrôle." };
     }
 
+    // Sur PostgreSQL, le point de sauvegarde fichier est géré automatiquement (N/A).
+    if (itemKey === "backup_completed" && !supportsFileBackup()) {
+      return { success: false, error: "Ce point est non applicable sur PostgreSQL (sauvegarde fichier indisponible)." };
+    }
+
     if (await isMonthLocked(month)) {
       return {
         success: false,
@@ -1187,27 +1078,13 @@ export async function updateChecklistItemAction(
     const trimmedNote = note?.trim() || null;
     const now = new Date();
 
-    await prisma.monthlyClosingChecklist.upsert({
-      where: {
-        month_itemKey: {
-          month,
-          itemKey,
-        },
-      },
-      create: {
-        month,
-        itemKey,
-        status,
-        note: trimmedNote,
-        checkedBy: operatorName,
-        checkedAt: status !== "PENDING" ? now : null,
-      },
-      update: {
-        status,
-        note: trimmedNote,
-        checkedBy: operatorName,
-        checkedAt: status !== "PENDING" ? now : null,
-      },
+    await upsertMonthlyChecklistItem({
+      month,
+      itemKey,
+      status,
+      note: trimmedNote,
+      checkedBy: operatorName,
+      checkedAt: status !== "PENDING" ? now : null,
     });
 
     safeRevalidate("/closing/monthly");
@@ -1243,9 +1120,7 @@ export async function createMonthlyClosingSnapshotAction(
     const reference = await generateNextMonthlySnapshotReference(month);
 
     // Déterminer la version suivante
-    const existingSnapshotsCount = await prisma.monthlyClosingSnapshot.count({
-      where: { month },
-    });
+    const existingSnapshotsCount = await countMonthlySnapshots(month);
     const version = existingSnapshotsCount + 1;
 
     const boundaries = getMonthBoundaries(month);
@@ -1259,22 +1134,20 @@ export async function createMonthlyClosingSnapshotAction(
       },
     };
 
-    await prisma.monthlyClosingSnapshot.create({
-      data: {
-        reference,
-        month,
-        version,
-        status: "DRAFT",
-        title: title?.trim() || `Clôture Mensuelle ${boundaries.monthLabel} (v${version})`,
-        notes: notes?.trim() || null,
-        generatedAt: new Date(),
-        generatedBy: operatorName,
-        periodStart: boundaries.startDateUtc,
-        periodEnd: boundaries.endDateUtc,
-        totalsJson: JSON.stringify(snapshotTotals),
-        checklistJson: JSON.stringify(data.checklist),
-        discrepanciesJson: JSON.stringify(data.totals.review.discrepancies),
-      },
+    await createMonthlySnapshot({
+      reference,
+      month,
+      version,
+      status: "DRAFT",
+      title: title?.trim() || `Clôture Mensuelle ${boundaries.monthLabel} (v${version})`,
+      notes: notes?.trim() || null,
+      generatedAt: new Date(),
+      generatedBy: operatorName,
+      periodStart: boundaries.startDateUtc,
+      periodEnd: boundaries.endDateUtc,
+      totalsJson: JSON.stringify(snapshotTotals),
+      checklistJson: JSON.stringify(data.checklist),
+      discrepanciesJson: JSON.stringify(data.totals.review.discrepancies),
     });
 
     safeRevalidate("/closing/monthly");
@@ -1293,9 +1166,7 @@ export async function updateSnapshotStatusAction(
   newStatus: "DRAFT" | "FINAL" | "ARCHIVED"
 ): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
-    const existing = await prisma.monthlyClosingSnapshot.findUnique({
-      where: { id: snapshotId },
-    });
+    const existing = await findMonthlySnapshotById(snapshotId);
 
     if (!existing) {
       return { success: false, error: "Instantané introuvable." };
@@ -1309,10 +1180,7 @@ export async function updateSnapshotStatusAction(
     }
 
     // Le contenu figé (totalsJson, checklistJson) ne change JAMAIS : seul le statut d'archivage/validation évolue
-    await prisma.monthlyClosingSnapshot.update({
-      where: { id: snapshotId },
-      data: { status: newStatus },
-    });
+    await updateMonthlySnapshot(snapshotId, { status: newStatus });
 
     safeRevalidate("/closing/monthly");
     return { success: true, message: `Statut de l'instantané ${existing.reference} mis à jour : ${newStatus}.` };
@@ -1346,8 +1214,7 @@ export async function markPeriodReadyForApprovalAction(
 
     const boundaries = getMonthBoundaries(month);
 
-    const period = await prisma.monthlyClosingPeriod.upsert({
-      where: { month },
+    const period = await upsertMonthlyPeriod(month, {
       create: {
         month,
         status: "READY_FOR_APPROVAL",
@@ -1361,16 +1228,14 @@ export async function markPeriodReadyForApprovalAction(
       },
     });
 
-    await prisma.monthlyClosingAuditLog.create({
-      data: {
-        periodId: period.id,
+    await createMonthlyAuditLog({
+      periodId: period.id,
         month,
         action: "STATUS_CHANGE",
         fromStatus: data.periodInfo.status,
         toStatus: "READY_FOR_APPROVAL",
         operator: operatorName,
-        reason: "Contrôles préalables validés ; période prête pour approbation",
-      },
+      reason: "Contrôles préalables validés ; période prête pour approbation",
     });
 
     safeRevalidate("/closing/monthly");
@@ -1395,8 +1260,7 @@ export async function revertPeriodToDraftAction(
 
     const boundaries = getMonthBoundaries(month);
 
-    const period = await prisma.monthlyClosingPeriod.upsert({
-      where: { month },
+    const period = await upsertMonthlyPeriod(month, {
       create: {
         month,
         status: "DRAFT",
@@ -1410,17 +1274,15 @@ export async function revertPeriodToDraftAction(
       },
     });
 
-    await prisma.monthlyClosingAuditLog.create({
-      data: {
-        periodId: period.id,
+    await createMonthlyAuditLog({
+      periodId: period.id,
         month,
         action: "STATUS_CHANGE",
         fromStatus: data.periodInfo.status,
         toStatus: "DRAFT",
         operator: operatorName,
         reason: "Retour en statut brouillon pour ajustements",
-      },
-    });
+          });
 
     safeRevalidate("/closing/monthly");
     return { success: true, message: `Période ${data.monthLabel} replacée en statut Brouillon.` };
@@ -1438,7 +1300,7 @@ export async function approveAndLockMonthlyClosingAction(
 ): Promise<{ success: boolean; reference?: string; message?: string; error?: string }> {
   try {
     if (!month) return { success: false, error: "Mois manquant." };
-    if (!confirmBackup) {
+    if (!confirmBackup && supportsFileBackup()) {
       return { success: false, error: "Vous devez confirmer avoir vérifié une sauvegarde récente de la base avant d'approuver définitivement la clôture." };
     }
 
@@ -1466,16 +1328,12 @@ export async function approveAndLockMonthlyClosingAction(
 
     // Sélectionner le dernier instantané créé pour ce mois et le promouvoir en FINAL
     const latestSnapshot = data.snapshots[0];
-    await prisma.monthlyClosingSnapshot.update({
-      where: { id: latestSnapshot.id },
-      data: { status: "FINAL" },
-    });
+    await updateMonthlySnapshot(latestSnapshot.id, { status: "FINAL" });
 
     const now = new Date();
     const boundaries = getMonthBoundaries(month);
 
-    const period = await prisma.monthlyClosingPeriod.upsert({
-      where: { month },
+    const period = await upsertMonthlyPeriod(month, {
       create: {
         month,
         status: "FINAL",
@@ -1502,9 +1360,8 @@ export async function approveAndLockMonthlyClosingAction(
     });
 
     // Journal d'audit permanent
-    await prisma.monthlyClosingAuditLog.create({
-      data: {
-        periodId: period.id,
+    await createMonthlyAuditLog({
+      periodId: period.id,
         month,
         action: "APPROVED",
         fromStatus: data.periodInfo.status,
@@ -1513,8 +1370,7 @@ export async function approveAndLockMonthlyClosingAction(
         snapshotRef: latestSnapshot.reference,
         version: latestSnapshot.version,
         reason: approvalNotes?.trim() || "Clôture mensuelle approuvée formellement et période verrouillée",
-      },
-    });
+          });
 
     safeRevalidate("/closing/monthly");
     return {
@@ -1550,8 +1406,7 @@ export async function reopenMonthlyClosingAction(
 
     const boundaries = getMonthBoundaries(month);
 
-    const period = await prisma.monthlyClosingPeriod.upsert({
-      where: { month },
+    const period = await upsertMonthlyPeriod(month, {
       create: {
         month,
         status: "REOPENED",
@@ -1566,9 +1421,8 @@ export async function reopenMonthlyClosingAction(
     });
 
     // Journal d'audit permanent et inaltérable
-    await prisma.monthlyClosingAuditLog.create({
-      data: {
-        periodId: period.id,
+    await createMonthlyAuditLog({
+      periodId: period.id,
         month,
         action: "REOPENED",
         fromStatus: "FINAL",
@@ -1576,8 +1430,7 @@ export async function reopenMonthlyClosingAction(
         operator: operatorName.trim(),
         reason: reason.trim(),
         snapshotRef: data.periodInfo.finalSnapshotRef,
-      },
-    });
+          });
 
     safeRevalidate("/closing/monthly");
     return {

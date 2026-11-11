@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { fetchReportsOverview } from "@/server/repositories/reports.repository";
 import { getShopSettings, type ShopSettingsData } from "@/app/settings/actions";
 
 export interface DateFilterRange {
@@ -178,67 +178,7 @@ export async function getReportsData(filter?: DateFilterRange): Promise<ReportsD
     payments,
     products,
     locations,
-  ] = await Promise.all([
-    // Ventes confirmées dans la période
-    prisma.sales.findMany({
-      where: {
-        status: "confirmed",
-        saleDate: { gte: start, lte: end },
-      },
-      include: {
-        items: {
-          include: {
-            product: { select: { id: true, sku: true, name: true, costPrice: true } },
-          },
-        },
-        payments: true,
-      },
-    }),
-
-    // Achats fournisseurs dans la période
-    prisma.purchase.findMany({
-      where: {
-        status: { not: "cancelled" },
-        purchaseDate: { gte: start, lte: end },
-      },
-      include: {
-        payments: true,
-      },
-    }),
-
-    // Dépenses dans la période
-    prisma.expense.findMany({
-      where: {
-        date: { gte: start, lte: end },
-        status: { not: "cancelled" },
-      },
-    }),
-
-    // Paiements dans la période
-    prisma.payment.findMany({
-      where: {
-        paymentDate: { gte: start, lte: end },
-        status: "completed",
-      },
-    }),
-
-    // Produits et stocks actuels
-    prisma.product.findMany({
-      include: {
-        categoryRef: { select: { name: true } },
-        stocks: {
-          include: {
-            location: { select: { id: true, name: true, code: true } },
-          },
-        },
-      },
-    }),
-
-    // Emplacements / Dépôts
-    prisma.location.findMany({
-      where: { isActive: true },
-    }),
-  ]);
+  ] = await fetchReportsOverview(start, end);
 
   // ─── 2. CALCULS VENTES & CHIFFRE D'AFFAIRES ────────────────────────────────
   let invoicedRevenue = 0;

@@ -1,6 +1,6 @@
 import { getAllSuppliersWithDebts } from "./actions";
 import { getTreasuryDashboardData } from "@/app/cash/treasury-actions";
-import { prisma } from "@/lib/prisma";
+import { findOpenCashSessionLite } from "@/server/repositories/cash.repository";
 import { SuppliersClient } from "./SuppliersClient";
 
 export const dynamic = "force-dynamic";
@@ -8,10 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function SuppliersPage() {
   const { suppliers, metrics } = await getAllSuppliersWithDebts();
   const { accounts } = await getTreasuryDashboardData();
-  const activeSession = await prisma.cashSession.findFirst({
-    where: { status: "open" },
-    select: { id: true, reference: true, status: true },
-  });
+  const activeSession = await findOpenCashSessionLite();
 
   return (
     <div className="p-6">
