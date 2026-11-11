@@ -89,3 +89,139 @@ export function findSupplierById(id: number, db: DbClient = prisma) {
 export function findSupplierDebtById(id: number, db: DbClient = prisma) {
   return db.supplierDebt.findUnique({ where: { id } });
 }
+
+export function findSupplierByPhone(phone: string, excludeId?: number, db: DbClient = prisma) {
+  return db.supplier.findFirst({
+    where: {
+      phone: { equals: phone },
+      ...(excludeId !== undefined ? { id: { not: excludeId } } : {}),
+    },
+  });
+}
+
+export function findSuppliersWithPurchaseHistory(searchQuery?: string, db: DbClient = prisma) {
+  const query = searchQuery?.trim();
+
+  const whereClause = query
+    ? {
+        OR: [
+          { name: { contains: query } },
+          { phone: { contains: query } },
+          { code: { contains: query } },
+          { email: { contains: query } },
+          { address: { contains: query } },
+        ],
+      }
+    : {};
+
+  return db.supplier.findMany({
+    where: whereClause,
+    include: {
+      purchases: {
+        where: { status: { not: "cancelled" } },
+        select: {
+          id: true,
+          reference: true,
+          totalAmount: true,
+          paidAmount: true,
+          status: true,
+          paymentStatus: true,
+          receiptStatus: true,
+          purchaseDate: true,
+        },
+        orderBy: { purchaseDate: "desc" },
+      },
+      _count: {
+        select: { purchases: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export function findLastSupplierPayment(supplierId: number, db: DbClient = prisma) {
+  return db.payment.findFirst({
+    where: {
+      status: { not: "cancelled" },
+      OR: [{ supplierId }, { purchase: { supplierId } }],
+    },
+    orderBy: { paymentDate: "desc" },
+    select: { paymentDate: true },
+  });
+}
+
+export function findSupplierStatusById(id: number, db: DbClient = prisma) {
+  return db.supplier.findUnique({
+    where: { id },
+    select: { id: true, name: true, isActive: true },
+  });
+}
+
+export function findSupplierWithCounts(id: number, db: DbClient = prisma) {
+  return db.supplier.findUnique({
+    where: { id },
+    include: {
+      _count: { select: { purchases: true, payments: true, debts: true } },
+    },
+  });
+}
+
+export function findSupplierWithFullHistory(id: number, db: DbClient = prisma) {
+  return db.supplier.findUnique({
+    where: { id },
+    include: {
+      purchases: {
+        include: {
+          items: {
+            include: {
+              product: { select: { id: true, sku: true, name: true, model: true, color: true } },
+              location: { select: { id: true, name: true, code: true } },
+            },
+          },
+          payments: {
+            orderBy: { paymentDate: "desc" },
+          },
+          receipts: {
+            include: {
+              items: {
+                include: {
+                  product: { select: { id: true, sku: true, name: true } },
+                  location: { select: { id: true, name: true } },
+                },
+              },
+            },
+            orderBy: { receiptDate: "desc" },
+          },
+        },
+        orderBy: { purchaseDate: "desc" },
+      },
+    },
+  });
+}
+
+export function createSupplierRecord(
+  data: {
+    code: string;
+    name: string;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    notes: string | null;
+    isActive: boolean;
+  },
+  db: DbClient = prisma
+) {
+  return db.supplier.create({ data });
+}
+
+export function updateSupplierRecord(
+  id: number,
+  data: Record<string, unknown>,
+  db: DbClient = prisma
+) {
+  return db.supplier.update({ where: { id }, data });
+}
+
+export function deleteSupplierRecord(id: number, db: DbClient = prisma) {
+  return db.supplier.delete({ where: { id } });
+}
