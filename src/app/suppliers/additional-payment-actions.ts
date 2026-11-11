@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import type { TxClient } from "@/server/db";
 import { calculateAccountBalance } from "@/server/repositories/cash.repository";
 import { assertPeriodNotLocked } from "@/server/services/period-lock";
+import {
+  aggregateSupplierAdditionalPayments,
+  findSupplierAdditionalPaymentHistory,
+} from "@/server/repositories/suppliers.repository";
 
 export type AdditionalPaymentActionResponse<T = unknown> = {
   success: boolean;
@@ -53,23 +57,7 @@ export async function generateNextSupplierAdditionalPaymentReference(
 
 export async function getSupplierAdditionalPaymentTotal(supplierId: number): Promise<number> {
   try {
-    const [payments, reversals] = await Promise.all([
-      prisma.supplierAdditionalPayment.aggregate({
-        where: {
-          supplierId,
-          isReversal: false,
-        },
-        _sum: { amount: true },
-      }),
-      prisma.supplierAdditionalPayment.aggregate({
-        where: {
-          supplierId,
-          isReversal: true,
-          status: "completed",
-        },
-        _sum: { amount: true },
-      }),
-    ]);
+    const [payments, reversals] = await aggregateSupplierAdditionalPayments(supplierId);
 
     const totalGiven = (payments._sum.amount ?? 0) - (reversals._sum.amount ?? 0);
     return Math.round(totalGiven * 100) / 100;
@@ -82,25 +70,7 @@ export async function getSupplierAdditionalPaymentTotal(supplierId: number): Pro
 
 export async function getSupplierAdditionalPaymentHistory(supplierId: number) {
   try {
-    const items = await prisma.supplierAdditionalPayment.findMany({
-      where: { supplierId },
-      include: {
-        treasuryAccount: {
-          select: { id: true, name: true, code: true, type: true },
-        },
-        session: {
-          select: { id: true, reference: true, status: true },
-        },
-        reversal: {
-          select: { id: true, reference: true, date: true, createdAt: true, reversalReason: true },
-        },
-        reversalOf: {
-          select: { id: true, reference: true },
-        },
-      },
-      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-    });
-
+    const items = await findSupplierAdditionalPaymentHistory(supplierId);
     return items;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

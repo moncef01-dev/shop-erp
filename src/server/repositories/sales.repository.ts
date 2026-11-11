@@ -172,6 +172,16 @@ export function findCustomerAdvanceById(advanceId: number, db: DbClient = prisma
   });
 }
 
+export function fetchAdvancesForPage(db: DbClient = prisma) {
+  return db.customerAdvance.findMany({
+    orderBy: { paymentDate: "desc" },
+    include: {
+      customer: { select: { id: true, name: true, phone: true } },
+      account: { select: { id: true, name: true, code: true } },
+    },
+  });
+}
+
 export function createCustomerAdvanceRecord(
   tx: TxClient,
   data: {

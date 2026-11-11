@@ -30,6 +30,13 @@ export function findOpenCashSession(db: DbClient = prisma) {
   return db.cashSession.findFirst({ where: { status: "open" } });
 }
 
+export function findOpenCashSessionLite(db: DbClient = prisma) {
+  return db.cashSession.findFirst({
+    where: { status: "open" },
+    select: { id: true, reference: true, status: true },
+  });
+}
+
 export function findOpenCashSessionId(db: DbClient = prisma) {
   return db.cashSession.findFirst({
     where: { status: "open" },

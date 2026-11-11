@@ -225,3 +225,260 @@ export function updateSupplierRecord(
 export function deleteSupplierRecord(id: number, db: DbClient = prisma) {
   return db.supplier.delete({ where: { id } });
 }
+
+// ─── DETTES FOURNISSEURS ─────────────────────────────────────────────────────
+
+export function findSupplierDebtDuplicate(
+  supplierId: number,
+  amount: number,
+  description: string,
+  db: DbClient = prisma
+) {
+  return db.supplierDebt.findFirst({
+    where: { supplierId, amount, description },
+  });
+}
+
+export function findRecentSupplierDebt(
+  supplierId: number,
+  amount: number,
+  since: Date,
+  db: DbClient = prisma
+) {
+  return db.supplierDebt.findFirst({
+    where: { supplierId, amount, createdAt: { gte: since } },
+  });
+}
+
+export function findSupplierDebtByReference(reference: string, db: DbClient = prisma) {
+  return db.supplierDebt.findUnique({ where: { reference } });
+}
+
+export function createSupplierDebtRecord(
+  data: {
+    reference: string;
+    supplierId: number;
+    amount: number;
+    type: string;
+    description: string;
+    notes: string | null;
+    date: Date;
+  },
+  db: DbClient = prisma
+) {
+  return db.supplierDebt.create({ data });
+}
+
+export function findSupplierDebtsOrdered(supplierId: number, db: DbClient = prisma) {
+  return db.supplierDebt.findMany({
+    where: { supplierId },
+    orderBy: { date: "asc" },
+  });
+}
+
+// ─── RELEVÉ DE COMPTE & LISTES ───────────────────────────────────────────────
+
+export function findPurchaseLiteForPayment(purchaseId: number, db: DbClient = prisma) {
+  return db.purchase.findUnique({
+    where: { id: purchaseId },
+    select: { supplierId: true, totalAmount: true, paidAmount: true, status: true },
+  });
+}
+
+export function findPaymentWithFullDetails(paymentId: number, db: DbClient = prisma) {
+  return db.payment.findUnique({
+    where: { id: paymentId },
+    include: {
+      supplier: true,
+      purchase: true,
+      session: true,
+      account: true,
+    },
+  });
+}
+
+export function findSupplierPurchasesOrdered(supplierId: number, db: DbClient = prisma) {
+  return db.purchase.findMany({
+    where: {
+      supplierId,
+      status: { not: "cancelled" },
+    },
+    orderBy: { purchaseDate: "asc" },
+  });
+}
+
+export function findSupplierPaymentsOrdered(supplierId: number, db: DbClient = prisma) {
+  return db.payment.findMany({
+    where: {
+      status: { not: "cancelled" },
+      OR: [{ supplierId }, { purchase: { supplierId } }],
+    },
+    include: {
+      account: { select: { name: true } },
+      purchase: { select: { reference: true } },
+    },
+    orderBy: { paymentDate: "asc" },
+  });
+}
+
+export function findSupplierAllocations(supplierId: number, db: DbClient = prisma) {
+  return db.supplierAdditionalPaymentAllocation.findMany({
+    where: {
+      supplierId,
+      status: "completed",
+      isReversal: false,
+    },
+    include: {
+      payment: { select: { reference: true } },
+      purchase: { select: { reference: true } },
+    },
+    orderBy: { date: "asc" },
+  });
+}
+
+export function findSuppliersOrderedByName(searchQuery?: string, db: DbClient = prisma) {
+  const query = searchQuery?.trim();
+
+  const whereClause = query
+    ? {
+        OR: [
+          { name: { contains: query } },
+          { phone: { contains: query } },
+          { code: { contains: query } },
+          { address: { contains: query } },
+        ],
+      }
+    : {};
+
+  return db.supplier.findMany({
+    where: whereClause,
+    orderBy: { name: "asc" },
+  });
+}
+
+export function countSupplierPurchases(supplierId: number, db: DbClient = prisma) {
+  return db.purchase.count({
+    where: { supplierId, status: { not: "cancelled" } },
+  });
+}
+
+export function countSupplierPayments(supplierId: number, db: DbClient = prisma) {
+  return db.payment.count({
+    where: {
+      status: { not: "cancelled" },
+      OR: [{ supplierId }, { purchase: { supplierId } }],
+    },
+  });
+}
+
+export function findLastPurchaseForSupplier(supplierId: number, db: DbClient = prisma) {
+  return db.purchase.findFirst({
+    where: { supplierId, status: { not: "cancelled" } },
+    orderBy: { purchaseDate: "desc" },
+    select: { purchaseDate: true },
+  });
+}
+
+// ─── VERSEMENTS SUPPLÉMENTAIRES FOURNISSEURS ─────────────────────────────────
+
+export function aggregateSupplierAdditionalPayments(supplierId: number, db: DbClient = prisma) {
+  return Promise.all([
+    db.supplierAdditionalPayment.aggregate({
+      where: { supplierId, isReversal: false },
+      _sum: { amount: true },
+    }),
+    db.supplierAdditionalPayment.aggregate({
+      where: { supplierId, isReversal: true, status: "completed" },
+      _sum: { amount: true },
+    }),
+  ]);
+}
+
+export function findSupplierAdditionalPaymentHistory(supplierId: number, db: DbClient = prisma) {
+  return db.supplierAdditionalPayment.findMany({
+    where: { supplierId },
+    include: {
+      treasuryAccount: {
+        select: { id: true, name: true, code: true, type: true },
+      },
+      session: {
+        select: { id: true, reference: true, status: true },
+      },
+      reversal: {
+        select: { id: true, reference: true, date: true, createdAt: true, reversalReason: true },
+      },
+      reversalOf: {
+        select: { id: true, reference: true },
+      },
+    },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+  });
+}
+
+export function aggregateSupplierAllocations(supplierId: number, db: DbClient = prisma) {
+  return db.supplierAdditionalPaymentAllocation.aggregate({
+    where: {
+      supplierId,
+      isReversal: false,
+      status: "completed",
+    },
+    _sum: { amount: true },
+  });
+}
+
+export function findEligibleAdditionalPayments(supplierId: number, db: DbClient = prisma) {
+  return db.supplierAdditionalPayment.findMany({
+    where: {
+      supplierId,
+      isReversal: false,
+      status: "completed",
+    },
+    include: {
+      treasuryAccount: {
+        select: { name: true },
+      },
+      allocations: {
+        where: {
+          isReversal: false,
+          status: "completed",
+        },
+        select: {
+          amount: true,
+        },
+      },
+    },
+    orderBy: { date: "asc" },
+  });
+}
+
+export function findSupplierAllocationHistory(supplierId: number, db: DbClient = prisma) {
+  return db.supplierAdditionalPaymentAllocation.findMany({
+    where: { supplierId },
+    include: {
+      payment: {
+        select: { id: true, reference: true, amount: true, date: true },
+      },
+      purchase: {
+        select: { id: true, reference: true, totalAmount: true, paidAmount: true },
+      },
+      reversal: {
+        select: { id: true, reference: true, date: true, reversalReason: true },
+      },
+      reversalOf: {
+        select: { id: true, reference: true },
+      },
+    },
+    orderBy: { date: "desc" },
+  });
+}
+
+export function findSupplierUnpaidPurchases(supplierId: number, db: DbClient = prisma) {
+  return db.purchase.findMany({
+    where: {
+      supplierId,
+      status: { not: "cancelled" },
+      paymentStatus: { in: ["unpaid", "partial"] },
+    },
+    orderBy: { purchaseDate: "desc" },
+  });
+}
