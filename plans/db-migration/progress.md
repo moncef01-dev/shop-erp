@@ -27,15 +27,15 @@ POSTGRES_DATABASE_URL=postgresql://user:pass@localhost:5432/shop
 - Sauvegardes : à faire suivre (Phase 6) — actuellement toujours SQLite.
 - Redémarrage requis après changement de `DB_PROVIDER`.
 
-## Note Phase 2 (extraction partielle assumée)
+## Note Phase 2 (extraction) — TERMINÉE via follow-up pass
 
 Extraction complète en repositories : customers, catalog, inventory, dashboard, reports,
-documents, sales (+ advances), cash/savings (références + calculs partagés),
-`calculateSupplierDebt`, `calculateAccountBalance`.
-Les fichiers `purchases/*`, `suppliers/*`, `cash/*`, `savings/*`, `closing/*`, `settings/*`
-importent désormais `{ prisma }` depuis `@/server/db` (seam agnostique moteur, conforme à la
-règle ESLint Phase 3) mais leurs requêtes inline restent à déplacer dans les repositories
-lors d'une passe de suivi. Aucune régression : 22/22 suites vertes après chaque étape.
+documents, sales (+ advances), cash + treasury, purchases, suppliers (+ additional-payment,
++ allocation), savings, closing, settings.
+Aucune requête `prisma.<model>.<op>` directe ne subsiste dans `src/app` ; les seules références
+restantes sont les wrappers `prisma.$transaction` dans les actions (orchestration, conforme au
+plan). Les 2 server components (`suppliers/page.tsx`, `cash/advances/page.tsx`) passent par les
+repositories. Phase 7 (migration de données) annulée par décision — non nécessaire.
 
 ## Remaining
 
@@ -44,9 +44,7 @@ lors d'une passe de suivi. Aucune régression : 22/22 suites vertes après chaqu
    (`pg_dump`/`pg_restore` pour PostgreSQL). Label de checklist de clôture neutre.
 2. **Phase 5 (exécution live)** : `TEST_POSTGRES_URL=... npm run test:pg:smoke` sur une base
    jetable ; créer les migrations PostgreSQL suivantes via `DB_PROVIDER=postgres npm run db:migrate:postgres`.
-3. **Suivi Phase 2** : déplacer les requêtes inline restantes (voir note ci-dessus).
-4. **Phase 8 — Docs** : README (architecture DB, toggle), `.env.example` (fait), procédure de
-   migration de données (Phase 7, hors périmètre).
+3. **Phase 8 — Docs** : README (architecture DB, toggle), procédure de restauration/restauration par fournisseur.
 
 ## Verification commands
 
