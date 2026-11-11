@@ -597,3 +597,691 @@ export async function calculateAccountBalance(
 
   return Math.round(balance * 100) / 100;
 }
+
+// ─── REQUÊTES DU MODULE CAISSE ───────────────────────────────────────────────
+
+export async function generateNextCashSessionReference(txClient?: TxClient): Promise<string> {
+  const db: DbClient = txClient || prisma;
+  const now = new Date();
+  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const prefix = `CS-${yearMonth}-`;
+
+  const last = await db.cashSession.findFirst({
+    where: { reference: { startsWith: prefix } },
+    orderBy: { reference: "desc" },
+    select: { reference: true },
+  });
+
+  let nextSeq = 1;
+  if (last?.reference) {
+    const parts = last.reference.split("-");
+    const lastSeq = parseInt(parts[2], 10);
+    if (!isNaN(lastSeq)) {
+      nextSeq = lastSeq + 1;
+    }
+  }
+  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
+}
+
+export async function findDailyCaisseAccount(db: DbClient = prisma) {
+  return (
+    (await db.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
+    (await db.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } }))
+  );
+}
+
+export async function findDailyCaisseAccountLenient(db: DbClient = prisma) {
+  return (
+    (await db.treasuryAccount.findFirst({ where: { isDefault: true } })) ||
+    (await db.treasuryAccount.findFirst({ where: { type: "cash" } }))
+  );
+}
+
+export async function findDailyCaisseAccountWithInactive(db: DbClient = prisma) {
+  return (
+    (await db.treasuryAccount.findFirst({ where: { isDefault: true, isActive: true } })) ||
+    (await db.treasuryAccount.findFirst({ where: { type: "cash", isActive: true } })) ||
+    (await db.treasuryAccount.findFirst({ where: { type: "cash" } }))
+  );
+}
+
+export function findTreasuryAccountById(id: number, db: DbClient = prisma) {
+  return db.treasuryAccount.findUnique({ where: { id } });
+}
+
+export function findDefaultTreasuryAccountRaw(db: DbClient = prisma) {
+  return db.treasuryAccount.findFirst({ where: { isDefault: true } });
+}
+
+export function findBankAccountRaw(db: DbClient = prisma) {
+  return db.treasuryAccount.findFirst({ where: { code: "ACC-BANQUE" } });
+}
+
+export function createDefaultCashAccount(
+  tx: TxClient,
+  data: {
+    code: string;
+    name: string;
+    type: string;
+    openingBalance: number;
+    isDefault: boolean;
+    isActive: boolean;
+  }
+) {
+  return tx.treasuryAccount.create({ data });
+}
+
+export function findCashSessionById(id: number, db: DbClient = prisma) {
+  return db.cashSession.findUnique({ where: { id } });
+}
+
+export function findCashSessionWithTransfers(id: number, db: DbClient = prisma) {
+  return db.cashSession.findUnique({
+    where: { id },
+    include: { transfers: true },
+  });
+}
+
+export function findLastClosedSession(opts?: { before?: Date }, db: DbClient = prisma) {
+  return db.cashSession.findFirst({
+    where: {
+      status: "closed",
+      ...(opts?.before ? { closedAt: { lt: opts.before } } : {}),
+    },
+    orderBy: { closedAt: "desc" },
+  });
+}
+
+export function findSessionsWithTransfers(db: DbClient = prisma) {
+  return db.cashSession.findMany({
+    orderBy: { openedAt: "desc" },
+    include: {
+      transfers: {
+        include: {
+          toAccount: { select: { id: true, name: true, code: true } },
+          fromAccount: { select: { id: true, name: true, code: true } },
+        },
+      },
+    },
+  });
+}
+
+export function findSessionsOfDay(dayStart: Date, dayEnd: Date, db: DbClient = prisma) {
+  return db.cashSession.findMany({
+    where: {
+      OR: [
+        { openedAt: { gte: dayStart, lte: dayEnd } },
+        { createdAt: { gte: dayStart, lte: dayEnd } },
+      ],
+    },
+    orderBy: { openedAt: "asc" },
+  });
+}
+
+export function findAllSessionsLite(db: DbClient = prisma) {
+  return db.cashSession.findMany({
+    select: { id: true, openedAt: true, createdAt: true },
+  });
+}
+
+export function findPriorClosedSessionBefore(before: Date, db: DbClient = prisma) {
+  return db.cashSession.findFirst({
+    where: {
+      status: "closed",
+      closedAt: { lt: before },
+    },
+    orderBy: { closedAt: "desc" },
+  });
+}
+
+export function createCashSessionRecord(
+  tx: TxClient,
+  data: {
+    reference: string;
+    status: string;
+    openingAmount: number;
+    openedAt: Date;
+    openingNotes: string | null;
+  }
+) {
+  return tx.cashSession.create({ data });
+}
+
+export function updateCashSessionRecord(
+  tx: TxClient,
+  id: number,
+  data: Record<string, unknown>
+) {
+  return tx.cashSession.update({ where: { id }, data });
+}
+
+// ─── ESPÈCES HORS SESSION (OUVERTURE & RÉCONCILIATION) ──────────────────────
+
+export function findPendingCashPayments(cutoff: Date, caisseId: number | undefined, db: DbClient = prisma) {
+  return db.payment.findMany({
+    where: {
+      sessionId: null,
+      method: "cash",
+      status: { not: "cancelled" },
+      OR: [{ paymentDate: { gt: cutoff } }, { createdAt: { gt: cutoff } }],
+      AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+    },
+    select: { paymentDate: true },
+  });
+}
+
+export function findPendingCashExpenses(cutoff: Date, caisseId: number | undefined, db: DbClient = prisma) {
+  return db.expense.findMany({
+    where: {
+      sessionId: null,
+      method: "cash",
+      status: { not: "cancelled" },
+      OR: [{ date: { gt: cutoff } }, { createdAt: { gt: cutoff } }],
+      AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+    },
+    select: { date: true },
+  });
+}
+
+export function findUnlinkedCashPayments(cutoff: Date, caisseId: number | undefined, db: DbClient = prisma) {
+  return db.payment.findMany({
+    where: {
+      sessionId: null,
+      method: "cash",
+      status: { not: "cancelled" },
+      OR: [{ paymentDate: { gt: cutoff } }, { createdAt: { gt: cutoff } }],
+      AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+    },
+    select: { id: true, amount: true, paymentDate: true },
+  });
+}
+
+export function findUnlinkedCashExpenses(cutoff: Date, caisseId: number | undefined, db: DbClient = prisma) {
+  return db.expense.findMany({
+    where: {
+      sessionId: null,
+      method: "cash",
+      status: { not: "cancelled" },
+      OR: [{ date: { gt: cutoff } }, { createdAt: { gt: cutoff } }],
+      AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+    },
+    select: { id: true, amount: true, type: true, date: true },
+  });
+}
+
+export async function attachPendingCashToSession(
+  tx: TxClient,
+  sessionId: number,
+  caisseId: number | undefined,
+  cutoff: Date
+) {
+  await tx.payment.updateMany({
+    where: {
+      sessionId: null,
+      method: "cash",
+      status: { not: "cancelled" },
+      OR: [{ paymentDate: { gt: cutoff } }, { createdAt: { gt: cutoff } }],
+      AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+    },
+    data: { sessionId },
+  });
+  await tx.expense.updateMany({
+    where: {
+      sessionId: null,
+      method: "cash",
+      OR: [{ date: { gt: cutoff } }, { createdAt: { gt: cutoff } }],
+      AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+    },
+    data: { sessionId },
+  });
+}
+
+export function attachPaymentsToSession(tx: TxClient, ids: number[], sessionId: number) {
+  if (ids.length === 0) return Promise.resolve({ count: 0 });
+  return tx.payment.updateMany({ where: { id: { in: ids } }, data: { sessionId } });
+}
+
+export function attachAdvancesToSession(tx: TxClient, ids: number[], sessionId: number) {
+  if (ids.length === 0) return Promise.resolve({ count: 0 });
+  return tx.customerAdvance.updateMany({ where: { id: { in: ids } }, data: { sessionId } });
+}
+
+export function attachExpensesToSession(tx: TxClient, ids: number[], sessionId: number) {
+  if (ids.length === 0) return Promise.resolve({ count: 0 });
+  return tx.expense.updateMany({ where: { id: { in: ids } }, data: { sessionId } });
+}
+
+export function attachTransfersToSession(tx: TxClient, ids: number[], sessionId: number) {
+  if (ids.length === 0) return Promise.resolve({ count: 0 });
+  return tx.treasuryTransfer.updateMany({ where: { id: { in: ids } }, data: { sessionId } });
+}
+
+// ─── FENÊTRES DE SESSION (CLÔTURE) ───────────────────────────────────────────
+
+export function findSessionWindowCashSales(
+  sessionId: number,
+  caisseId: number | undefined,
+  cutoff: Date,
+  until: Date,
+  db: DbClient = prisma
+) {
+  return db.payment.findMany({
+    where: {
+      status: { not: "cancelled" },
+      method: "cash",
+      purchaseId: null,
+      supplierId: null,
+      AND: [
+        { OR: [{ accountId: caisseId }, { accountId: null }] },
+        {
+          OR: [
+            { sessionId },
+            {
+              sessionId: null,
+              OR: [
+                { paymentDate: { gt: cutoff, lte: until } },
+                { createdAt: { gt: cutoff, lte: until } },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    select: { id: true, amount: true },
+  });
+}
+
+export function findSessionWindowCashSupplierPayments(
+  sessionId: number,
+  caisseId: number | undefined,
+  cutoff: Date,
+  until: Date,
+  db: DbClient = prisma
+) {
+  return db.payment.findMany({
+    where: {
+      status: { not: "cancelled" },
+      method: "cash",
+      AND: [
+        { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
+        { OR: [{ accountId: caisseId }, { accountId: null }] },
+        {
+          OR: [
+            { sessionId },
+            {
+              sessionId: null,
+              OR: [
+                { paymentDate: { gt: cutoff, lte: until } },
+                { createdAt: { gt: cutoff, lte: until } },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    select: { id: true, amount: true },
+  });
+}
+
+export function findSessionWindowCashAdvances(
+  sessionId: number,
+  caisseId: number | undefined,
+  cutoff: Date,
+  until: Date,
+  db: DbClient = prisma
+) {
+  return db.customerAdvance.findMany({
+    where: {
+      status: { not: "cancelled" },
+      method: "cash",
+      AND: [
+        { OR: [{ accountId: caisseId }, { accountId: null }] },
+        {
+          OR: [
+            { sessionId },
+            {
+              sessionId: null,
+              OR: [
+                { paymentDate: { gt: cutoff, lte: until } },
+                { createdAt: { gt: cutoff, lte: until } },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    select: { id: true, amount: true },
+  });
+}
+
+export function findSessionWindowCashExpenses(
+  sessionId: number,
+  caisseId: number | undefined,
+  cutoff: Date,
+  until: Date,
+  db: DbClient = prisma
+) {
+  return db.expense.findMany({
+    where: {
+      method: "cash",
+      status: { not: "cancelled" },
+      AND: [
+        { OR: [{ accountId: caisseId }, { accountId: null }] },
+        {
+          OR: [
+            { sessionId },
+            {
+              sessionId: null,
+              OR: [
+                { date: { gt: cutoff, lte: until } },
+                { createdAt: { gt: cutoff, lte: until } },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    select: { id: true, amount: true, type: true },
+  });
+}
+
+export function findSessionWindowTransfers(
+  sessionId: number,
+  caisseId: number,
+  cutoff: Date,
+  until: Date,
+  direction: "in" | "out",
+  db: DbClient = prisma
+) {
+  const where =
+    direction === "in"
+      ? { toAccountId: caisseId }
+      : { fromAccountId: caisseId };
+  return db.treasuryTransfer.findMany({
+    where: {
+      ...where,
+      OR: [
+        { sessionId },
+        {
+          sessionId: null,
+          OR: [
+            { date: { gt: cutoff, lte: until } },
+            { createdAt: { gt: cutoff, lte: until } },
+          ],
+        },
+      ],
+    },
+    select: { id: true, amount: true },
+  });
+}
+
+// ─── DÉPENSES ────────────────────────────────────────────────────────────────
+
+export function findExpenseWithSession(id: number, db: DbClient = prisma) {
+  return db.expense.findUnique({
+    where: { id },
+    include: { session: true },
+  });
+}
+
+export function createExpenseEntry(
+  data: {
+    reference: string;
+    type: string;
+    category: string;
+    description: string;
+    amount: number;
+    method: string;
+    beneficiary: string | null;
+    receiptNumber: string | null;
+    notes: string | null;
+    date: Date;
+    sessionId: number | null;
+    accountId: number | null;
+  },
+  db: DbClient = prisma
+) {
+  return db.expense.create({ data });
+}
+
+export function cancelExpenseRecord(
+  id: number,
+  data: {
+    status: string;
+    cancelledAt: Date;
+    cancellationReason: string;
+    cancelledBy: string;
+    notes: string;
+  },
+  db: DbClient = prisma
+) {
+  return db.expense.update({ where: { id }, data });
+}
+
+// ─── GRAND LIVRE / TABLEAU DE BORD ───────────────────────────────────────────
+
+export function findLedgerPayments(db: DbClient = prisma) {
+  return db.payment.findMany({
+    where: { status: { not: "cancelled" } },
+    include: {
+      sale: { include: { customer: true } },
+      purchase: { include: { supplier: true } },
+      supplier: true,
+      account: { select: { id: true, name: true, code: true } },
+      session: { select: { id: true, reference: true } },
+    },
+    orderBy: { paymentDate: "desc" },
+  });
+}
+
+export function findLedgerExpenses(db: DbClient = prisma) {
+  return db.expense.findMany({
+    where: { status: { not: "cancelled" } },
+    include: {
+      account: { select: { id: true, name: true, code: true } },
+      session: { select: { id: true, reference: true } },
+    },
+    orderBy: { date: "desc" },
+  });
+}
+
+export function findLedgerTransfers(db: DbClient = prisma) {
+  return db.treasuryTransfer.findMany({
+    include: {
+      fromAccount: { select: { id: true, name: true, code: true, type: true } },
+      toAccount: { select: { id: true, name: true, code: true, type: true } },
+      session: { select: { id: true, reference: true } },
+    },
+    orderBy: { date: "desc" },
+  });
+}
+
+export function findLedgerAdvances(db: DbClient = prisma) {
+  return db.customerAdvance.findMany({
+    where: { status: { not: "cancelled" } },
+    include: {
+      customer: { select: { name: true } },
+      account: { select: { id: true, name: true, code: true } },
+      session: { select: { id: true, reference: true } },
+    },
+    orderBy: { paymentDate: "desc" },
+  });
+}
+
+export function findSuppAdditionalPaymentsWithLedger(db: DbClient = prisma) {
+  return db.supplierAdditionalPayment.findMany({
+    include: {
+      supplier: { select: { name: true } },
+      treasuryAccount: { select: { id: true, name: true, type: true, isDefault: true } },
+      session: { select: { reference: true } },
+      reversalOf: { select: { reference: true } },
+    },
+  });
+}
+
+export function findSuppAdditionalPaymentsForAccount(caisseId: number, db: DbClient = prisma) {
+  return db.supplierAdditionalPayment.findMany({
+    where: { treasuryAccountId: caisseId },
+    include: {
+      supplier: { select: { name: true } },
+      reversalOf: { select: { reference: true } },
+    },
+  });
+}
+
+export function findShopSettingsById(db: DbClient = prisma) {
+  return db.shopSettings.findUnique({ where: { id: 1 } });
+}
+
+// ─── JOURNAL JOURNALIER ──────────────────────────────────────────────────────
+
+export async function findOpeningBalanceAggregates(
+  caisseId: number,
+  cutoff: Date,
+  dayStart: Date,
+  db: DbClient = prisma
+) {
+  return Promise.all([
+    db.treasuryTransfer.aggregate({
+      where: { toAccountId: caisseId, date: { gt: cutoff, lt: dayStart } },
+      _sum: { amount: true },
+    }),
+    db.treasuryTransfer.aggregate({
+      where: { fromAccountId: caisseId, date: { gt: cutoff, lt: dayStart } },
+      _sum: { amount: true },
+    }),
+    db.payment.aggregate({
+      where: {
+        status: { not: "cancelled" },
+        method: "cash",
+        purchaseId: null,
+        supplierId: null,
+        OR: [{ accountId: caisseId }, { accountId: null }],
+        paymentDate: { gt: cutoff, lt: dayStart },
+      },
+      _sum: { amount: true },
+    }),
+    db.customerAdvance.aggregate({
+      where: {
+        status: { not: "cancelled" },
+        method: "cash",
+        OR: [{ accountId: caisseId }, { accountId: null }],
+        paymentDate: { gt: cutoff, lt: dayStart },
+      },
+      _sum: { amount: true },
+    }),
+    db.expense.aggregate({
+      where: {
+        status: { not: "cancelled" },
+        type: "income",
+        method: "cash",
+        OR: [{ accountId: caisseId }, { accountId: null }],
+        date: { gt: cutoff, lt: dayStart },
+      },
+      _sum: { amount: true },
+    }),
+    db.payment.aggregate({
+      where: {
+        status: { not: "cancelled" },
+        method: "cash",
+        OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }],
+        AND: [{ OR: [{ accountId: caisseId }, { accountId: null }] }],
+        paymentDate: { gt: cutoff, lt: dayStart },
+      },
+      _sum: { amount: true },
+    }),
+    db.expense.aggregate({
+      where: {
+        status: { not: "cancelled" },
+        type: "expense",
+        method: "cash",
+        OR: [{ accountId: caisseId }, { accountId: null }],
+        date: { gt: cutoff, lt: dayStart },
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+}
+
+export function fetchDailyCashFlux(caisseId: number, db: DbClient = prisma) {
+  return Promise.all([
+    db.payment.findMany({
+      where: {
+        status: { not: "cancelled" },
+        method: "cash",
+        purchaseId: null,
+        supplierId: null,
+        OR: [{ accountId: caisseId }, { accountId: null }],
+      },
+      include: { sale: { include: { customer: true } } },
+    }),
+    db.customerAdvance.findMany({
+      where: {
+        status: { not: "cancelled" },
+        method: "cash",
+        OR: [{ accountId: caisseId }, { accountId: null }],
+      },
+      include: { customer: true },
+    }),
+    db.expense.findMany({
+      where: {
+        status: { not: "cancelled" },
+        method: "cash",
+        OR: [{ accountId: caisseId }, { accountId: null }],
+      },
+    }),
+    db.payment.findMany({
+      where: {
+        status: { not: "cancelled" },
+        method: "cash",
+        AND: [
+          { OR: [{ purchaseId: { not: null } }, { supplierId: { not: null } }] },
+          { OR: [{ accountId: caisseId }, { accountId: null }] },
+        ],
+      },
+      include: { purchase: { include: { supplier: true } }, supplier: true },
+    }),
+    db.treasuryTransfer.findMany({
+      where: {
+        OR: [{ fromAccountId: caisseId }, { toAccountId: caisseId }],
+      },
+      include: { fromAccount: true, toAccount: true },
+    }),
+    db.cashSession.findMany({
+      select: { id: true, openedAt: true, createdAt: true },
+    }),
+  ]);
+}
+
+// ─── TRANSFERTS DE TRÉSORERIE (CRUD UTILISÉS PAR LA CLÔTURE) ─────────────────
+
+export function findTreasuryTransferById(id: number, db: DbClient = prisma) {
+  return db.treasuryTransfer.findUnique({ where: { id } });
+}
+
+export function createTreasuryTransferRecord(
+  tx: TxClient,
+  data: {
+    reference: string;
+    fromAccountId: number;
+    toAccountId: number;
+    amount: number;
+    motif: string;
+    date: Date;
+    sessionId: number | null;
+  }
+) {
+  return tx.treasuryTransfer.create({ data });
+}
+
+export function updateTreasuryTransferRecord(
+  tx: TxClient,
+  id: number,
+  data: { amount: number; toAccountId: number; motif: string }
+) {
+  return tx.treasuryTransfer.update({ where: { id }, data });
+}
+
+export function deleteTreasuryTransferRecord(tx: TxClient, id: number) {
+  return tx.treasuryTransfer.delete({ where: { id } });
+}
