@@ -1,6 +1,21 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import {
+  fetchDocumentsOverview,
+  findSaleDocumentById,
+  findPurchaseDocumentById,
+  findPurchaseReceiptDocumentById,
+  findPaymentDocumentById,
+  findCashSessionDocumentById,
+  findExpenseDocumentById,
+  findTransferDocumentById,
+  fetchInventorySheetData,
+  findCustomerById,
+  findSalesForCustomerStatement,
+  findSupplierById,
+  findPurchasesForSupplierStatement,
+  fetchPartiesForStatement,
+} from "@/server/repositories/documents.repository";
 import { getShopSettings, type ShopSettingsData } from "@/app/settings/actions";
 import type {
   PrintableSale,
@@ -95,6 +110,15 @@ export interface DocumentsDashboardData {
 
 export async function getDocumentsData(): Promise<DocumentsDashboardData> {
   const [
+    overview,
+    settings,
+  ] = await Promise.all([
+    fetchDocumentsOverview(),
+    // Paramètres partagés
+    getShopSettings(),
+  ]);
+
+  const [
     sales,
     purchases,
     receipts,
@@ -102,124 +126,8 @@ export async function getDocumentsData(): Promise<DocumentsDashboardData> {
     cashSessions,
     expenses,
     transfers,
-    settings,
     locations,
-  ] = await Promise.all([
-    // 1. Ventes (Factures et Devis)
-    prisma.sales.findMany({
-      orderBy: { saleDate: "desc" },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: { select: { sku: true, name: true, model: true, color: true } },
-            location: { select: { name: true } },
-          },
-        },
-        payments: true,
-      },
-    }),
-
-    // 2. Commandes Fournisseurs
-    prisma.purchase.findMany({
-      orderBy: { purchaseDate: "desc" },
-      include: {
-        supplier: true,
-        items: {
-          include: {
-            product: { select: { sku: true, name: true, model: true, color: true, costPrice: true } },
-            location: { select: { name: true, code: true } },
-          },
-        },
-        receipts: {
-          include: {
-            items: {
-              include: {
-                product: { select: { id: true, sku: true, name: true, model: true, color: true, costPrice: true } },
-                location: { select: { id: true, name: true, code: true } },
-                purchaseItem: { select: { id: true, quantity: true, unitCost: true } },
-              },
-            },
-          },
-        },
-        payments: true,
-      },
-    }),
-
-    // 4. Bons de Réception Marchandises
-    prisma.purchaseReceipt.findMany({
-      orderBy: { receiptDate: "desc" },
-      include: {
-        purchase: {
-          include: {
-            supplier: true,
-          },
-        },
-        items: {
-          include: {
-            product: { select: { id: true, sku: true, name: true, model: true, color: true, costPrice: true } },
-            location: { select: { id: true, name: true, code: true } },
-            purchaseItem: { select: { id: true, quantity: true, unitCost: true } },
-          },
-        },
-      },
-    }),
-
-    // 5. Règlements (Clients et Fournisseurs)
-    prisma.payment.findMany({
-      orderBy: { paymentDate: "desc" },
-      include: {
-        sale: {
-          include: {
-            customer: true,
-          },
-        },
-        purchase: {
-          include: {
-            supplier: true,
-          },
-        },
-        supplier: true,
-        account: true,
-      },
-    }),
-
-    // 6. Sessions de Caisse
-    prisma.cashSession.findMany({
-      orderBy: { openedAt: "desc" },
-      include: {
-        expenses: true,
-        payments: true,
-      },
-    }),
-
-    // 7. Dépenses de Caisse
-    prisma.expense.findMany({
-      where: { status: { not: "cancelled" } },
-      orderBy: { date: "desc" },
-    }),
-
-    // 8. Transferts de Stock inter-dépôts
-    prisma.stockMovement.findMany({
-      where: { type: "TRANSFER" },
-      orderBy: { date: "desc" },
-      include: {
-        product: { select: { sku: true, name: true, model: true, color: true } },
-        fromLocation: true,
-        toLocation: true,
-      },
-    }),
-
-    // Paramètres partagés
-    getShopSettings(),
-
-    // Emplacements
-    prisma.location.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, code: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  ] = overview;
 
   const docs: UnifiedDocumentItem[] = [];
 
@@ -635,19 +543,7 @@ export async function getUnifiedDocumentById(
     switch (type) {
       case "invoice":
       case "quote": {
-        const s = await prisma.sales.findUnique({
-          where: { id: numId },
-          include: {
-            customer: true,
-            items: {
-              include: {
-                product: { select: { sku: true, name: true, model: true, color: true } },
-                location: { select: { name: true } },
-              },
-            },
-            payments: true,
-          },
-        });
+        const s = await findSaleDocumentById(numId);
         if (!s) return null;
         const isQuote = s.status === "draft";
         return {
@@ -705,30 +601,7 @@ export async function getUnifiedDocumentById(
         };
       }
       case "purchase": {
-        const p = await prisma.purchase.findUnique({
-          where: { id: numId },
-          include: {
-            supplier: true,
-            items: {
-              include: {
-                product: { select: { sku: true, name: true, model: true, color: true, costPrice: true } },
-                location: { select: { name: true, code: true } },
-              },
-            },
-            receipts: {
-              include: {
-                items: {
-                  include: {
-                    product: { select: { id: true, sku: true, name: true, model: true, color: true, costPrice: true } },
-                    location: { select: { id: true, name: true, code: true } },
-                    purchaseItem: { select: { id: true, quantity: true, unitCost: true } },
-                  },
-                },
-              },
-            },
-            payments: true,
-          },
-        });
+        const p = await findPurchaseDocumentById(numId);
         if (!p) return null;
         return {
           id: `purchase-${p.id}`,
@@ -796,19 +669,7 @@ export async function getUnifiedDocumentById(
         };
       }
       case "receipt": {
-        const r = await prisma.purchaseReceipt.findUnique({
-          where: { id: numId },
-          include: {
-            purchase: { include: { supplier: true } },
-            items: {
-              include: {
-                product: { select: { id: true, sku: true, name: true, model: true, color: true, costPrice: true } },
-                location: { select: { id: true, name: true, code: true } },
-                purchaseItem: { select: { id: true, quantity: true, unitCost: true } },
-              },
-            },
-          },
-        });
+        const r = await findPurchaseReceiptDocumentById(numId);
         if (!r) return null;
         const totalReceiptValue = r.items.reduce((acc, it) => {
           const cost = it.unitCost ?? it.purchaseItem?.unitCost ?? it.product?.costPrice ?? 0;
@@ -859,15 +720,7 @@ export async function getUnifiedDocumentById(
       }
       case "payment_client":
       case "payment_supplier": {
-        const py = await prisma.payment.findUnique({
-          where: { id: numId },
-          include: {
-            sale: { include: { customer: true } },
-            purchase: { include: { supplier: true } },
-            supplier: true,
-            account: true,
-          },
-        });
+        const py = await findPaymentDocumentById(numId);
         if (!py) return null;
         if (py.saleId && py.sale) {
           return {
@@ -962,9 +815,7 @@ export async function getUnifiedDocumentById(
         return null;
       }
       case "cash_session": {
-        const cs = await prisma.cashSession.findUnique({
-          where: { id: numId },
-        });
+        const cs = await findCashSessionDocumentById(numId);
         if (!cs) return null;
         return {
           id: `cash-session-${cs.id}`,
@@ -996,9 +847,7 @@ export async function getUnifiedDocumentById(
         };
       }
       case "expense": {
-        const ex = await prisma.expense.findUnique({
-          where: { id: numId },
-        });
+        const ex = await findExpenseDocumentById(numId);
         if (!ex) return null;
         return {
           id: `expense-${ex.id}`,
@@ -1028,14 +877,7 @@ export async function getUnifiedDocumentById(
         };
       }
       case "transfer": {
-        const tr = await prisma.stockMovement.findUnique({
-          where: { id: numId },
-          include: {
-            product: { select: { sku: true, name: true, model: true, color: true } },
-            fromLocation: true,
-            toLocation: true,
-          },
-        });
+        const tr = await findTransferDocumentById(numId);
         if (!tr) return null;
         const ref = tr.reference || `TRF-${tr.id}`;
         return {
@@ -1089,22 +931,7 @@ export async function getInventorySheetData(locationId?: number): Promise<{
   let locationName = "Tous les dépôts / Magasin général";
   let locationCode = "GLOBAL";
 
-  const [locList, products] = await Promise.all([
-    prisma.location.findMany({
-      where: { isActive: true },
-      orderBy: { id: "asc" },
-      select: { id: true, name: true, code: true },
-    }),
-    prisma.product.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        categoryRef: { select: { name: true } },
-        stocks: {
-          select: { locationId: true, quantity: true },
-        },
-      },
-    }),
-  ]);
+  const [locList, products] = await fetchInventorySheetData();
 
   if (locationId) {
     const loc = locList.find((l) => l.id === locationId);
@@ -1180,23 +1007,10 @@ export async function getAccountStatementData(params: {
   const { type, partyId, startDate, endDate } = params;
 
   if (type === "customer") {
-    const customer = await prisma.customer.findUnique({
-      where: { id: partyId },
-    });
+    const customer = await findCustomerById(partyId);
     if (!customer) return null;
 
-    const sales = await prisma.sales.findMany({
-      where: {
-        customerId: partyId,
-        status: { in: ["confirmed", "draft"] },
-        ...(startDate ? { saleDate: { gte: new Date(startDate) } } : {}),
-        ...(endDate ? { saleDate: { lte: new Date(endDate) } } : {}),
-      },
-      orderBy: { saleDate: "asc" },
-      include: {
-        payments: true,
-      },
-    });
+    const sales = await findSalesForCustomerStatement(partyId, startDate, endDate);
 
     const entries: StatementEntry[] = [];
     let runningBalance = 0;
@@ -1243,23 +1057,10 @@ export async function getAccountStatementData(params: {
       finalBalance: runningBalance,
     };
   } else {
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: partyId },
-    });
+    const supplier = await findSupplierById(partyId);
     if (!supplier) return null;
 
-    const purchases = await prisma.purchase.findMany({
-      where: {
-        supplierId: partyId,
-        status: { not: "cancelled" },
-        ...(startDate ? { purchaseDate: { gte: new Date(startDate) } } : {}),
-        ...(endDate ? { purchaseDate: { lte: new Date(endDate) } } : {}),
-      },
-      orderBy: { purchaseDate: "asc" },
-      include: {
-        payments: true,
-      },
-    });
+    const purchases = await findPurchasesForSupplierStatement(partyId, startDate, endDate);
 
     const entries: StatementEntry[] = [];
     let runningBalance = 0;
@@ -1309,17 +1110,5 @@ export async function getPartiesForStatement(): Promise<{
   customers: Array<{ id: number; name: string; phone?: string | null }>;
   suppliers: Array<{ id: number; name: string; phone?: string | null }>;
 }> {
-  const [customers, suppliers] = await Promise.all([
-    prisma.customer.findMany({
-      select: { id: true, name: true, phone: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.supplier.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, phone: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
-
-  return { customers, suppliers };
+  return fetchPartiesForStatement();
 }
