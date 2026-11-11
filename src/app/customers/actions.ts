@@ -1,6 +1,16 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import {
+  generateNextCustomerCode,
+  findCustomersWithSales,
+  findCustomerByPhone,
+  findCustomerById,
+  findCustomerWithSalesCount,
+  createCustomer,
+  updateCustomer,
+  deleteCustomer,
+  findCustomerDetailsById,
+} from "@/server/repositories/customers.repository";
 import { revalidatePath } from "next/cache";
 
 export type CustomerActionResponse<T = unknown> = {
@@ -18,61 +28,8 @@ function safeRevalidate(path: string) {
   }
 }
 
-async function generateNextCustomerCode(): Promise<string> {
-  const lastCustomer = await prisma.customer.findFirst({
-    where: { code: { startsWith: "CLI-" } },
-    orderBy: { code: "desc" },
-    select: { code: true },
-  });
-
-  let nextSeq = 1;
-  if (lastCustomer?.code) {
-    const parts = lastCustomer.code.split("-");
-    const num = parseInt(parts[1], 10);
-    if (!isNaN(num)) {
-      nextSeq = num + 1;
-    }
-  }
-  return `CLI-${String(nextSeq).padStart(4, "0")}`;
-}
-
 export async function getCustomersData(searchQuery?: string) {
-  const query = searchQuery?.trim();
-
-  const whereClause = query
-    ? {
-        OR: [
-          { name: { contains: query } },
-          { phone: { contains: query } },
-          { phone2: { contains: query } },
-          { code: { contains: query } },
-          { address: { contains: query } },
-        ],
-      }
-    : {};
-
-  const customers = await prisma.customer.findMany({
-    where: whereClause,
-    include: {
-      sales: {
-        where: { status: { not: "cancelled" } },
-        select: {
-          id: true,
-          reference: true,
-          totalAmount: true,
-          paidAmount: true,
-          status: true,
-          paymentStatus: true,
-          saleDate: true,
-        },
-        orderBy: { saleDate: "desc" },
-      },
-      _count: {
-        select: { sales: true },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const customers = await findCustomersWithSales(searchQuery);
 
   return customers.map((c) => {
     const totalPurchases = c.sales.reduce((sum, s) => sum + s.totalAmount, 0);
@@ -106,9 +63,7 @@ export async function createCustomerAction(formData: FormData): Promise<Customer
 
     // Contrôler si un client avec le même téléphone existe déjà
     if (phone) {
-      const existing = await prisma.customer.findFirst({
-        where: { phone: { equals: phone } },
-      });
+      const existing = await findCustomerByPhone(phone);
       if (existing) {
         return {
           success: false,
@@ -119,17 +74,15 @@ export async function createCustomerAction(formData: FormData): Promise<Customer
 
     const code = await generateNextCustomerCode();
 
-    const customer = await prisma.customer.create({
-      data: {
-        code,
-        name,
-        phone,
-        phone2,
-        email,
-        address,
-        notes,
-        isActive: true,
-      },
+    const customer = await createCustomer({
+      code,
+      name,
+      phone,
+      phone2,
+      email,
+      address,
+      notes,
+      isActive: true,
     });
 
     safeRevalidate("/customers");
@@ -162,18 +115,13 @@ export async function updateCustomerAction(
       return { success: false, error: "Le nom du client est obligatoire." };
     }
 
-    const existing = await prisma.customer.findUnique({ where: { id: customerId } });
+    const existing = await findCustomerById(customerId);
     if (!existing) {
       return { success: false, error: "Fiche client introuvable." };
     }
 
     if (phone) {
-      const dup = await prisma.customer.findFirst({
-        where: {
-          phone: { equals: phone },
-          id: { not: customerId },
-        },
-      });
+      const dup = await findCustomerByPhone(phone, customerId);
       if (dup) {
         return {
           success: false,
@@ -182,16 +130,13 @@ export async function updateCustomerAction(
       }
     }
 
-    const updated = await prisma.customer.update({
-      where: { id: customerId },
-      data: {
-        name,
-        phone,
-        phone2,
-        email,
-        address,
-        notes,
-      },
+    const updated = await updateCustomer(customerId, {
+      name,
+      phone,
+      phone2,
+      email,
+      address,
+      notes,
     });
 
     safeRevalidate("/customers");
@@ -210,16 +155,13 @@ export async function updateCustomerAction(
 
 export async function toggleCustomerStatusAction(customerId: number): Promise<CustomerActionResponse> {
   try {
-    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    const customer = await findCustomerById(customerId);
     if (!customer) {
       return { success: false, error: "Fiche client introuvable." };
     }
 
     const newStatus = !customer.isActive;
-    await prisma.customer.update({
-      where: { id: customerId },
-      data: { isActive: newStatus },
-    });
+    await updateCustomer(customerId, { isActive: newStatus });
 
     safeRevalidate("/customers");
     safeRevalidate("/sales");
@@ -236,14 +178,7 @@ export async function toggleCustomerStatusAction(customerId: number): Promise<Cu
 
 export async function deleteCustomerAction(customerId: number): Promise<CustomerActionResponse> {
   try {
-    const customer = await prisma.customer.findUnique({
-      where: { id: customerId },
-      include: {
-        _count: {
-          select: { sales: true },
-        },
-      },
-    });
+    const customer = await findCustomerWithSalesCount(customerId);
 
     if (!customer) {
       return { success: false, error: "Fiche client introuvable." };
@@ -256,7 +191,7 @@ export async function deleteCustomerAction(customerId: number): Promise<Customer
       };
     }
 
-    await prisma.customer.delete({ where: { id: customerId } });
+    await deleteCustomer(customerId);
 
     safeRevalidate("/customers");
     safeRevalidate("/sales");
@@ -272,29 +207,7 @@ export async function deleteCustomerAction(customerId: number): Promise<Customer
 }
 
 export async function getCustomerDetailsAction(customerId: number) {
-  const customer = await prisma.customer.findUnique({
-    where: { id: customerId },
-    include: {
-      sales: {
-        include: {
-          items: {
-            include: {
-              product: {
-                select: { id: true, name: true, sku: true, model: true, color: true },
-              },
-              location: {
-                select: { id: true, name: true, code: true },
-              },
-            },
-          },
-          payments: {
-            orderBy: { paymentDate: "desc" },
-          },
-        },
-        orderBy: { saleDate: "desc" },
-      },
-    },
-  });
+  const customer = await findCustomerDetailsById(customerId);
 
   if (!customer) return null;
 
