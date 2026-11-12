@@ -293,23 +293,21 @@ async function runTests() {
     assert(confirmedSale!.paidAmount === 46000, `Le montant payé doit être conservé (46 000), obtenu ${confirmedSale!.paidAmount}`);
     assert(confirmedSale!.paymentStatus === "paid", `Statut paiement attendu 'paid', obtenu ${confirmedSale!.paymentStatus}`);
 
-    // Le stock doit maintenant être déduit d'exactement 1 unité (2 -> 1)
+    // Le stock ne doit PAS être déduit car la confirmation d'un brouillon concerne des marchandises directes
     const stockAfter = await prisma.productStock.findUnique({
       where: { productId_locationId: { productId: tableProd.id, locationId: showroom!.id } },
     });
-    assert(stockAfter!.quantity === 1, `Stock attendu 1 après retrait, trouvé ${stockAfter!.quantity}`);
+    assert(stockAfter!.quantity === 2, `Stock attendu inchangé (2) après confirmation, trouvé ${stockAfter!.quantity}`);
 
     const movements = await prisma.stockMovement.findMany({ where: { saleId: draftSaleId } });
-    assert(movements.length === 1, `Exactement 1 mouvement de stock attendu, trouvé ${movements.length}`);
-    assert(movements[0].type === "SALE", `Type de mouvement attendu 'SALE', obtenu ${movements[0].type}`);
-    assert(movements[0].quantity === 1, `Quantité mouvement attendue 1, obtenu ${movements[0].quantity}`);
+    assert(movements.length === 0, `Aucun mouvement de stock attendu pour confirmation brouillon, trouvé ${movements.length}`);
 
     // Protection double confirmation
     const doubleConfirm = await salesActions.confirmDraftSaleAction(draftSaleId);
     assert(!doubleConfirm.success, "La double confirmation d'une commande déjà confirmée aurait dû être refusée.");
 
-    results.push({ num: 5, name: "Retrait / Confirmation: Conversion en FAC- et Déduction Physique Unique du Stock", passed: true });
-    console.log("✓ Test 5: Retrait / Confirmation: Conversion en FAC- et Déduction Physique Unique du Stock réussi.");
+    results.push({ num: 5, name: "Retrait / Confirmation: Conversion en FAC- et Préservation Stricte du Stock", passed: true });
+    console.log("✓ Test 5: Retrait / Confirmation: Conversion en FAC- et Préservation Stricte du Stock réussi.");
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     results.push({ num: 5, name: "Retrait / Confirmation: Conversion en FAC- et Déduction Physique Unique du Stock", passed: false, error: msg });
@@ -339,11 +337,11 @@ async function runTests() {
     assert(verifiedPartial!.paidAmount === 10000, "Le versement de 10 000 DA doit être conservé");
     assert(verifiedPartial!.paymentStatus === "partial", "Statut paiement doit être 'partial'");
 
-    // Stock showroom doit maintenant être à 0
-    const stockZero = await prisma.productStock.findUnique({
+    // Stock showroom doit rester inchangé à 2 (aucune déduction lors de la confirmation d'un brouillon)
+    const stockPreserved = await prisma.productStock.findUnique({
       where: { productId_locationId: { productId: tableProd.id, locationId: showroom!.id } },
     });
-    assert(stockZero!.quantity === 0, `Stock attendu 0, trouvé ${stockZero!.quantity}`);
+    assert(stockPreserved!.quantity === 2, `Stock attendu préservé à 2, trouvé ${stockPreserved!.quantity}`);
 
     // Le client revient payer un deuxième acompte de 16 000 DA
     const fd2 = new FormData();

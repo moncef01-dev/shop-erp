@@ -19,6 +19,7 @@
     "test:family-stock": "npx --yes tsx tests/family-first-stock.test.ts",
     "test:stock-kpi": "npx --yes tsx tests/stock-kpi-and-filtering.test.ts",
     "test:sales-deposit": "npx --yes tsx tests/sales-deposit-integrity.test.ts",
+    "test:draft-no-stock": "node --experimental-strip-types --import ./tests/ts-register.mjs tests/draft-confirmation-no-stock.test.ts",
     "test:cash-out-of-session": "npx --yes tsx tests/cash-out-of-session.test.ts",
     "test:sales-calculations": "npx --yes tsx tests/sales-calculations-and-inputs.test.ts",
     "test:treasury": "npx --yes tsx tests/treasury-and-supplier-debt.test.ts",

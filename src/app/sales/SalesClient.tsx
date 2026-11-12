@@ -1408,7 +1408,8 @@ export function SalesClient({ initialData }: SalesClientProps) {
                               {sale.status === "draft" && (
                                 <button
                                   onClick={() => handleConfirmDraft(sale.id)}
-                                  title="Confirmer la vente et déduire le stock"
+                                  title="Confirmer la vente"
+                                  aria-label="Confirmer la vente"
                                   className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg cursor-pointer transition-colors"
                                 >
                                   <CheckCircle2 className="h-4 w-4" />
