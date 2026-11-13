@@ -1,0 +1,28 @@
+{
+  "files.exclude": {
+    "**/.next": true,
+    "**/node_modules": true,
+    "prisma/.generated": true,
+    "src/generated": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "src/generated": true,
+    "prisma/.generated": true,
+    "prisma/migrations-postgres": true,
+    "package-lock.json": true
+  },
+  "vscode-counter.excludes": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "src/generated/**",
+    "prisma/.generated/**",
+    "prisma/migrations-postgres/**",
+    "prisma/migrations-sqlite/**",
+    "debug/**",
+    "**/*.db",
+    "**/*.db.tmp",
+    "package-lock.json"
+  ]
+}
