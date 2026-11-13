@@ -1,7 +1,18 @@
 # Deployment Debug Status — Vercel + Supabase
 
-_Last updated: 2026-11-13 (session in progress)_
-_Branch: `deploy/vercel-supabase` — commit `44159c9` + uncommitted work_
+_Last updated: 2026-11-13 — **DEPLOY IS LIVE AND HEALTHY** ✅_
+_Branch: `deploy/vercel-supabase` — commit `055b720` (zakat removal) deployed to prod_
+
+## FINAL STATE (2026-11-13, ~18:05)
+
+Production `https://grari-meuble.vercel.app` — ALL pages 200, `/zakat` 404 (removed), provider PostgreSQL confirmed. Two bursts tested.
+
+Final root-cause chain (three stacked issues):
+1. **Stale embedded schema in built chunk** — webpack build cache embedded a Postgres `inlineSchema` predating the zakat models → `prisma.zakatValuation` delegate missing at runtime → `/zakat` 500 under postgres only (sqlite client was fresh, hence provider-dependent). Forensics: decoded `inlineSchema` from `.next/server/chunks/8392.js` → `activeProvider:"postgresql"` block had 0 `model Zakat` despite source schemas being fresh.
+2. **Resolution: zakat module removed entirely** (user decision) — deleted `src/app/zakat/**`, `src/lib/zakat/**`, `src/server/repositories/zakat.repository.ts`, `tests/zakat-{engine-integrity,zakat-phase3-workflow}.test.ts`; cleaned `src/config/navigation.ts` (2 entries + `Scale` icon import), `package.json` (`test:zakat`, `test:zakat-phase3`, trimmed `test:all`), `prisma/schema.prisma` (3 models, section was at EOF); regenerated both clients via `npm run db:generate`. No other module imported zakat (verified by grep). Committed `055b720`.
+3. **Supabase session pooler exhaustion in prod** — `(EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15` (P2039): Vercel lambda burst × pg Pool default max ~10 per instance > 15 session clients. **Fix: switched `POSTGRES_DATABASE_URL` (Vercel env, all targets) to the transaction-mode pooler, port 6543** (`aws-1-eu-central-1.pooler.supabase.com:6543`), keeping `?sslmode=require&uselibpqcompat=true`. Tested locally first (all 13 pages 200 through 6543), then redeployed. `migrate deploy` should still use 5432 (session mode). Note: `@prisma/adapter-pg`'s `PrismaPg` also accepts a `pg.PoolConfig` object (e.g. `{ connectionString, max: 5 }`) if per-instance capping is ever needed.
+
+Leftovers: local server on port 3000 running (postgres/6543); both `aws-1-...:5432` session pooler and old env values were replaced everywhere for runtime. Supabase DB still empty (fresh) — restore/import data next.
 
 ---
 
