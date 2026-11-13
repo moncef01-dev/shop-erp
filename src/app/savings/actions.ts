@@ -38,8 +38,6 @@ function safeRevalidate(path: string) {
   }
 }
 
-export { generateNextSavingsReference, reverseSavingsDeductionsForSale } from "@/server/repositories/savings.repository";
-
 // ─── RÉCUPÉRATION GLOBALE DES DONNÉES DU MODULE ÉPARGNE CLIENT ─────────────────
 
 export interface CustomerSavingsAccountSummary {

@@ -4,7 +4,7 @@ import type {
   CustomerFundsConfirmation,
   ZakatCalculationGlobalStatus,
   ZakatCalculationResult,
-} from "@/lib/zakat";
+} from "@/lib/zakat/types";
 import type { OperatorAttribution } from "./auth";
 
 export type {

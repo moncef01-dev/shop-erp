@@ -5,6 +5,8 @@
 // Le type canonique du singleton est le client généré SQLite ; le client
 // PostgreSQL généré depuis le même schéma est casté (API identique).
 
+import "server-only";
+
 import { PrismaClient as SqlitePrismaClient } from "@/generated/prisma/sqlite/client";
 import { dbProvider } from "@/server/db/config";
 import { createSqliteClient } from "@/server/db/client.sqlite";

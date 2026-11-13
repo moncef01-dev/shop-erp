@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/server/db";
 import type { TxClient } from "@/server/db";
 import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
-import { calculateAccountBalance } from "@/server/repositories/cash.repository";
+import { calculateAccountBalance as calculateAccountBalanceImpl } from "@/server/repositories/cash.repository";
 import {
   findTreasuryAccountsWithTransfers,
   findRecentTreasuryTransfers,
@@ -31,7 +31,12 @@ import {
   findSuppAdditionalPaymentsForAccount,
 } from "@/server/repositories/cash.repository";
 
-export { calculateAccountBalance } from "@/server/repositories/cash.repository";
+export async function calculateAccountBalance(
+  accountId: number,
+  txClient?: TxClient
+): Promise<number> {
+  return calculateAccountBalanceImpl(accountId, txClient);
+}
 
 export interface TreasuryAccountData {
   id: number;

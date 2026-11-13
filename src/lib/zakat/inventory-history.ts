@@ -10,8 +10,10 @@
  * - Excludes unpriced and negative-stock items from confirmed asset valuation.
  */
 
+import "server-only";
+
 import { prisma as defaultPrisma } from "@/lib/prisma";
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { PrismaClient } from "@/server/db/types";
 import type {
   ZakatInventorySummary,
   ZakatProductInventoryItem,

@@ -57,37 +57,37 @@ import {
 } from "@/server/repositories/cash.repository";
 import {
   generateNextTreasuryTransferReference,
-  generateNextTreasuryAccountCode,
   getTreasuryDashboardData,
-  createTreasuryAccountAction,
-  updateTreasuryAccountAction,
-  createTreasuryTransferAction,
-  updateTreasuryTransferAction,
-  adjustAccountBalanceAction,
-  getAccountMovements,
-  type TreasuryAccountData,
-  type TreasuryTransferData,
-  type AccountMovementItem,
+  createTreasuryAccountAction as createTreasuryAccountActionImpl,
+  createTreasuryTransferAction as createTreasuryTransferActionImpl,
+  getAccountMovements as getAccountMovementsImpl,
   type TreasuryDashboardSummary,
 } from "./treasury-actions";
 import { calculateAccountBalance } from "@/server/repositories/cash.repository";
 
-export {
-  generateNextTreasuryTransferReference,
-  generateNextTreasuryAccountCode,
-  calculateAccountBalance,
-  getTreasuryDashboardData,
-  createTreasuryAccountAction,
-  updateTreasuryAccountAction,
-  createTreasuryTransferAction,
-  updateTreasuryTransferAction,
-  adjustAccountBalanceAction,
-  getAccountMovements,
-  type TreasuryAccountData,
-  type TreasuryTransferData,
-  type AccountMovementItem,
-  type TreasuryDashboardSummary,
-};
+export async function createTreasuryAccountAction(
+  ...args: Parameters<typeof createTreasuryAccountActionImpl>
+) {
+  return createTreasuryAccountActionImpl(...args);
+}
+
+export async function createTreasuryTransferAction(
+  ...args: Parameters<typeof createTreasuryTransferActionImpl>
+) {
+  return createTreasuryTransferActionImpl(...args);
+}
+
+export async function getAccountMovements(
+  ...args: Parameters<typeof getAccountMovementsImpl>
+) {
+  return getAccountMovementsImpl(...args);
+}
+
+export type {
+  TreasuryAccountData,
+  TreasuryTransferData,
+  AccountMovementItem,
+} from "./treasury-actions";
 
 export type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
@@ -107,7 +107,6 @@ function safeRevalidate(path: string) {
 }
 
 // ─── GÉNÉRATEURS DE RÉFÉRENCES SÉQUENTIELLES UNIQUE ──────────────────────────
-export { generateNextExpenseReference, generateNextCashSessionReference } from "@/server/repositories/cash.repository";
 
 // ─── GESTION DES SESSIONS DE CAISSE (OUVERTURE & CLÔTURE) ────────────────────
 

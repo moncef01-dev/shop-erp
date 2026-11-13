@@ -8,7 +8,7 @@ import type {
   ZakatYearType,
   CustomerFundsConfirmation,
   ZakatCalculationResult,
-} from "@/lib/zakat";
+} from "../types";
 import {
   calculateZakatPreviewAction,
   saveZakatValuationAction,

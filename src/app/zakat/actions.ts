@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { prisma } from "@/server/db";
+import type { Prisma, PrismaClient } from "@/server/db/types";
 import {
   calculateHistoricalBusinessZakat,
   roundMoney,

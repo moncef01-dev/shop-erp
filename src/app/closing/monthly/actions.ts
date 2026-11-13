@@ -132,8 +132,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 // ─── GÉNÉRATION DES RÉFÉRENCES DE SNAPSHOT : CLM-YYYYMM-XXXX ───────────────────
 
-export { generateNextMonthlySnapshotReference } from "@/server/repositories/closing.repository";
-
 // ─── CALCUL COMPLET DU DASHBOARD MENSUEL ──────────────────────────────────────
 
 export async function getMonthlyClosingData(

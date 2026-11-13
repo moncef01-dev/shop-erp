@@ -5,7 +5,7 @@ import { prisma } from "@/server/db";
 import type { TxClient } from "@/server/db";
 import { calculateAccountBalance } from "@/server/repositories/cash.repository";
 import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
-import { calculateSupplierDebt } from "@/server/repositories/suppliers.repository";
+import { calculateSupplierDebt as calculateSupplierDebtRepo } from "@/server/repositories/suppliers.repository";
 import {
   findSupplierById,
   findSupplierDebtDuplicate,
@@ -25,7 +25,12 @@ import {
   findLastPurchaseForSupplier,
 } from "@/server/repositories/suppliers.repository";
 
-export { calculateSupplierDebt } from "@/server/repositories/suppliers.repository";
+export async function calculateSupplierDebt(
+  supplierId: number,
+  txClient?: TxClient
+) {
+  return calculateSupplierDebtRepo(supplierId, txClient);
+}
 
 export interface SupplierStatementEvent {
   id: string;

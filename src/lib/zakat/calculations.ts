@@ -7,7 +7,9 @@
  * Strictly respects Corrections A, B, C, D, and E.
  */
 
-import type { PrismaClient } from "@/generated/prisma/client";
+import "server-only";
+
+import type { PrismaClient } from "@/server/db/types";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import type {
   ZakatCalculationInput,

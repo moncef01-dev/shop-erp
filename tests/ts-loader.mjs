@@ -24,6 +24,11 @@ export function resolve(specifier, context, nextResolve) {
   if (specifier === 'next/navigation') {
     return nextResolve(pathToFileURL(path.join(projectRoot, 'node_modules/next/navigation.js')).href, context);
   }
+  // Le package "server-only" lève sous Node sans la condition react-server ;
+  // le harnais de test n'est pas un bundle client, on résout vers empty.js.
+  if (specifier === 'server-only') {
+    return nextResolve(pathToFileURL(path.join(projectRoot, 'node_modules/server-only/empty.js')).href, context);
+  }
 
   if (specifier.startsWith('@/')) {
     const relativePart = specifier.slice(2);
