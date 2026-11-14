@@ -6,7 +6,6 @@ import {
   deductStockForSaleItem,
   restoreStockForCancelledSale,
 } from "@/server/services/inventory";
-import type { TxClient } from "@/server/db";
 import { roundMoney } from "@/lib/formatters";
 import { assertPeriodNotLocked, assertDatesNotLocked } from "@/server/services/period-lock";
 import { generateNextExpenseReference, resolvePaymentAccounting, findExistingRefundExpense, createExpenseRecord, findOpenCashSession, findDefaultCashAccountFull, findCashAccountAny } from "@/server/repositories/cash.repository";
@@ -399,6 +398,9 @@ export async function confirmDraftSaleAction(
       return { success: false, error: "Impossible de confirmer une vente annulée." };
     }
 
+    if (initialPayment && initialPayment.amount < 0) {
+      return { success: false, error: "Le montant du paiement ne peut pas être négatif." };
+    }
     const remainingBalance = roundMoney(Math.max(0, sale.totalAmount - sale.paidAmount));
     const paymentAmount = initialPayment && initialPayment.amount > 0 ? roundMoney(initialPayment.amount) : 0;
     if (paymentAmount > remainingBalance) {
@@ -410,35 +412,11 @@ export async function confirmDraftSaleAction(
 
     const result = await prisma.$transaction(
       async (tx) => {
-        // Pré-chargement optimisé des produits et emplacements pour éliminer les requêtes répétées
-        const uniqueProductIds = Array.from(new Set(sale.items.map((i) => i.productId)));
-        const uniqueLocationIds = Array.from(
-          new Set(sale.items.filter((i) => i.locationId).map((i) => i.locationId!))
-        );
+        // Règle métier : Chaque facture brouillon (Brouillon / DEV-) représente des marchandises
+        // commandées directement pour le client et ne provenant pas du stock inventorié.
+        // La confirmation d'un brouillon ne doit donc JAMAIS déduire de stock ni créer de mouvement de stock.
 
-        const [productsList, locationsList] = await preloadStockCaches(tx, uniqueProductIds, uniqueLocationIds, false);
-
-        const productCache = new Map(productsList.map((p) => [p.id, p]));
-        const locationCache = new Map(locationsList.map((l) => [l.id, l]));
-
-        // 1. Déduire le stock pour chaque article
-        for (const item of sale.items) {
-          if (!item.locationId) {
-            throw new Error(`L'article ${item.productId} n'a pas de dépôt source spécifié.`);
-          }
-          await deductStockForSaleItem(tx, {
-            saleId: sale.id,
-            saleReference: sale.reference,
-            productId: item.productId,
-            locationId: item.locationId,
-            quantity: item.quantity,
-            customerName: sale.customer?.name,
-            productCache,
-            locationCache,
-          });
-        }
-
-        // 2. Si c'était une référence brouillon DEV-, générer un vrai numéro de facture FAC-
+        // 1. Si c'était une référence brouillon DEV-, générer un vrai numéro de facture FAC-
         let reference = sale.reference;
         if (reference.startsWith("DEV-")) {
           reference = await generateNextInvoiceNumber(tx, false);
@@ -467,7 +445,7 @@ export async function confirmDraftSaleAction(
           paymentStatus = newPaid >= sale.totalAmount ? "paid" : "partial";
         }
 
-        // 3. Mettre à jour la vente
+        // 2. Mettre à jour la vente
         const updated = await updateSaleRecord(tx, sale.id, {
           reference,
           status: "confirmed",
@@ -488,7 +466,7 @@ export async function confirmDraftSaleAction(
 
     return {
       success: true,
-      message: `Vente ${result.reference} confirmée avec succès. Le stock a été déduit.`,
+      message: `Vente ${result.reference} confirmée avec succès.`,
       data: result,
     };
   } catch (err: unknown) {

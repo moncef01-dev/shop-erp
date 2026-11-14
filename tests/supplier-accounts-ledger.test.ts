@@ -424,13 +424,25 @@ async function main() {
     });
     assert(!zeroPayRes.success, "Un paiement <= 0 doit être rejeté");
 
-    // 3. Tenter un paiement dépassant la dette restante (> 1 204 500 DA)
-    const overPayRes = await supplierActions.recordSupplierPaymentMultiAccountAction({
+    // 3. Tenter un paiement avec solde trésorerie insuffisant
+    const overFundsRes = await supplierActions.recordSupplierPaymentMultiAccountAction({
       supplierId: supplier.id,
-      amount: 5000000,
+      amount: 50000000,
       sourceAccountId: 1,
     });
-    assert(!overPayRes.success, "Un paiement dépassant la dette restante doit être rejeté");
+    assert(!overFundsRes.success, "Un paiement dépassant le solde du compte de trésorerie doit être rejeté");
+
+    // 4. Paiement dépassant la dette restante : accepté et génère un crédit fournisseur
+    const overPayRes = await supplierActions.recordSupplierPaymentMultiAccountAction({
+      supplierId: supplier.id,
+      amount: 2000000,
+      sourceAccountId: 1,
+      notes: "Règlement avec excédent en crédit",
+    });
+    assert(overPayRes.success, `Le paiement excédentaire doit être accepté en crédit fournisseur: ${overPayRes.error}`);
+    const debtAfterOver = await supplierActions.calculateSupplierDebt(supplier.id);
+    assert(debtAfterOver.outstandingDebt === 0, "La dette restante doit être de 0 DA");
+    assert(debtAfterOver.outstandingCredit === 795500, `Le crédit fournisseur doit être de 795 500 DA, trouvé: ${debtAfterOver.outstandingCredit}`);
   });
 
   console.log("\n================================================================================");

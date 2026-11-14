@@ -521,11 +521,14 @@ async function runTests() {
     assert(confirmedSale!.status === "confirmed", "Statut attendu 'confirmed'");
     assert(confirmedSale!.reference.startsWith("FAC-"), `Référence doit être convertie en FAC-, trouvé: ${confirmedSale!.reference}`);
 
-    // Vérifier que le stock a été déduit à la confirmation
+    // Vérifier que le stock n'a PAS été déduit à la confirmation (règle métier: les brouillons représentent des marchandises hors inventaire)
     const stockAfterConfirm = await prisma.productStock.findUnique({
       where: { productId_locationId: { productId: prodA.id, locationId: showroom!.id } },
     });
-    assert(stockAfterConfirm!.quantity === 1, `Stock attendu 1 après confirmation, trouvé ${stockAfterConfirm!.quantity}`);
+    assert(stockAfterConfirm!.quantity === 3, `Stock attendu inchangé (3) après confirmation, trouvé ${stockAfterConfirm!.quantity}`);
+
+    const movementsConfirm = await prisma.stockMovement.findMany({ where: { saleId: draftId } });
+    assert(movementsConfirm.length === 0, `Aucun mouvement de stock attendu pour confirmation brouillon, trouvé ${movementsConfirm.length}`);
 
     // 3. Tenter une double confirmation (ne doit PAS déduire le stock deux fois)
     const resDouble = await salesActions.confirmDraftSaleAction(draftId);
@@ -535,7 +538,7 @@ async function runTests() {
     const stockAfterDouble = await prisma.productStock.findUnique({
       where: { productId_locationId: { productId: prodA.id, locationId: showroom!.id } },
     });
-    assert(stockAfterDouble!.quantity === 1, "Le stock a été déduit deux fois suite à une tentative de double confirmation !");
+    assert(stockAfterDouble!.quantity === 3, "Le stock a été altéré lors d'une tentative de double confirmation !");
 
     results.push({ num: 8, name: "Cycle de Vie Brouillon (DEV-) et Protection Double Confirmation", passed: true });
     console.log("✓ Test 8: Cycle de Vie Brouillon (DEV-) et Protection Double Confirmation réussi.");

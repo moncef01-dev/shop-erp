@@ -476,7 +476,7 @@ export async function recordSupplierPaymentMultiAccountAction(
   success: boolean;
   message?: string;
   error?: string;
-  data?: any;
+  data?: unknown;
 }> {
   try {
     let supplierIdStr: string | undefined;
@@ -570,32 +570,27 @@ export async function recordSupplierPaymentMultiAccountAction(
         );
       }
 
-      // 2. Évaluation de la dette et validation des trop-perçus
+      // 2. Évaluation de la dette et calcul d'un éventuel crédit / trop-perçu
       const debtInfo = await calculateSupplierDebt(supplier.id, tx);
-      if (amount > debtInfo.outstandingDebt) {
-        throw new Error(
-          `Le montant (${amount.toLocaleString(
-            "fr-DZ"
-          )} DA) dépasse la dette totale du fournisseur (${debtInfo.outstandingDebt.toLocaleString(
-            "fr-DZ"
-          )} DA). Les trop-perçus ne sont pas autorisés.`
-        );
-      }
+      const excessOverDebt = Math.max(0, amount - debtInfo.outstandingDebt);
 
+      let excessOverInvoice = 0;
       if (purchaseId) {
         const p = await tx.purchase.findUnique({ where: { id: purchaseId } });
         if (p) {
           const invBalance = Math.max(0, p.totalAmount - p.paidAmount);
           if (amount > invBalance) {
-            throw new Error(
-              `Le montant (${amount.toLocaleString(
-                "fr-DZ"
-              )} DA) dépasse le solde restant de la facture (${invBalance.toLocaleString(
-                "fr-DZ"
-              )} DA). Les trop-perçus ne sont pas autorisés.`
-            );
+            excessOverInvoice = amount - invBalance;
           }
         }
+      }
+
+      // Construction de la mention explicite de crédit fournisseur le cas échéant
+      let creditNote = "";
+      if (excessOverDebt > 0) {
+        creditNote = `[Crédit fournisseur : ${excessOverDebt.toLocaleString("fr-DZ")} DA — le fournisseur nous doit ce montant (we owe them / the supplier owes us this amount)]`;
+      } else if (excessOverInvoice > 0) {
+        creditNote = `[Excédent facture : ${excessOverInvoice.toLocaleString("fr-DZ")} DA imputé sur compte fournisseur — le fournisseur nous doit ce montant (we owe them / the supplier owes us this amount)]`;
       }
 
       // Protection anti-double soumission rapide (15 secondes)
@@ -631,7 +626,7 @@ export async function recordSupplierPaymentMultiAccountAction(
       const paymentDate = paymentDateStr ? new Date(paymentDateStr) : new Date();
 
       const baseNote = notes?.trim() || `Règlement fournisseur ${supplier.name} depuis ${sourceAccount.name}`;
-      const finalNotes = baseNote;
+      const finalNotes = creditNote ? `${baseNote} ${creditNote}`.trim() : baseNote;
 
       const payment = await tx.payment.create({
         data: {
@@ -737,7 +732,7 @@ export async function cancelSupplierPaymentAction(
   success: boolean;
   message?: string;
   error?: string;
-  data?: any;
+  data?: unknown;
 }> {
   try {
     const {
